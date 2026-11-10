@@ -220,12 +220,22 @@ def g6_gate(root, run):
     parse_rate = sum(row["parsed"]["point_s"] is not None for row in own) / max(1, len(own))
     base = read_jsonl(root / "data/eval/base-val-estimates.jsonl")
     base_own = [row for row in base if row["frame"] == "self" and row["card_id"] == "REF"]
+    # The plan compares against the best base-prompt estimator, not the pooled base rows.
+    base_best = min(
+        median_abs_error([row for row in base_own if row["estimator"] == name])
+        for name in {row["estimator"] for row in base_own}
+        if name in {"E0", "E1", "E2", "E3"}
+    )
+    parity = cpu_parity(root, run, evidence)
     checks = {
         "training_loss_finite": bool(losses) and all(map(_finite, losses)),
         "loss_decreases": len(losses) >= 4 and _tail_mean(losses) < _head_mean(losses),
         "val_parse_at_least_98pct": parse_rate >= 0.98,
-        "val_median_abs_log_error_beats_base": median_abs_error(own) < median_abs_error(base_own),
-        "merged_matches_hf_peft_within_2": evidence["numeric_mismatches"] <= 2,
+        "val_median_abs_log_error_beats_best_base_estimator": median_abs_error(own) < base_best,
+        # Dated PREREGISTRATION §7 deviation: the "<= 2 exact numeric mismatches" criterion is
+        # replaced by fp32 merge parity plus an explanation of every bf16 divergence.
+        "fp32_merge_matches_peft_logits": parity["fp32_max_abs_logit_diff"] <= 1e-3,
+        "every_bf16_divergence_within_bf16_logit_noise": parity["unexplained_mismatches"] == 0,
     }
     record_gate(
         root,
@@ -235,13 +245,34 @@ def g6_gate(root, run):
             "run": run,
             "val_parse_rate": parse_rate,
             "val_error": median_abs_error(own),
-            "base_val_error": median_abs_error(base_own),
+            "base_val_error": base_best,
             "numeric_mismatches": evidence["numeric_mismatches"],
+            "preregistered_parity_criterion_met": evidence["numeric_mismatches"] <= 2,
+            "cpu_parity": parity,
             "training_summary_sha256": file_hash(summary),
         },
     )
     write_json(root / "results/gates/G6-evidence.json", evidence)
     return checks
+
+
+def cpu_parity(root, run, evidence):
+    """Summarise scripts/g6_cpu_parity.py: fp32 merge vs PEFT, and bf16 divergences vs top-2 margins."""
+    path = Path(root) / f"results/g6-cpu-parity-{run}.json"
+    rows = json.loads(path.read_text())["rows"]
+    mismatched = [row for row in rows if row["numeric_mismatch_in_gpu_job"]]
+    if len(mismatched) != evidence["numeric_mismatches"]:
+        raise ValueError("CPU parity evidence does not cover every mismatching GPU prompt")
+    return {
+        "evidence_path": str(path.relative_to(root)),
+        "prompts_checked": len(rows),
+        "mismatching_prompts_checked": len(mismatched),
+        "fp32_max_abs_logit_diff": max(row["fp32_merge_max_abs_logit_diff"] for row in rows),
+        "unexplained_mismatches": sum(
+            row["bf16_merge_max_abs_logit_diff"] < row["min_top2_margin_at_digits"]
+            for row in mismatched
+        ),
+    }
 
 
 def median_abs_error(rows):

@@ -95,6 +95,9 @@ def parser():
     baseline = commands.add_parser("baselines")
     baseline.add_argument("--teacher", action="store_true")
     commands.add_parser("teacher")
+    commands.add_parser("proj8")
+    showcase = commands.add_parser("showcase")
+    showcase.add_argument("--runs", default="base")
     commands.add_parser("smoke-merged")
     sft = commands.add_parser("sft-data")
     sft.add_argument("--variant", choices=["m1", "m2", "m3"], default="m1")
@@ -206,6 +209,31 @@ def main(argv=None):
                 local_root=args.local_data,
                 workers=args.workers,
             )
+        elif args.command == "showcase":
+            from anthropochrony.measure.showcase import showcase_measurement
+
+            showcase_measurement(root, args.runs.split(","))
+        elif args.command == "proj8":
+            from anthropochrony.baselines.provider import CachedProvider
+            from anthropochrony.preflight import pinned_tokenizer
+            from anthropochrony.sandbox import Sandbox
+            from anthropochrony.tasks.proj8 import build_proj8
+
+            require_gate(root, "G0-security")
+            kept, report = build_proj8(
+                root,
+                CachedProvider(
+                    root,
+                    model="deepseek-ai/DeepSeek-V4-Pro",
+                    provider="deepinfra",
+                    input_per_million=1.3,
+                    output_per_million=2.6,
+                ),
+                Sandbox(),
+                pinned_tokenizer(root, config(root, "pins.yaml")),
+                reference_card(root),
+            )
+            print(json.dumps(report, indent=2))
         elif args.command == "labels":
             labels_command(root, args)
         elif args.command in {"prepare-round", "execute-round", "measure"}:

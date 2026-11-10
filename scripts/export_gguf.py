@@ -8,6 +8,7 @@ come from them.
 import argparse
 import hashlib
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -31,6 +32,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--run", required=True)
     parser.add_argument("--work", default="/home/adi/.cache/anthropochrony-tmp/gguf")
+    parser.add_argument("--keep-bf16", action="store_true")
     parser.add_argument("--quantizations", nargs="+", default=["Q4_K_M", "Q8_0"])
     args = parser.parse_args()
     import torch
@@ -42,18 +44,21 @@ def main():
     work.mkdir(parents=True, exist_ok=True)
     pins = yaml.safe_load((ROOT / "configs/pins.yaml").read_text())["subject"]
     adapter = work / "adapter"
-    adapter.mkdir(exist_ok=True)
-    HfApi().download_bucket_files(
-        BUCKET,
-        [
-            (f"adapters/{args.run}/{name}", adapter / name)
-            for name in ("adapter_model.safetensors", "adapter_config.json")
-        ],
-        raise_on_missing_files=True,
+    base = snapshot_download(
+        pins["repo"], revision=pins["revision"], cache_dir=Path(args.work) / "hf"
     )
-    base = snapshot_download(pins["repo"], revision=pins["revision"], cache_dir=work / "hf")
     model = AutoModelForCausalLM.from_pretrained(base, dtype=torch.bfloat16)
-    model = PeftModel.from_pretrained(model, adapter).merge_and_unload()
+    if args.run != "base":
+        adapter.mkdir(exist_ok=True)
+        HfApi().download_bucket_files(
+            BUCKET,
+            [
+                (f"adapters/{args.run}/{name}", adapter / name)
+                for name in ("adapter_model.safetensors", "adapter_config.json")
+            ],
+            raise_on_missing_files=True,
+        )
+        model = PeftModel.from_pretrained(model, adapter).merge_and_unload()
     merged = work / "merged"
     model.save_pretrained(merged, safe_serialization=True)
     AutoTokenizer.from_pretrained(base).save_pretrained(merged)
@@ -73,11 +78,14 @@ def main():
         ],
         check=True,
     )
+    shutil.rmtree(merged)
     record = {
         "run": args.run,
         "base_revision": pins["revision"],
         "llama_cpp_tag": "b12110",
-        "adapter_weights_sha256": sha256(adapter / "adapter_model.safetensors"),
+        "adapter_weights_sha256": (
+            None if args.run == "base" else sha256(adapter / "adapter_model.safetensors")
+        ),
         "files": {bf16.name: sha256(bf16)},
     }
     for quantization in args.quantizations:
@@ -87,6 +95,9 @@ def main():
             check=True,
         )
         record["files"][target.name] = sha256(target)
+    if not args.keep_bf16:
+        bf16.unlink()
+        record["files"].pop(bf16.name)
     (work / "gguf-manifest.json").write_text(json.dumps(record, indent=2))
     print(json.dumps(record, indent=2))
 

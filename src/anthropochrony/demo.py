@@ -6,6 +6,8 @@ import time
 from urllib.parse import urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from anthropochrony.eval.prompts import BASE_PREFILL
+from anthropochrony.parse import answer_segment
 from anthropochrony.prompts import estimate_messages, feedback, system_prompt
 from anthropochrony.sandbox import Sandbox
 from anthropochrony.sandbox.runner import extract_code
@@ -73,13 +75,27 @@ class LlamaBackend:
         ) as response:
             return json.load(response)
 
-    def generate(self, messages, *, base=False, max_tokens=512, coding=False):
+    def generate(self, messages, *, base=False, max_tokens=512, coding=False, prefill=""):
         url = self.base_url if base else self.tuned_url
-        prompt = self.request(url, "/apply-template", {"messages": messages})["prompt"]
+        prompt = self.request(url, "/apply-template", {"messages": messages})["prompt"] + prefill
         tokens = self.request(url, "/tokenize", {"content": prompt, "add_special": False})["tokens"]
         remaining = 8192 - len(tokens)
         if remaining < 256:
             raise ContextExhausted("Fewer than 256 context tokens remain")
+        if prefill:
+            # The prompt already ends with the prefill, so continue it as raw text.
+            result = self.request(
+                url,
+                "/completion",
+                {
+                    "prompt": prompt,
+                    "n_predict": min(max_tokens, remaining),
+                    "temperature": 0,
+                    "stop": ["<|END_RESPONSE|>", "<|END_OF_TURN_TOKEN|>"],
+                    "special": False,
+                },
+            )
+            return prefill + result["content"]
         result = self.request(
             url,
             "/v1/chat/completions",
@@ -111,7 +127,11 @@ class Demo:
         task = {"task_turn": task_turn(pasted)} if pasted.strip() else self.tasks[task_id]
         card = self.backend.calibrate()
         self.last_card = card
-        base = self.backend.generate(estimate_messages(task, card, estimator="E0"), base=True)
+        base = answer_segment(
+            self.backend.generate(
+                estimate_messages(task, card, estimator="E0"), base=True, prefill=BASE_PREFILL
+            )
+        )
         tuned = self.backend.generate(estimate_messages(task, card, estimator="agent"))
         human = self.backend.generate(
             estimate_messages(task, card, template_id="h09", estimator="agent")

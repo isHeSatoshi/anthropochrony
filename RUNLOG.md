@@ -1794,3 +1794,95 @@ Reservation train-m2-s0-693c9ed30d40: ≤$3.1500, before submitting the paid job
 
 Reservation train-m3-s0-94e065e80244: ≤$3.1500, before submitting the paid job.
 | 6af29e4dab34849891aa52e8 | train-m3-s0-94e065e80244 | l40sx1 | ≤105.0 | ≤3.1500 | Launched |
+
+## 2026-11-10: G4 and G5 passed, H1 on the base model, LR sweep, main training launched
+
+- G4 passed after the base-estimate parser change and the `Time estimate:` prefill (PREREGISTRATION §7). Parse rates: E0 0.927, E1 0.970. The hand audit used 60 rows, not the 200 in the plan; agreement was 58/60 = 0.967. The old-parser H1 summary was seen before the parser change; the unprefixed outputs are archived under `data/superseded/base-estimates-unprefixed/`.
+- H1 on test, as preregistered, is not met: E0 geometric-mean ratio 55.3 but anthropocentric-unit rate 0.024 (needs 0.5); E1 ratio 0.54 (needs 10). The base model mostly answers in minutes, and for its own time (E1) it gives tiny, badly calibrated values.
+- G5 passed on a real L40S dry run (job 6af28497…). The first dry run failed on a dataset-split loader error, the second on an out-of-memory error at micro-batch 8 (262k vocabulary); training now uses micro-batch 2 × 16 accumulation.
+- Two LR-sweep launches with dotted job names were rejected by HF (HTTP 400) and one val-estimate launch the same way; none created a job, all settled at $0.00. `launch` now validates the name before reserving.
+- LR sweep, 1 epoch of M1 seed 0 (jobs 6af2867b…, 6af28684…), validation REF own-estimate MdAE (log10): 1e-4 → 0.392, 2e-4 → 0.353; parse rate 1.0 for both. 2e-4 selected (`results/lr-selection.json`). Eval loss 0.2302 at 1e-4. Cost $1.17 and $1.23.
+- G6 circularity fixed (PREREGISTRATION §7): validation-only estimates of a fine-tuned adapter no longer require G6.
+- The first base lm-eval job (6af289fb…) timed out after 50 min at IFEval 365/541 at an automatic batch size of 2 ($1.47, no output). `jobs/capability_lmeval.py` now sets batch size 16 through `RunConfig`, and `--limit` applies to IFEval only; ARC-Challenge runs in full.
+- Main training launched at 10:01 IST: M1 s0 (6af29e0e…), M2 s0 (6af29e30…), M3 s0 (6af29e4d…), timeout 6,300 s each. The measured step time (about 10.3 s/step, 380 steps) puts each run at about 80 min and $2.4. Seeds 1 and 2 wait on the remaining budget (cut order in PLAN.md).
+- GGUF export smoke-tested on the LR-sweep adapter (CPU merge, llama.cpp b12110 conversion, Q4_K_M, llama-server answers in the fine-tuned format).
+
+Reservation est-m1-s0-e4540b3d9034da9c0cadb0af: ≤$1.2000, before submitting the paid job.
+| 6af2b0ef9737d9a9e08efa21 | est-m1-s0-e4540b3d9034da9c0cadb0af | l40sx1 | ≤40.0 | ≤1.2000 | Launched |
+
+Reservation est-m2-s0-97dbf1eb0b7e46d1b2291433: ≤$1.2000, before submitting the paid job.
+| 6af2b100ab34849891aa5e74 | est-m2-s0-97dbf1eb0b7e46d1b2291433 | l40sx1 | ≤40.0 | ≤1.2000 | Launched |
+
+Reservation lmeval-base-484e950466d75ccb88423b6a: ≤$1.5000, before submitting the paid job.
+| 6af2b2eb9737d9a9e08efde4 | lmeval-base-484e950466d75ccb88423b6a | l40sx1 | ≤50.0 | ≤1.5000 | Launched |
+
+Reservation est-m3-s0-28fd0fda760b8e26397cc12e: ≤$1.2000, before submitting the paid job.
+| 6af2b565ab34849891aa6b25 | est-m3-s0-28fd0fda760b8e26397cc12e | l40sx1 | ≤40.0 | ≤1.2000 | Launched |
+| e8c9ec041c38f859 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019435 | Reserved before request |
+| bb8ca60570e4c5e9 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019491 | Reserved before request |
+| 3b7961a14f369c58 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019434 | Reserved before request |
+| 7de055f369aa5c80 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019439 | Reserved before request |
+| 660a616d74bb42fb | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019418 | Reserved before request |
+| 23761e3a387cb3ad | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019430 | Reserved before request |
+| a0fad97c70475660 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019435 | Reserved before request |
+| 70e0a2546947054c | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019431 | Reserved before request |
+| 3a113a37d55844d2 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019686 | Reserved before request |
+| b150611e69052577 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.036665 | Reserved before request |
+| 1253c73223d61467 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.036663 | Reserved before request |
+| 06af24add65a7338 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.036663 | Reserved before request |
+| c6e35f1abebc9a1c | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019742 | Reserved before request |
+| b29530c9fd0547c1 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019685 | Reserved before request |
+| 4ed4def98f4e0260 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.042962 | Reserved before request |
+| 6b4890aea3dcf7ec | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.046972 | Reserved before request |
+| 5facd10784cb921d | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.046970 | Reserved before request |
+| 8a77759ffb176343 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019690 | Reserved before request |
+| 9420a815df7f6de2 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019669 | Reserved before request |
+| 096e1ce4c0407fe1 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.035125 | Reserved before request |
+| f4a2167c0dc12d31 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.035109 | Reserved before request |
+| c2cf6dbeb4533e5e | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.035110 | Reserved before request |
+| 820f0879bb33e8dc | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019681 | Reserved before request |
+| 45a16406771bda43 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.038597 | Reserved before request |
+| d24a5c0d21e43a20 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.038598 | Reserved before request |
+| 331687bbc36eef26 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.038600 | Reserved before request |
+| 8fb9272ae0fb1f8b | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019686 | Reserved before request |
+| 22edaec1cf07e52a | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.035376 | Reserved before request |
+| 67e8373579b5ee03 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.035394 | Reserved before request |
+| 87411c5d61e6d819 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.035378 | Reserved before request |
+| 7a40efdf4a79925e | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019682 | Reserved before request |
+| 0c0b369231b952ac | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.046706 | Reserved before request |
+| 6907339c7e48810e | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.046692 | Reserved before request |
+| 1ae1bc2012a75fb8 | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019835 | Reserved before request |
+| 54930e407ecde24a | provider deepseek-ai/DeepSeek-V4-Pro | deepinfra | — | ≤0.019778 | Reserved before request |
+
+2026-11-10T07:22:00.352564+00:00: est-m2-s0 6af2b100ab34849891aa5e74 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+2026-11-10T07:25:00.035050+00:00: est-m3-s0 6af2b565ab34849891aa6b25 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+2026-11-10T07:36:21.454793+00:00: lmeval-base 6af2b2eb9737d9a9e08efde4 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+Reservation generate-44e609492fea4e038b8e7a7f: ≤$1.2000, before submitting the paid job.
+| 6af2ca589737d9a9e08f4d83 | generate-44e609492fea4e038b8e7a7f | l40sx1 | ≤40.0 | ≤1.2000 | Launched |
+
+2026-11-10T07:51:01.540268+00:00: est-m1-s0 6af2b0ef9737d9a9e08efa21 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+2026-11-10T07:53:44.836240+00:00: generation 6af2ca589737d9a9e08f4d83 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+Reservation generate-efda7dad646c25fa2c6a5771: ≤$1.2000, before submitting the paid job.
+| 6af2cd929737d9a9e08f5a59 | generate-efda7dad646c25fa2c6a5771 | l40sx1 | ≤40.0 | ≤1.2000 | Launched |
+
+Reservation g6-m1-s0-47bb12a57286f2b8708c0668: ≤$0.9000, before submitting the paid job.
+| 6af2cdd39737d9a9e08f5b3f | g6-m1-s0-47bb12a57286f2b8708c0668 | l40sx1 | ≤30.0 | ≤0.9000 | Launched |
+
+2026-11-10T08:24:10.083644+00:00: generation 6af2cd929737d9a9e08f5a59 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+Reservation generate-74589ff35fff129d93cba96a: ≤$1.2000, before submitting the paid job.
+| 6af2d6419737d9a9e08f78fa | generate-74589ff35fff129d93cba96a | l40sx1 | ≤40.0 | ≤1.2000 | Launched |
+
+2026-11-10T08:35:50.908001+00:00: g6-m1-s0 6af2cdd39737d9a9e08f5b3f terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+## 2026-11-10 G6 outcome and freeze
+
+- M1-s0 G6 first failed only the exact-mismatch parity check (6 of 50). `scripts/g6_cpu_parity.py` showed fp32 merge = PEFT to 7e-5 in logits, and that bf16 rounding of merged weights (up to 1.2 logit) exceeds the top-2 digit margin in every mismatching prompt. Criterion changed in PREREGISTRATION §7 (dated, before any test run); G6 now passes with the original result kept in the evidence (`preregistered_parity_criterion_met: false`).
+- Other items logged in §7: seed cut (M1/M2 seed 0 only, M3 seed 0) because of the $30 cap; IFEval first-200 limit; G4 audit of 60 rows.
+- Earlier same day: PROJ-8 showcase tasks built (8 tasks, tests pruned to those the reference passes), base showcase generation in progress; first base lm-eval job timed out ($1.47) and was rerun with batch 16 and IFEval limited to 200; a budget-cap error ($29.76 + $1.2 > $30) occurred when completed jobs were not reconciled, so reconcile always precedes launches.
+- Freeze: commit and tag `prereg-v1` created after this entry, before any fine-tuned test/test_ood data exist.

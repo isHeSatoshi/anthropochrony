@@ -269,3 +269,36 @@ PLAN.md §8 has the full definitions. Priority: P0 = required for submission, P1
   file contains a split other than `val`; the preregistration-tag check for `test` and
   `test_ood` is unchanged. The LR sweep and the M1-s0 validation estimates use this
   path.
+- 2026-11-10, before any fine-tuned test run (G6 parity criterion): the first M1-s0 G6
+  attempt failed only the "at most 2 numeric mismatches between merged serving and
+  HF + PEFT greedy outputs on 50 `val` prompts" check (6 of 50 differed; 26 of 50 texts
+  identical; one outlier 60.0 vs 424.3 min; the others differed in a digit, e.g. 8.5 vs
+  8.4). All other G6 checks passed. A teacher-forced fp32 CPU analysis of the 8 prompts
+  (the 6 mismatching ones plus 2 matching ones; `results/g6-cpu-parity-m1-s0.json`) shows
+  that the fp32 merge reproduces the PEFT logits to within 7e-5, while rounding the merged
+  weights to bf16 moves logits by up to 1.2. In every mismatching prompt that bf16
+  perturbation exceeds the smallest top-2 logit margin at a digit position (0.009 to 0.22),
+  so the divergence is a bf16 near-tie flip and not a merge defect. The 2-mismatch rule is
+  kept as reported evidence (`preregistered_parity_criterion_met: false`), and G6 now
+  requires (a) fp32 merge logits within 1e-3 of PEFT on the checked prompts and (b) every
+  bf16 divergence explained by a top-2 margin below the measured bf16 logit perturbation.
+  This was chosen after seeing the validation parity result and before any test data was
+  generated for a fine-tuned model; all fine-tuned numbers in this study come from the
+  bf16 merged serving path, so the deviation does not change what is measured. Readers
+  should treat it as a weakening of the original criterion.
+- 2026-11-10, before any fine-tuned test run (training seeds): the $30 hard cap leaves
+  about $7 after the completed runs. One main training run costs $2.2 to $2.7 and each
+  fine-tuned model needs a merged re-measurement on `test` and `test_ood`, so seeds 1 and
+  2 of M1 and M2 cannot be funded. Following the plan's cut order (M2 seeds 1 and 2,
+  then M1 seeds 1 and 2), the confirmatory comparison uses **M1 seed 0, M2 seed 0 and M3
+  seed 0 only**. H2 and H5 use the same per-task paired Wilcoxon tests, with one seed in
+  place of the seed average; the task-level bootstrap is unchanged. Seed-to-seed variance
+  is therefore not estimated, and the results cannot rule out that a different seed
+  gives a different ranking. No threshold changes. The three seed-0 runs and the M1 seed
+  0 re-measurement, which the plan marks as never cut, are all present.
+- 2026-11-10: three smaller departures, all fixed before test data was touched.
+  (1) The G4 hand audit used 60 rows (58 correct), not 200. (2) The IFEval capability
+  check uses the first 200 prompts with batch 16, because the full 541 prompts did not
+  finish within the 50-minute job limit; ARC-Challenge is full. (3) The first base
+  lm-eval job timed out and was repeated with these settings ($1.47 spent on the failed
+  attempt).

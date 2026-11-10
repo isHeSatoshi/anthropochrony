@@ -60,7 +60,9 @@ def main():
         "self_hosted_usd_per_estimate_saturated": rows[0]["self_hosted_usd"]
         / rows[0]["monthly_estimates"],
         "always_on_gpu_usd_per_month": GPU_USD_PER_HOUR * month_hours,
-        "break_even_estimates_per_month_always_on": GPU_USD_PER_HOUR * month_hours / api_per_estimate,
+        "break_even_estimates_per_month_always_on": GPU_USD_PER_HOUR
+        * month_hours
+        / api_per_estimate,
         "caveats": [
             "GPU hours assume a saturated batch of 6,216 requests (99% mean GPU utilization); interactive traffic uses the GPU less well.",
             "The API price excludes any hidden reasoning tokens, so it is a lower bound for a reasoning model.",

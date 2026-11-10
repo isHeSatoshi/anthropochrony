@@ -121,7 +121,11 @@ CELLS = [
 
 def main():
     notebook = nbf.v4.new_notebook()
-    notebook.metadata["kernelspec"] = {"name": "python3", "display_name": "Python 3", "language": "python"}
+    notebook.metadata["kernelspec"] = {
+        "name": "python3",
+        "display_name": "Python 3",
+        "language": "python",
+    }
     for kind, source in CELLS:
         notebook.cells.append(
             nbf.v4.new_markdown_cell(source) if kind == "md" else nbf.v4.new_code_cell(source)

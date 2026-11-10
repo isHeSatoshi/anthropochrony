@@ -17,16 +17,18 @@ from anthropochrony.parse import parse
 LABELS = {
     "E0": "Base, zero-shot",
     "E1": "Base, with speed card",
-    "E2": "Base, with worked arithmetic",
+    "E2": "Base, 5 measured examples (few-shot)",
+    "E4": "Base, rescaled by speed ratio",
     "M1-S0": "Anthropochrony (M1, measured labels)",
     "M2-S0": "Teacher-guessed labels (M2)",
-    "M3-S0": "Curated, base labels (M3)",
+    "M3-S0": "Raw measured labels, uncurated (M3)",
     "B2": "Regression on task features",
 }
 COLORS = {
     "E0": "#b8b8b8",
     "E1": "#8c8c8c",
     "E2": "#c28f3e",
+    "E4": "#d8b878",
     "M1-S0": "#1b7f79",
     "M2-S0": "#7b5ea7",
     "M3-S0": "#2f6db5",
@@ -79,7 +81,7 @@ def hero(rows, directory):
 
 
 def accuracy_bars(metrics, directory):
-    order = ["E0", "E1", "E2", "B0", "B2", "M2-S0", "M1-S0", "M3-S0"]
+    order = ["E0", "E1", "E2", "E4", "B0", "B2", "M2-S0", "M1-S0", "M3-S0"]
     fig, axes = plt.subplots(1, 2, figsize=(11, 3.8), sharey=True)
     for axis, split in zip(axes, ("test", "test_ood"), strict=True):
         found = [

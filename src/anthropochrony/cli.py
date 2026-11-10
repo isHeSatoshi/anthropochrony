@@ -157,6 +157,7 @@ def parser():
     commands.add_parser("simulate")
     commands.add_parser("extra-analyses")
     commands.add_parser("plots")
+    commands.add_parser("derive-e4")
     capability = commands.add_parser("capability")
     capability.add_argument("--base-traces", type=Path, required=True)
     capability.add_argument("--fine-tuned-traces", type=Path, required=True)
@@ -417,6 +418,10 @@ def main(argv=None):
                 resamples=getattr(args, "resamples", 10000),
                 capability=read_jsonl(args.capability) if args.capability else None,
             )
+        elif args.command == "derive-e4":
+            from anthropochrony.baselines.rescale import derive_e4
+
+            print(derive_e4(root))
         elif args.command == "plots":
             from anthropochrony.eval.plots import make_figures
 

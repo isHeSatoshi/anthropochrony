@@ -3,6 +3,11 @@ from anthropochrony.labels import canonical_answer
 from anthropochrony.prompts import estimate_messages
 from anthropochrony.timemodel import SpeedCard
 
+# Zero-shot base prompts answered with code about half the time and parsed at under 20% (a dated
+# deviation in PREREGISTRATION.md section 7). The base model's reply starts after this text, and
+# the choice of number and unit stays its own. Fine-tuned models are evaluated without it.
+BASE_PREFILL = "Time estimate:"
+
 
 def build_evaluation_prompts(
     tasks, labels, *, split="test", include_fewshot=False, fine_tuned=None
@@ -58,6 +63,7 @@ def build_evaluation_prompts(
                     else f"sc{7 + assignment % 2:02d}"
                 )
                 prompt_estimator = "agent" if fine_tuned and frame != "human" else estimator
+                prefill = BASE_PREFILL if not fine_tuned and frame != "plan" else ""
                 messages = estimate_messages(
                     task,
                     card,
@@ -69,6 +75,7 @@ def build_evaluation_prompts(
                     {
                         "est_id": digest(
                             [task["task_id"], card.id, frame, template, fine_tuned or estimator]
+                            + ([prefill] if prefill else [])
                         ),
                         "task_id": task["task_id"],
                         "family": task["family"],
@@ -77,6 +84,7 @@ def build_evaluation_prompts(
                         "template_id": template,
                         "phrasing_id": phrasing,
                         "prompt_estimator": prompt_estimator,
+                        "prefill": prefill,
                         "estimator": fine_tuned.upper() if fine_tuned else estimator,
                         "label_source": label.get("label_source", "base"),
                         "card_id": card.id,
@@ -143,6 +151,7 @@ def build_evaluation_prompts(
                     "est_id": digest([target["est_id"], "E2"]),
                     "estimator": "E2",
                     "prompt_estimator": "E2",
+                    "prefill": "",
                     "messages": messages,
                     "prompt_sha": digest(messages),
                     "cross_family_fewshot": cross_family,

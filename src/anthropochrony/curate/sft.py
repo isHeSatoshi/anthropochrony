@@ -39,6 +39,7 @@ def build_sft(
     teachers=None,
     feedback_by_family=None,
     max_length=2048,
+    truncated_ids=frozenset(),
 ):
     if variant not in {"m1", "m2", "m3", "m4", "m5", "m6", "m7"}:
         raise ValueError("Unsupported SFT variant")
@@ -113,6 +114,16 @@ def build_sft(
                 rows.append(row)
         if variant != "m4":
             target = human_targets.get(task["task_id"])
+            if task["task_id"] in truncated_ids and not target:
+                drops.append(
+                    {
+                        "example_id": digest([task["task_id"], "human"]),
+                        "task_id": task["task_id"],
+                        "family": task["family"],
+                        "reason": "truncated_human_target",
+                    }
+                )
+                continue
             if not target or target["finish_reason"] == "length":
                 raise ValueError(
                     f"Missing untruncated human preservation target for {task['task_id']}"
@@ -176,7 +187,15 @@ def check_matched_variants(first, second):
 
 
 def build_matched_sft(
-    tasks, labels, human_targets, tokenizer, *, teachers, feedback_by_family, max_length=2048
+    tasks,
+    labels,
+    human_targets,
+    tokenizer,
+    *,
+    teachers,
+    feedback_by_family,
+    max_length=2048,
+    truncated_ids=frozenset(),
 ):
     """Use one length limit and a shared retained-ID set for the P0 variants."""
     if max_length not in {2048, 3072}:
@@ -194,6 +213,7 @@ def build_matched_sft(
                 teachers=teachers,
                 feedback_by_family=feedback_by_family,
                 max_length=limit,
+                truncated_ids=truncated_ids,
             )
         common_task_ids = {t["task_id"] for t in tasks if t["split"] in {"train", "val"}}
         shared = {row["example_id"] for row in variants["m1"]} & {
@@ -217,7 +237,11 @@ def build_matched_sft(
         fractions = {}
         for name, rows in variants.items():
             kept = Counter(row["family"] for row in rows)
-            dropped = Counter(row["family"] for row in exclusions[name])
+            dropped = Counter(
+                row["family"]
+                for row in exclusions[name]
+                if row["reason"] != "truncated_human_target"
+            )
             fractions[name] = {
                 family: dropped[family] / (kept[family] + dropped[family])
                 for family in kept.keys() | dropped.keys()

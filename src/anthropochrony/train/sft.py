@@ -102,8 +102,9 @@ def trainer_kwargs(config, seed):
     return {
         "backend": "trl",
         "num_epochs": config["epochs"],
-        "batch_size": 8,
-        "gradient_accumulation_steps": 4,
+        # Effective batch 32. The 262k-token vocabulary makes 8 x 3,072 logits exceed 44 GB.
+        "batch_size": 2,
+        "gradient_accumulation_steps": 16,
         "learning_rate": config["learning_rate"],
         "warmup_ratio": 0.05,
         "max_seq_length": config["max_seq_length"],

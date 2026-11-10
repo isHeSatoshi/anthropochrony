@@ -59,6 +59,8 @@ def launch(
         if not token:
             raise PermissionError("HF login is missing; stop remote work and renew access")
         env["HF_TOKEN"] = token
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+        raise ValueError(f"Job name {name!r} is rejected by HF (letters, digits, - and _ only)")
     cost = job_cost(flavor, timeout_s)
     budget = Budget(root)
     budget.reserve(name, cost, approved_over_five=approved_over_five)

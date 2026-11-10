@@ -11,6 +11,8 @@ from anthropochrony.gates import GateError
 from anthropochrony.prompts import estimate_messages
 from anthropochrony.timemodel import SpeedCard
 
+MAX_TRUNCATED_SHARE = 0.02
+
 
 def collect_preservation(root, paths):
     tasks = {task["task_id"]: task for task in read_jsonl(root / "data/tasks/tasks.jsonl")}
@@ -62,7 +64,13 @@ def collect_preservation(root, paths):
                 raise ValueError("Conflicting cached human preservation targets")
             selected[row["task_id"]] = row
     write_jsonl(root / "data/eval/preservation-blockers.jsonl", blockers, inputs=paths)
-    if any(row["task_id"] not in selected for row in blockers):
+    unusable = {row["task_id"] for row in blockers if row["task_id"] not in selected}
+    truncated_only = all(
+        row["reason"] == "truncated_human_target" for row in blockers if row["task_id"] in unusable
+    )
+    # A capped answer is never a target. Those tasks keep their self-frame examples and lose
+    # the human-frame one; anything beyond a small share means the cap itself is wrong.
+    if unusable and (not truncated_only or len(unusable) > MAX_TRUNCATED_SHARE * len(tasks)):
         raise GateError(
             "Truncated or incomplete human targets cannot enter SFT; collect complete answers first"
         )

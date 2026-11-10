@@ -197,10 +197,20 @@ def test_training_prerequisite_stages_are_reachable_without_selected_lr(
     monkeypatch.setattr(
         workflow, "launch", lambda root, name, **kwargs: captured.update(name=name, **kwargs)
     )
+    for split in ("train", "validation"):
+        (tmp_path / f"data/sft/m1/{split}").mkdir(parents=True)
+        (tmp_path / f"data/sft/m1/{split}/data.jsonl").write_text("{}\n")
+    (tmp_path / "data/sft/m1/curation/train").mkdir(parents=True)
+    (tmp_path / "data/sft/m1/curation/train/passed.jsonl").write_text("{}\n")
     args = SimpleNamespace(
         stage=stage, variant="m1", seed=0, learning_rate=0.0002, dry_run=True, launch_name=None
     )
     workflow.train_job(tmp_path, args)
+    staged = next((tmp_path / "artifacts/datasets").iterdir())
+    assert sorted(p.relative_to(staged).as_posix() for p in staged.rglob("*.jsonl")) == [
+        "train/data.jsonl",
+        "validation/data.jsonl",
+    ]
     config_path = tmp_path / f"artifacts/training-configs/{captured['name']}.json"
     actual = json.loads(config_path.read_text())
     assert gates == (["G4"] if stage == "dry-run" else ["G5"])

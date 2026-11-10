@@ -75,7 +75,8 @@ def run_estimates(root, run, prompt_paths, *, label, timeout_s=2400, adapter=Non
     if not prompts or len({row["est_id"] for row in prompts}) != len(prompts):
         raise ValueError("Estimate prompts must be non-empty and have unique IDs")
     require_preregistration(root, {row["split"] for row in prompts}, fine_tuned=fine_tuned)
-    if fine_tuned:
+    if fine_tuned and {row["split"] for row in prompts} != {"val"}:
+        # Validation-only estimates are the evidence G6 itself is built from.
         require_gate(root, "G6")
     identity = _identity(root, adapter)
     pins = config(root, "pins.yaml")["subject"]
@@ -140,6 +141,34 @@ def run_estimates(root, run, prompt_paths, *, label, timeout_s=2400, adapter=Non
             inputs=[directory / "estimates.jsonl"],
         )
     return by_split
+
+
+def run_lmeval(root, run, *, timeout_s=3000, limit=None):
+    """IFEval and ARC-Challenge through AuditKIT's lm-eval engine, on base or merged weights."""
+    root = Path(root)
+    fine_tuned = run != "base"
+    if fine_tuned:
+        require_gate(root, "G6")
+    identity = _identity(root, run)
+    directory = root / "data/capability/jobs" / run
+    job = GPUJob(
+        root,
+        directory,
+        kind=f"lmeval-{run}",
+        script="jobs/capability_lmeval.py",
+        files=[],
+        arguments=[
+            *(["--adapter", f"/out/adapters/{run}"] if fine_tuned else []),
+            *(["--limit", str(limit)] if limit else []),
+        ],
+        outputs=["lmeval.json"],
+        timeout_s=timeout_s,
+        context={"run": run, "model_sha": identity["model_sha"] if identity else None},
+        include_auditkit=True,
+        required_gates=("G0-security", "G1", "G2"),
+    )
+    job.run()
+    return json.loads((directory / "lmeval.json").read_text())
 
 
 def run_g6(root, run, *, timeout_s=1800):

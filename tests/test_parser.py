@@ -60,3 +60,16 @@ def test_invalid_and_judge():
     )
     assert result.parse_method == "judge"
     assert result.point_s == 60
+
+
+def test_code_is_not_an_estimate():
+    code = "```python\ndef f(s):\n    return 2 s\n```\nTime Complexity: 5 s"
+    assert parse("```python\nx = 3 s\n").point_s is None
+    assert parse(code).point_s == 5
+
+
+def test_non_plan_answer_uses_first_duration_paragraph_only():
+    text = "Time estimate: 5-10 minutes\n\n**Explanation:** the loop runs in 2 s."
+    assert parse(text).point_s == pytest.approx(math.sqrt(50) * 60)
+    plan = "Design: 10 min\n\nCode: 20 min"
+    assert parse(plan, plan=True).point_s == 1800

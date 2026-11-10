@@ -1,6 +1,7 @@
 """Pipeline entry points. Each stage validates prerequisites before spending money."""
 
 import json
+import shutil
 import subprocess
 
 import pandas as pd
@@ -386,6 +387,16 @@ def sft_data(root, variant):
     targets = {r["task_id"]: r for r in human}
     if len(targets) != len(human):
         raise GateError("Human preservation targets must identify one seeded answer per task")
+    blockers_path = root / "data/eval/preservation-blockers.jsonl"
+    truncated = (
+        {
+            row["task_id"]
+            for row in read_jsonl(blockers_path)
+            if row["reason"] == "truncated_human_target" and row["task_id"] not in targets
+        }
+        if blockers_path.exists()
+        else set()
+    )
     tokenizer = AutoTokenizer.from_pretrained(root / "pins/tiny-aya-global", local_files_only=True)
     teachers = json.loads((root / "data/teacher/quantities.json").read_text())
     feedback = json.loads((root / "data/measure/feedback-medians.json").read_text())
@@ -401,6 +412,7 @@ def sft_data(root, variant):
         teachers=teachers,
         feedback_by_family=feedback,
         max_length=limits.pop(),
+        truncated_ids=frozenset(truncated),
     )
     if report["expanded_to_3072"]:
         with (root / "docs/PREREGISTRATION.md").open("a") as prereg:
@@ -447,12 +459,25 @@ def train_job(root, args):
     else:
         run = f"{args.variant}-{'dryrun-' if stage == 'dry-run' else ''}s{args.seed}"
     cfg["base"] = config(root, "pins.yaml")["subject"]
-    dataset = root / "data/sft" / args.variant
+    source = root / "data/sft" / args.variant
+    # AlignTune's directory loader fails on extra files that map to a split, so ship only the
+    # two trainer files, not the CuratorKIT curation output.
+    dataset = (
+        root
+        / "artifacts/datasets"
+        / f"{args.variant}-{file_hash(source / 'train/data.jsonl')[:12]}"
+    )
+    for split in ("train", "validation"):
+        target = dataset / split / "data.jsonl"
+        if not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source / split / "data.jsonl", target)
     stamp = digest(
         {
             "config": cfg,
             "stage": stage,
             "data": file_hash(dataset / "train/data.jsonl"),
+            "validation": file_hash(dataset / "validation/data.jsonl"),
             "trainer": file_hash(root / "src/anthropochrony/train/sft.py"),
             "job": file_hash(root / "jobs/train_sft.py"),
         }
@@ -470,7 +495,7 @@ def train_job(root, args):
             root,
             name,
             flavor="l40sx1",
-            timeout_s=1200 if stage == "dry-run" else 3600 if stage == "lr-sweep" else 5400,
+            timeout_s=1200 if stage == "dry-run" else 3600 if stage == "lr-sweep" else 6300,
             secret=stage != "dry-run",
             uv_script=True,
             image=str(root / "jobs/train_sft.py"),

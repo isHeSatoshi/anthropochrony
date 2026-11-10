@@ -390,3 +390,19 @@ def test_latency_fallback_refuses_a_latency_that_is_not_the_central_constant(tmp
     _adoption_fixture(tmp_path, latency=2.0)
     with pytest.raises(ValueError, match="does not match"):
         validation.adopt_latency_fallback(tmp_path, "data/calibration/obs")
+
+
+def test_launch_rejects_names_hf_would_refuse_before_reserving(tmp_path):
+    from anthropochrony import jobs
+    from anthropochrony.budget import Budget
+
+    with pytest.raises(ValueError, match="rejected by HF"):
+        jobs.launch(
+            tmp_path,
+            "fixture-lr-0.0001",
+            flavor="l40sx1",
+            timeout_s=1200,
+            image="fixture-image",
+            command=["fixture-command"],
+        )
+    assert Budget(tmp_path).total() == 0

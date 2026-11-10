@@ -75,8 +75,23 @@ class Estimate:
         return asdict(self)
 
 
-def parse(text, *, calendar=False, judge=None, question=""):
+CODE_BLOCK = re.compile(r"```.*?(?:```|\Z)", re.S)
+
+
+def answer_segment(text, plan=False):
+    """Prose outside code fences; a non-plan answer is its first paragraph with a duration."""
+    prose = CODE_BLOCK.sub("\n\n", text).strip()
+    if plan:
+        return prose
+    for paragraph in re.split(r"\n\s*\n", prose):
+        if DURATION.search(paragraph):
+            return paragraph
+    return prose
+
+
+def parse(text, *, calendar=False, judge=None, question="", plan=False):
     factors = FACTORS | ({"day": 86400, "week": 604800, "month": 2628000} if calendar else {})
+    text = answer_segment(text, plan)
     matches = list(DURATION.finditer(text))
     units = sorted({unit(m[g]) for m in matches for g in ("lu", "hu") if m[g]})
     result = Estimate(

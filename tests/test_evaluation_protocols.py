@@ -125,6 +125,9 @@ def test_human_prompts_are_matched_and_raw_preservation_is_training_only(tmp_pat
         next(r for r in base if r["frame"] == "human")["messages"]
         == next(r for r in tuned if r["frame"] == "human")["messages"]
     )
+    assert {r["prefill"] for r in base if r["frame"] != "plan"} == {"Time estimate:"}
+    assert {r["prefill"] for r in base if r["frame"] == "plan"} == {""}
+    assert {r["prefill"] for r in tuned} == {""}
     raw = build_evaluation_prompts(tasks, labels, split="raw_extra")
     assert len(raw) == 1
     assert raw[0]["frame"] == "human"

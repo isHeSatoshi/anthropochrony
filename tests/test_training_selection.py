@@ -28,6 +28,7 @@ def sweep_fixture(root, predictions=(20, 2)):
         )
     train = root / "data/sft/m1/train/data.jsonl"
     write_jsonl(train, [{"fixture": i} for i in range(40)])
+    write_jsonl(root / "data/sft/m1/validation/data.jsonl", [{"fixture": 0}])
     tasks = [
         {"task_id": str(i), "family": "FUNC", "task_turn": "Implement f().", "split": "val"}
         for i in range(4)

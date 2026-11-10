@@ -47,6 +47,17 @@ def main():
     requests, exhausted = prepare_estimate_requests(
         tokenizer, prompts, config["engine"]["max_model_len"]
     )
+    by_prompt = {row["est_id"]: row for row in prompts}
+    for request in requests:
+        # The reply continues from the prefill; tokenizing it separately avoids a second BOS.
+        prefill = by_prompt[request["request_id"]].get("prefill", "")
+        if prefill:
+            extra = tokenizer.encode(prefill, add_special_tokens=False)
+            request["prompt_token_ids"] = request["prompt_token_ids"] + extra
+            request["max_tokens"] = min(
+                request["max_tokens"],
+                config["engine"]["max_model_len"] - len(request["prompt_token_ids"]),
+            )
     if requests:
         engine = VLLMEngine(args.model, config["engine"])
         generated, performance, samples = measured_generate(engine, requests, greedy=True)
@@ -57,6 +68,10 @@ def main():
     if len(by_id) != len(generated) or set(by_id) != {row["request_id"] for row in requests}:
         raise ValueError("Estimate generation outputs do not match the requested IDs")
     by_id.update(exhausted)
+    for request_id, generation in by_id.items():
+        prefill = by_prompt[request_id].get("prefill", "")
+        if prefill and request_id not in exhausted:
+            by_id[request_id] = generation | {"text": prefill + generation["text"]}
     request_limits = {row["request_id"]: row["max_tokens"] for row in requests}
 
     def generate(inputs):
@@ -82,7 +97,7 @@ def main():
                 "model_called": prompt["est_id"] not in exhausted,
                 "prompt_tokens_total": generation["prompt_tokens_total"],
                 "effective_max_tokens": request_limits.get(prompt["est_id"], 0),
-                "parsed": parse(generation["text"]).as_dict(),
+                "parsed": parse(generation["text"], plan=prompt["frame"] == "plan").as_dict(),
                 "auditkit_fingerprint": fingerprint,
             }
         )

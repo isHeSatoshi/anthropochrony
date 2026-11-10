@@ -132,6 +132,9 @@ def parser():
     audit = commands.add_parser("parser-audit")
     audit.add_argument("--gate", action="store_true")
     commands.add_parser("merge-estimates")
+    lmeval = commands.add_parser("lmeval")
+    lmeval.add_argument("--run", default="base")
+    lmeval.add_argument("--limit", type=int)
     g6 = commands.add_parser("g6")
     g6.add_argument("--run", default="m1-s0")
     preservation = commands.add_parser("collect-preservation")
@@ -346,6 +349,10 @@ def main(argv=None):
             from anthropochrony.eval.merge import merge_estimates as merge_all
 
             print(merge_all(root))
+        elif args.command == "lmeval":
+            from anthropochrony.eval.remote import run_lmeval
+
+            print(json.dumps(run_lmeval(root, args.run, limit=args.limit), indent=2))
         elif args.command == "g6":
             from anthropochrony.eval.remote import g6_gate
 

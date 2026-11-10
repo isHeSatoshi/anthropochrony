@@ -219,3 +219,53 @@ PLAN.md §8 has the full definitions. Priority: P0 = required for submission, P1
   4,096 tokens (the existing PROJ cap), still limited by the 8,192 context. All
   other settings, families and caps are unchanged. The pilot and the invariance
   check are repeated under the new cap.
+- 2026-11-10, before training and before any fine-tuned evaluation, after the
+  first base-model estimate run (job 6af256a29737d9a9e08dfcb6, all splits,
+  unprefixed prompts; the outputs, including the `test` split, were read before
+  this change and are kept under `data/superseded/base-estimates-unprefixed/`).
+  On `test`, the zero-shot base prompts E0 and E1 (self frame) answered with a
+  code block instead of an estimate in about half of the replies (parse rate
+  0.46 and 0.51 under the old parser), and the old parser then read numbers out
+  of the code. Gate G4 (parse rate >= 90%) therefore could not pass. Two
+  instrument changes, applied to every base estimate. They were chosen after
+  seeing the old-parser H1 summary (geometric-mean ratios 0.98 for E0 and 0.16
+  for E1, mostly computed from numbers inside code), not from any accuracy
+  comparison between estimators:
+  (1) The parser reads prose only. Fenced code blocks are removed, and a
+  non-plan answer is its first paragraph that contains a duration. Plan-frame
+  answers keep the step-summing rule. Re-parsing the old replies this way gives
+  parse rates of 0.17 (E0) and 0.27 (E1), so the old rates were mostly parser
+  artifacts, not estimates.
+  (2) The zero-shot base estimators (E0, E1, E3, the wording set and all
+  human-frame prompts) now start the model's reply with the fixed text
+  `Time estimate:`, and the model continues from there. The number and unit stay
+  entirely the model's. The plan frame, E2 and all fine-tuned evaluations use no
+  prefix. The prefix favors the base model, so it can only make the base
+  comparison conservative. Human-frame preservation targets are the prefix plus
+  the base continuation. The unprefixed results stay reported as the
+  "no-prefill" finding. No threshold, split, label or time formula changes.
+
+- 2026-11-10, before training: the S5 family-wise sequence-loss rule triggered on matched M1/M2/M3 data at 2048 tokens. Rebuild every variant with max_seq_length=3072, retain matched common example IDs, and record both initial and final per-family drop shares in data/sft/matched-summary.json.
+- 2026-11-10, before training: seven base human-frame answers hit the 1,024-token
+  cap (train 6, raw_extra 4 across ALGO_IO, FUNC and CLASS; 0 in val; 0.5% of all
+  tasks). The plan says a capped answer is never a target. Those tasks therefore
+  keep their six self-frame examples and lose only the human-frame example, in
+  every variant alike (listed in `data/eval/preservation-blockers.jsonl` and in
+  each variant's `dropped.jsonl`). Collection still stops if capped or incomplete
+  answers exceed 2% of tasks. The 3,072-token rule is driven by sequence-length
+  drops only, not by these.
+- 2026-11-10, before training: the S5 diff test asked for different M1 and M2 assistant
+  content in every self-frame example. Two of 5,898 coincide exactly (HumanEval/23,
+  where the teacher and the measurement both give about 45 output tokens and one
+  attempt). The test now requires at least 99.9% to differ and lists the identical
+  example IDs in the G5 evidence. Its purpose, that M1 and M2 differ only in labels,
+  is unchanged.
+- 2026-11-10, before training: the 262,144-token vocabulary makes micro-batch 8 at
+  up to 3,072 tokens exceed the L40S's 44 GB (first dry run OOM). Training uses
+  micro-batch 2 with gradient accumulation 16, the same effective batch of 32.
+- 2026-11-10, before any fine-tuned test run: G6 is assembled from validation estimates
+  of the fine-tuned adapter, but the estimate runner required G6 for every fine-tuned
+  run, which made the gate circular. The runner now requires G6 only when a prompt
+  file contains a split other than `val`; the preregistration-tag check for `test` and
+  `test_ood` is unchanged. The LR sweep and the M1-s0 validation estimates use this
+  path.

@@ -1,0 +1,70 @@
+SHELL := /bin/bash
+.ONESHELL:
+ROOT := $(abspath .)
+RUN ?= base
+VARIANT ?= m1
+SEED ?= 0
+ROUND ?= 1
+PHASE ?= pilot
+LOCAL_DATA ?= ../scratch/data
+GENERATION ?=
+
+.PHONY: setup exec-env test lint smoke preflight tasks calibrate measure labels baselines sft-data train remeasure eval figures demo release status prepare-round execute-round
+
+setup:
+	set -e
+	. "$(ROOT)/env.sh"
+	uv sync --locked
+
+exec-env:
+	set -e
+	. "$(ROOT)/env.sh"
+	uv venv --python 3.10 "$$HOME/.local/share/anthropochrony-envs/exec"
+	uv pip sync --python "$$ANTHROPOCHRONY_EXEC_PYTHON" src/anthropochrony/execenv/requirements.lock
+
+test:
+	set -e
+	. "$(ROOT)/env.sh"
+	uv run pytest
+
+lint:
+	set -e
+	. "$(ROOT)/env.sh"
+	uv run ruff check .
+	uv run ruff format --check .
+	uv run anthropochrony prompts --check
+
+smoke preflight tasks calibrate labels baselines status release:
+	set -e
+	. "$(ROOT)/env.sh"
+	uv run anthropochrony $@ $(if $(filter tasks,$@),--local-data "$(abspath $(LOCAL_DATA))",)
+
+measure remeasure:
+	set -e
+	. "$(ROOT)/env.sh"
+	uv run anthropochrony measure --run "$(RUN)" --phase "$(PHASE)"
+
+prepare-round execute-round:
+	set -e
+	. "$(ROOT)/env.sh"
+	uv run anthropochrony $@ --run "$(RUN)" --phase "$(PHASE)" --round "$(ROUND)" $(if $(GENERATION),--generation "$(abspath $(GENERATION))",)
+
+sft-data:
+	set -e
+	. "$(ROOT)/env.sh"
+	uv run anthropochrony sft-data --variant "$(VARIANT)"
+
+train:
+	set -e
+	. "$(ROOT)/env.sh"
+	uv run anthropochrony train --variant "$(VARIANT)" --seed "$(SEED)"
+
+eval figures:
+	set -e
+	. "$(ROOT)/env.sh"
+	uv run anthropochrony $@
+
+demo:
+	set -e
+	. "$(ROOT)/env.sh"
+	uv run --extra demo python "$(ROOT)/space/app.py"

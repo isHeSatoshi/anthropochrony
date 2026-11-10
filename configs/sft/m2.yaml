@@ -1,0 +1,6 @@
+variant: m2
+learning_rate: 0.0001
+learning_rate_selected_on_val: false
+epochs: 2
+max_seq_length: 2048
+seeds: [0, 1, 2]

@@ -1,0 +1,20 @@
+model_id: CohereLabs/tiny-aya-global
+model_sha: af89d219b53ed9b13b8a4645f9c8028973510324
+k: 8
+attempts: 3
+temperature: 0.1
+top_p: 0.95
+stop_token_ids:
+- 6
+- 261001
+context: 8192
+workers: 8
+engine:
+  dtype: bfloat16
+  max_model_len: 8192
+  gpu_memory_utilization: 0.92
+  enable_prefix_caching: true
+  enable_chunked_prefill: true
+  max_num_seqs: 512
+  max_num_batched_tokens: 16384
+  disable_log_stats: false

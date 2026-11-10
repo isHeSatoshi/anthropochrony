@@ -1,0 +1,83 @@
+{
+  "subject": {
+    "repo": "CohereLabs/tiny-aya-global",
+    "revision": "af89d219b53ed9b13b8a4645f9c8028973510324",
+    "tokenizer_sha256": "2227ea9c52e8afb3f98bfed2679008b275f2664de69dfde174b374389eb0225d"
+  },
+  "datasets": {
+    "evalplus/humanevalplus": {
+      "revision": "d32357cf319e50e9c8d8dab5ea876c72b0fd321b",
+      "files": [
+        "data/test-00000-of-00001-5973903632b82d40.parquet"
+      ],
+      "license": "Apache-2.0; HumanEval MIT"
+    },
+    "evalplus/mbppplus": {
+      "revision": "b2d74c91837c3f2a20c1299ae98133cbe7cfa077",
+      "files": [
+        "data/test-00000-of-00001-d5781c9c51e02795.parquet"
+      ],
+      "license": "Apache-2.0; MBPP CC-BY-4.0"
+    },
+    "FudanSELab/ClassEval": {
+      "revision": "fef204b34e221f207f47904ee660bb920d4c5d1d",
+      "files": [
+        "data/test-00000-of-00001-5c45fa6e45572491.parquet"
+      ],
+      "license": "CC-BY-NC-4.0"
+    },
+    "bigcode/bigcodebench": {
+      "revision": "b74c0d0bf70d2c0bc459be537895cca163007f1a",
+      "files": [
+        "data/v0.1.4-00000-of-00001.parquet"
+      ],
+      "license": "Apache-2.0"
+    },
+    "bigcode/bigcodebench-hard": {
+      "revision": "298d2cc7b96612e15e47313c3603ee124cee0c1f",
+      "files": [
+        "data/v0.1.4-00000-of-00001.parquet"
+      ],
+      "license": "Apache-2.0"
+    },
+    "newfacade/LeetCodeDataset": {
+      "revision": "215604aeed660029df7de2fea5a4d7b6ed476a08",
+      "files": [
+        "LeetCodeDataset-test.jsonl",
+        "LeetCodeDataset-train.jsonl"
+      ],
+      "license": "Apache-2.0 metadata; LeetCode statements not redistributable"
+    },
+    "deepmind/code_contests": {
+      "revision": "802411c3010cb00d1b05bad57ca77365a3c699d6",
+      "files": [
+        "data/test-00000-of-00001-9c49eeff30aacaa8.parquet",
+        "data/valid-00000-of-00001-5e672c5751f060d3.parquet"
+      ],
+      "license": "CC-BY-4.0; statements release by ID only"
+    },
+    "BAAI/TACO": {
+      "revision": "d593ed0a2becbbc952230bb89be09189bf1056dc",
+      "files": [
+        "ALL/test-00000-of-00001.parquet"
+      ],
+      "license": "Apache-2.0; third-party statements release by ID only"
+    }
+  },
+  "generation_image": "vllm/vllm-openai@sha256:91ee972ab751fb7180bc71c175865e36b091686600dca783d52b2511399810b3",
+  "llamacpp": {
+    "tag": "b12110",
+    "release": "v0.9.0",
+    "revision": "cd959bae99ff4bed22bef2604f45241c09bbb8c8"
+  },
+  "teacher": {
+    "model": "deepseek-ai/DeepSeek-V4-Pro",
+    "provider": "deepinfra",
+    "date": "2026-11-09"
+  },
+  "judge": {
+    "model": "openai/gpt-oss-120b",
+    "provider": null,
+    "date": "2026-11-09"
+  }
+}

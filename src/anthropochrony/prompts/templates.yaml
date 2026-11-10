@@ -1,0 +1,294 @@
+system: 'You are a Python coding agent.
+
+  How a run works: you read the task and write a complete solution, then the harness runs the task''s tests. If
+  a test fails, you see the failure and write a corrected full solution. You get at most 3 attempts. The run ends
+  when the tests pass or after your third attempt.
+
+  A run''s time counts from when you start reading the task until the last test run finishes, whether or not the
+  tests pass.
+
+  {speed_card}'
+task: 'Task:
+
+  {spec}
+
+
+  Write the complete solution in Python in one ```python code block.'
+feedback: 'The tests failed (attempt {j} of 3).
+
+  {failure_summary}
+
+
+  Reply with the complete corrected solution in one ```python code block.'
+target: 'About {T} (likely {LO}–{HI}). Breakdown: ~{TOK} output tokens at {S} tok/s ≈ {GEN}{OVH}; {ATT}. First-attempt
+  pass chance: {PFP}.'
+example: 'About 30 s (likely 20–55 s). Breakdown: ~900 output tokens at 35 tok/s ≈ 26 s, plus ~4.3 s reading the
+  task and running tests; 1 attempt expected. First-attempt pass chance: about 70%.'
+teacher: 'You are predicting the behavior of a specific small AI coding agent on a task. Do not solve the task.
+
+  Agent: Tiny Aya Global, an open 3.35B-parameter multilingual chat model, temperature 0.1.
+
+  Harness: the agent writes a complete Python solution; tests run; on failure it sees the failure and rewrites the
+  full solution; at most 3 attempts; it stops when tests pass.
+
+  Task given to the agent:
+
+  <<<
+
+  {task_turn}
+
+  >>>
+
+  Predict for this agent on this task:
+
+  - tokens_median: total output tokens across all attempts (median over repeated runs)
+
+  - tokens_p10, tokens_p90: 10th and 90th percentile of that total
+
+  - attempts_median: 1, 2 or 3
+
+  - p_first_pass: probability its first attempt passes all tests
+
+  - test_seconds: wall time of one test run
+
+  Reply with JSON only: {"tokens_median": int, "tokens_p10": int, "tokens_p90": int, "attempts_median": int, "p_first_pass":
+  float, "test_seconds": float}'
+synthetic: 'Create one self-contained Python programming task of the "small project" kind.
+
+  Category: {category}. Difficulty: {difficulty} (target reference size: {lines} lines).
+
+  Constraints: Python 3.10 standard library only; everything in one module named solution.py; deterministic; no
+  network, no sleeping, no reading files outside a pytest tmp_path; all tests must finish in under 5 seconds.
+
+  Return exactly three sections:
+
+  <spec>A clear task description for a developer (what to build, public functions/classes with signatures, behaviors,
+  edge cases). Do not include the implementation.</spec>
+
+  <reference>The complete reference solution.py.</reference>
+
+  <tests>A pytest file (8 to 15 tests) that imports from solution and checks the spec''d behavior.</tests>'
+judge: 'Extract the time estimate from an answer. The answer replies to the question shown.
+
+  Question: {question}
+
+  Answer: <<<{answer}>>>
+
+  Rules: If a range is given, lo and hi are its ends and point is their geometric mean. If only per-step durations
+  are given, sum them. Convert with 1 day = 8 h, 1 week = 40 h, 1 month = 160 h. If no duration is stated, has_estimate
+  is false.
+
+  Return JSON only: {"has_estimate": bool, "point_seconds": number|null, "lo_seconds": number|null, "hi_seconds":
+  number|null, "units_used": [string], "referent": "self"|"human"|"generic_ai"|"unclear"}'
+templates:
+  sc01:
+    split: train
+    text: 'Your serving speed: you write about {S} tokens per second and read about {P} prompt tokens per second.'
+  sc02:
+    split: train
+    text: 'Throughput on this deployment: {S} output tokens/s, {P} input tokens/s.'
+  sc03:
+    split: train
+    text: You are running on hardware that generates about {S} tokens/s (prompt processing about {P} tokens/s).
+  sc04:
+    split: train
+    text: 'Speed: decode {S} tok/s; prefill {P} tok/s.'
+  sc05:
+    split: train
+    text: This server streams your replies at roughly {S} tokens a second and reads prompts at about {P} tokens
+      a second.
+  sc06:
+    split: train
+    text: 'Measured speed for you here: {S_per_min} output tokens per minute and {P} input tokens per second.'
+  sc07:
+    split: heldout
+    text: 'Benchmark for this deployment: {S} tokens/sec generation, {P} tokens/sec prompt.'
+  sc08:
+    split: heldout
+    text: You produce text at {S} tokens per second, and reading input runs at {P} tokens per second.
+  q01:
+    split: train
+    text: 'Before you start: how long will it take you to finish this task, including any fixes after the tests
+      run? Just give the estimate; don''t solve it yet.'
+  q02:
+    split: train
+    text: How long will this take you? Answer with a time estimate only.
+  q03:
+    split: train
+    text: What's your ETA for finishing this? Don't write the code yet.
+  q04:
+    split: train
+    text: Estimate how long you will need to complete this task. Reply with the estimate only.
+  q05:
+    split: train
+    text: If I give you this task right now, how long until you're done?
+  q06:
+    split: train
+    text: How much time will you spend on this, from reading it to the final test run?
+  q07:
+    split: train
+    text: Give me a time estimate for you to finish this, then stop.
+  q08:
+    split: train
+    text: Roughly how long will it take you to get this passing its tests?
+  q09:
+    split: train
+    text: 'Quick check before you begin: how long do you expect this to take you?'
+  q10:
+    split: train
+    text: How long should I expect to wait for you to complete this?
+  q11:
+    split: train
+    text: Tell me how long this will take you, not a human. Estimate only, no code.
+  q12:
+    split: train
+    text: Predict your total time for this task, including retries.
+  q13:
+    split: train
+    text: I need to plan around you. How long will you take to finish this?
+  q14:
+    split: train
+    text: Estimate your completion time for this task. Do not start the task.
+  q15:
+    split: train
+    text: When will you be done with this if you start now? Give a duration.
+  q16:
+    split: train
+    text: How long will it take you to write and test a solution for this?
+  q17:
+    split: train
+    text: Can you estimate how long you'll take on this one?
+  q18:
+    split: train
+    text: What's your time estimate for this job?
+  q19:
+    split: train
+    text: Before coding, state how long this task will take you.
+  q20:
+    split: train
+    text: How long do you need for this? Give me your best estimate.
+  q21:
+    split: heldout
+    text: How long is this going to take you? Just the estimate, please.
+  q22:
+    split: heldout
+    text: Give me an estimate of the time you need to finish this task, retries included.
+  q23:
+    split: heldout
+    text: Without solving it yet, how long will you need for this?
+  q24:
+    split: heldout
+    text: Estimate how long it will take you, the model, to complete this task.
+  q25:
+    split: heldout
+    text: If you start right now, how long until the tests pass or you give up?
+  q26:
+    split: heldout
+    text: How long would it take you to do this? Answer briefly.
+  q27:
+    split: heldout
+    text: 'Time check: how long will you be busy with this task?'
+  q28:
+    split: heldout
+    text: What's your expected turnaround time for this?
+  h01:
+    split: train
+    text: How long would an experienced human developer take to complete this task?
+  h02:
+    split: train
+    text: Estimate how long this would take a professional programmer working by hand.
+  h03:
+    split: train
+    text: If a mid-level software engineer did this, how long would it take them?
+  h04:
+    split: train
+    text: How much time would a human need to implement and test this?
+  h05:
+    split: train
+    text: For a person coding this by hand, what's a realistic time estimate?
+  h06:
+    split: train
+    text: How long would this take a developer on my team?
+  h07:
+    split: train
+    text: Give a time estimate for a human programmer to finish this.
+  h08:
+    split: train
+    text: How long would it take a skilled human to write and test this code?
+  h09:
+    split: heldout
+    text: How long would a typical software developer need for this?
+  h10:
+    split: heldout
+    text: Estimate the time for an experienced engineer to do this manually.
+  h11:
+    split: heldout
+    text: If I did this myself as a competent programmer, how long would it take me?
+  h12:
+    split: heldout
+    text: How long would a human expert take to finish this task?
+  g01:
+    split: heldout
+    text: How long would an AI coding assistant take to complete this task?
+  g02:
+    split: heldout
+    text: Estimate how long a language-model coding agent would need for this.
+  g03:
+    split: heldout
+    text: How long would it take an AI model to do this?
+  g04:
+    split: heldout
+    text: If an AI agent did this task, how long would it take?
+  p01:
+    split: heldout
+    text: Make a plan for building this, with a timeline.
+  p02:
+    split: heldout
+    text: Break this task into steps and say how long each step will take you.
+  p03:
+    split: heldout
+    text: Plan your work on this and tell me when you'll be done.
+  p04:
+    split: heldout
+    text: Outline how you'll approach this and estimate the time for each part.
+  p05:
+    split: train
+    text: Give me a step-by-step plan for this and how long it will take you.
+  p06:
+    split: train
+    text: How would you tackle this, and how long will each part take you?
+  p07:
+    split: train
+    text: Draft a work plan with time estimates for doing this yourself.
+  p08:
+    split: train
+    text: Plan this out and tell me your total time.
+  w01:
+    split: heldout
+    text: How long will this take you?
+  w02:
+    split: heldout
+    text: How long will it take you, the AI model, to complete this?
+  w03:
+    split: heldout
+    text: You generate about {S} tokens per second. How long will it take you to finish this, counting only your
+      own generation and test runs?
+  w04:
+    split: heldout
+    text: Ignore how long a human would take. How long will it take you?
+  w05:
+    split: heldout
+    text: In seconds, how long will you take to finish this?
+  w06:
+    split: heldout
+    text: How many output tokens will you write for this, and how long will that take at {S} tokens per second?
+  w07:
+    split: heldout
+    text: Plan this task and give a timeline.
+  w08:
+    split: heldout
+    text: How long would a human developer take?
+e1_instruction: When asked how long something will take you, estimate your own time as this model at this speed,
+  not a human's time.
+no_code_feedback: Your reply had no ```python code block.
+timeout_feedback: The tests timed out after {timeout_s} s.

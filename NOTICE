@@ -1,0 +1,9 @@
+Anthropochrony
+
+The CodeContests output-comparison routine in sandbox/worker.py is ported from:
+Google DeepMind, code_contests, execution/tester_sandboxer.cc,
+commit fa7a4f8139aab08362503f3344778eb86901709a (Apache License 2.0).
+https://github.com/google-deepmind/code_contests
+
+Model weights, benchmark statements, and third-party libraries have separate
+licenses. See docs/HACKATHON_REQUIREMENTS.md and per-row dataset provenance.

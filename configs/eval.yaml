@@ -1,0 +1,8 @@
+bootstrap_resamples: 10000
+bootstrap_seed: 20261109
+confidence: 0.95
+pair_count: 2000
+minimum_pair_ratio: 1.5
+estimate_max_tokens: 512
+plan_max_tokens: 1024
+holm_family: [H2, H3, H5]

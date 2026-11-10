@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+.coverage
+.ipynb_checkpoints/
+data/
+results/
+adapters/
+models/
+pins/
+artifacts/
+*.egg-info/
+.env
+*.log

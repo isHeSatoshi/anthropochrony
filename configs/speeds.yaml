@@ -1,0 +1,16 @@
+# REF must be measured on l40sx1. Never substitute an invented value.
+reference: null
+profiles:
+  cpu: {S: [2, 25], ratio: [4, 15]}
+  edge_gpu: {S: [20, 120], ratio: [20, 300]}
+  dc_gpu: {S: [60, 400], ratio: [50, 300]}
+  asic: {S: [400, 2500], ratio: [10, 40]}
+heldout_decode_band: [150, 260]
+evaluation:
+  - {id: seen-cpu, S: 8, P: 60}
+  - {id: seen-edge, S: 60, P: 3000}
+  - {id: seen-dc, S: 400, P: 40000}
+  - {id: heldout-190, S: 190, P: 19000}
+  - {id: heldout-230, S: 230, P: 23000}
+  - {id: extrap-low, S: 1.5, P: 10}
+  - {id: extrap-high, S: 5000, P: 100000}

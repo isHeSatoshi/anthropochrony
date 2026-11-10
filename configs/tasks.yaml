@@ -1,0 +1,7 @@
+seed: 20261109
+counts: {FUNC: 399, CLASS: 100, LIB: 350, ALGO_FN: 350, ALGO_IO: 217}
+test_fraction: 0.2
+val_fraction_of_remainder: 0.1
+max_prompt_tokens: 2500
+near_dup_threshold: 0.7
+per_task_caps: {FUNC: 60, CLASS: 30, LIB: 120, ALGO_FN: 10, ALGO_IO: 60, PROJ-8: 10, PROJ-SYN: 10}

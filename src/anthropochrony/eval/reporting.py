@@ -5,7 +5,6 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
 
 from anthropochrony.artifacts import manifest, read_jsonl, write_json, write_jsonl
@@ -108,43 +107,6 @@ def report(root, estimates, resamples=10000, capability=None):
         writer.writeheader()
         writer.writerows(flat)
     manifest(result_dir / "metrics.csv", config={"resamples": resamples})
-    primary = [
-        r
-        for r in rows
-        if r["split"] == "test"
-        and r["card_id"] == "REF"
-        and r.get("frame", "self") == "self"
-        and r.get("point_s") is not None
-        and not (
-            r["estimator"].lower().split("-s")[0] in {"m1", "m2"}
-            and r.get("target_source") != "own"
-        )
-    ]
-    if primary:
-        estimators = sorted({r["estimator"] for r in primary})
-        fig, axes = plt.subplots(
-            1, len(estimators), figsize=(4 * len(estimators), 4), squeeze=False
-        )
-        for estimator, axis in zip(estimators, axes.flat, strict=True):
-            selected = [r for r in primary if r["estimator"] == estimator]
-            x, y = [r["actual_s"] for r in selected], [r["point_s"] for r in selected]
-            axis.scatter(x, y, s=15, alpha=0.55)
-            lower, upper = min(x + y) * 0.7, max(x + y) * 1.4
-            line = np.geomspace(lower, upper, 100)
-            axis.plot(line, line, color="black", linewidth=1)
-            axis.fill_between(line, line / 2, line * 2, color="#37a899", alpha=0.15)
-            axis.set(
-                xscale="log",
-                yscale="log",
-                xlabel="Measured own completion time (s)",
-                ylabel="Estimated completion time (s)",
-                title=estimator,
-            )
-        fig.suptitle("Anthropochrony · separate-conversation estimates")
-        fig.tight_layout()
-        fig.savefig(figure_dir / "F1-estimated-vs-measured.png", dpi=180)
-        plt.close(fig)
-        manifest(figure_dir / "F1-estimated-vs-measured.png")
     write_json(
         result_dir / "report-status.json",
         {

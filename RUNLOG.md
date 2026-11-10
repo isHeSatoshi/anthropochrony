@@ -1923,3 +1923,9 @@ Reservation lmeval-m2-s0-8dfa1db94e42fed83068620a: ≤$1.5000, before submitting
 2026-11-10T12:28:29.344403+00:00: lmeval-m2-s0 6af309419737d9a9e0904619 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
 
 2026-11-10T12:29:12.195104+00:00: est-m1-s0 6af308fe9737d9a9e090450c terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+Reservation lmeval-m1-s0-38fafb1e2ee330a09c659c4d: ≤$1.5000, before submitting the paid job.
+| 6af31145ab34849891abb882 | lmeval-m1-s0-38fafb1e2ee330a09c659c4d | l40sx1 | ≤50.0 | ≤1.5000 | Launched |
+
+Reservation ftround-76f08c0e2b091783b9ab81c4: ≤$1.2000, before submitting the paid job.
+| 6af31191ab34849891abb8f6 | ftround-76f08c0e2b091783b9ab81c4 | l40sx1 | ≤40.0 | ≤1.2000 | Launched |

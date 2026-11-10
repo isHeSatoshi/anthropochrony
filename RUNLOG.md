@@ -1886,3 +1886,40 @@ Reservation generate-74589ff35fff129d93cba96a: ≤$1.2000, before submitting the
 - Other items logged in §7: seed cut (M1/M2 seed 0 only, M3 seed 0) because of the $30 cap; IFEval first-200 limit; G4 audit of 60 rows.
 - Earlier same day: PROJ-8 showcase tasks built (8 tasks, tests pruned to those the reference passes), base showcase generation in progress; first base lm-eval job timed out ($1.47) and was rerun with batch 16 and IFEval limited to 200; a budget-cap error ($29.76 + $1.2 > $30) occurred when completed jobs were not reconciled, so reconcile always precedes launches.
 - Freeze: commit and tag `prereg-v1` created after this entry, before any fine-tuned test/test_ood data exist.
+
+Reservation ftround-cdeaacdab91dd648b99f231d: ≤$1.6500, before submitting the paid job.
+| 6af2e2c7ab34849891ab070f | ftround-cdeaacdab91dd648b99f231d | l40sx1 | ≤55.0 | ≤1.6500 | Launched |
+
+Reservation est-m3-s0-4ce9f0fd832920abd2c806f3: ≤$1.2000, before submitting the paid job.
+| 6af2e396ab34849891ab09c8 | est-m3-s0-4ce9f0fd832920abd2c806f3 | l40sx1 | ≤40.0 | ≤1.2000 | Launched |
+
+2026-11-10T10:20:14.035291+00:00: ftround 6af2e2c7ab34849891ab070f terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+2026-11-10T10:22:35.687726+00:00: generation 6af2d6419737d9a9e08f78fa terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+Reservation ftround-a5be7f148c24cde08c88e533: ≤$1.6500, before submitting the paid job.
+| 6af2f2939737d9a9e08fe027 | ftround-a5be7f148c24cde08c88e533 | l40sx1 | ≤55.0 | ≤1.6500 | Launched |
+
+2026-11-10T10:53:07.021953+00:00: est-m3-s0 6af2e396ab34849891ab09c8 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+2026-11-10T11:09:47.862791+00:00: ftround 6af2f2939737d9a9e08fe027 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+Reservation ftround-de93e9f8be5c570d1346c601: ≤$1.6500, before submitting the paid job.
+| 6af2fe0eab34849891ab6f9f | ftround-de93e9f8be5c570d1346c601 | l40sx1 | ≤55.0 | ≤1.6500 | Launched |
+
+2026-11-10T11:53:52.229240+00:00: ftround 6af2fe0eab34849891ab6f9f terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+Reservation est-m2-s0-3278c522e13c593887d88a68: ≤$1.2000, before submitting the paid job.
+
+Reservation est-m1-s0-000795f179e94b1d607c053f: ≤$1.2000, before submitting the paid job.
+| 6af308feab34849891ab9e48 | est-m2-s0-3278c522e13c593887d88a68 | l40sx1 | ≤40.0 | ≤1.2000 | Launched |
+| 6af308fe9737d9a9e090450c | est-m1-s0-000795f179e94b1d607c053f | l40sx1 | ≤40.0 | ≤1.2000 | Launched |
+
+Reservation lmeval-m2-s0-8dfa1db94e42fed83068620a: ≤$1.5000, before submitting the paid job.
+| 6af309419737d9a9e0904619 | lmeval-m2-s0-8dfa1db94e42fed83068620a | l40sx1 | ≤50.0 | ≤1.5000 | Launched |
+
+2026-11-10T12:17:50.975814+00:00: est-m2-s0 6af308feab34849891ab9e48 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+2026-11-10T12:28:29.344403+00:00: lmeval-m2-s0 6af309419737d9a9e0904619 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+2026-11-10T12:29:12.195104+00:00: est-m1-s0 6af308fe9737d9a9e090450c terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.

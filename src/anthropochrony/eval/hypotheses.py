@@ -9,8 +9,13 @@ from anthropochrony.eval.seeded import human_preservation, speed_conditioning
 from anthropochrony.eval.stats import holm, paired_wilcoxon, stratified_bootstrap
 from anthropochrony.eval.targets import primary_rows
 
+# PREREGISTRATION §7 (2026-11-10): the $30 cap funds seed 0 only, so seed averages have one term.
+TRAINING_SEEDS = (0,)
 
-def confirmatory(rows, *, capability=None, seeds=(0, 1, 2), resamples=10000, evaluation_cards=None):
+
+def confirmatory(
+    rows, *, capability=None, seeds=TRAINING_SEEDS, resamples=10000, evaluation_cards=None
+):
     from anthropochrony.eval.reporting import normalized_rows
 
     all_rows = normalized_rows(rows)
@@ -92,7 +97,8 @@ def confirmatory(rows, *, capability=None, seeds=(0, 1, 2), resamples=10000, eva
                 "status": "measured",
                 "threshold_passed": float(np.mean(per_seed)) <= threshold,
                 "mean_seed_mdae": float(np.mean(per_seed)),
-                "sd_seed_mdae": float(np.std(per_seed, ddof=1)),
+                "sd_seed_mdae": float(np.std(per_seed, ddof=1)) if len(per_seed) > 1 else None,
+                "n_seeds": len(per_seed),
                 "selected_base_prompt_on_val": best,
             }
     m1, m2 = seed_averages("M1", "test"), seed_averages("M2", "test")

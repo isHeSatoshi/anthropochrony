@@ -6,7 +6,7 @@ from pathlib import Path
 from anthropochrony.artifacts import read_jsonl, write_json, write_jsonl
 from anthropochrony.gates import GateError
 
-RESTRICTED_SOURCES = {"newfacade/LeetCodeDataset", "deepmind/code_contests"}
+RESTRICTED_SOURCES = {"newfacade/LeetCodeDataset", "deepmind/code_contests", "BAAI/TACO"}
 
 
 def redact_record(record, task_index):

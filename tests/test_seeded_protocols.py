@@ -6,8 +6,13 @@ import pytest
 from anthropochrony.artifacts import write_jsonl
 from anthropochrony.cli import main
 from anthropochrony.eval.capability import capability_pairs
-from anthropochrony.eval.hypotheses import confirmatory
+from anthropochrony.eval.hypotheses import confirmatory as _confirmatory
 from anthropochrony.eval.reporting import report
+
+
+def confirmatory(rows, **kwargs):
+    # The protocol code is seed-count general; these tests exercise the original three seeds.
+    return _confirmatory(rows, seeds=(0, 1, 2), **kwargs)
 
 
 def row(task, estimator, seed, point, actual, card="REF", frame="self", template="q21"):

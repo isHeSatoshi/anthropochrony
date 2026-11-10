@@ -154,6 +154,7 @@ def parser():
     figures.add_argument("--resamples", type=int, default=10000)
     for command in (evaluation, figures):
         command.add_argument("--capability", type=Path)
+    commands.add_parser("simulate")
     capability = commands.add_parser("capability")
     capability.add_argument("--base-traces", type=Path, required=True)
     capability.add_argument("--fine-tuned-traces", type=Path, required=True)
@@ -414,6 +415,10 @@ def main(argv=None):
                 resamples=getattr(args, "resamples", 10000),
                 capability=read_jsonl(args.capability) if args.capability else None,
             )
+        elif args.command == "simulate":
+            from anthropochrony.sim.run import simulate
+
+            print(json.dumps(simulate(root), indent=2))
         elif args.command == "capability":
             from anthropochrony.eval.capability import capability_pairs
             from anthropochrony.gates import require_preregistration

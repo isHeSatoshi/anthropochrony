@@ -29,7 +29,7 @@ Because the speeds are stated in the system prompt (a "speed card"), the same me
 - That is **not** better than simply showing the base model five measured examples in the prompt (0.24 in-distribution), but it is much better on the unseen family (0.30 vs 0.50), and it holds up at held-out speeds.
 - A plain gradient-boosted regressor over text features (**B2**) beats every language-model estimator in-distribution (0.14). So the model "knows" less about its own speed than a feature-based predictor.
 - Training on *measured* labels beat training on *teacher-guessed* labels (0.24 vs 0.29, Holm-adjusted p < 0.001), but *uncurated* measured labels did as well or better than curated ones (0.21), so our curation did not help.
-- Coding ability and human-frame answers did not change measurably (pass@1 difference CI [-2.2, +3.0] points).
+- Coding ability and human-frame answers did not change measurably (pass@1 difference CI [-2.2, +3.0] points). IFEval strict accuracy fell 5 points on 200 prompts, which is within noise for one seed but not a clean pass; ARC-Challenge did not move.
 - On a plain desktop CPU with a 4-bit GGUF, the tuned model's estimates are within 2× of the measured wall-clock for 52% of 100 held-out tasks (base: 3%).
 
 Figure 1 shows the main comparison.
@@ -111,7 +111,9 @@ We did not use an LLM judge to parse estimates: every number was extracted by a 
 
 ## 5. Model artifacts (HF collection)
 
-*Collection URL goes here at release time.* Contents:
+**Collection:** https://huggingface.co/collections/isHeSatoshi/anthropochrony-models-6af31e769e666b4001e8c5f2
+
+Contents:
 
 | Repo | What it is |
 |---|---|
@@ -129,7 +131,7 @@ Each card states base revision, data, metrics, limitations and the AUP. Merged w
 
 ## 6. Data artifacts (HF collection)
 
-*Collection URL goes here at release time.*
+**Collection:** https://huggingface.co/collections/isHeSatoshi/anthropochrony-data-6af31e776d6f33265b0c33a8
 
 | Repo | Contents |
 |---|---|
@@ -209,10 +211,13 @@ How to read this honestly:
 | Check | Base | M1 | M2 |
 |---|---|---|---|
 | pass@1, `test` (255 tasks, K=8) | 0.209 | 0.214 | 0.199 |
+| pass@3 (any of 3 attempts), `test` | 0.222 | 0.222 | 0.212 |
 | pass@1, `test_ood` | 0.099 | 0.128 | 0.157 |
 | median abs. log10 output-token ratio vs base | | 0.10 | 0.10 |
-| IFEval prompt-strict / inst-strict (first 200) | 0.750 / 0.830 | LMEVAL_M1_IFEVAL | 0.735 / 0.821 |
-| ARC-Challenge acc / acc_norm | 0.425 / 0.458 | LMEVAL_M1_ARC | 0.424 / 0.454 |
+| IFEval prompt-strict / inst-strict (first 200) | 0.750 / 0.830 | 0.700 / 0.796 | 0.735 / 0.821 |
+| ARC-Challenge acc / acc_norm | 0.425 / 0.458 | 0.422 / 0.456 | 0.424 / 0.454 |
+
+M1 loses 5.0 points of IFEval prompt-level strict accuracy (0.750 to 0.700) and 3.5 points at instruction level. With 200 prompts the binomial standard error is about 3 points, and this is one seed, so we call it a small possible loss, not a measured one; M2 lost 1.5 points. ARC-Challenge is unchanged within 0.3 points. Retries add almost nothing for this model (pass@3 0.222 against pass@1 0.209 on the base).
 
 M1 pass@1 on `test_ood` is nominally higher than base (0.128 vs 0.099); we do not interpret it. The pre-registered test is non-inferiority on `test`, which holds.
 
@@ -237,6 +242,19 @@ We ran the tuned and base models as Q4_K_M GGUFs in llama.cpp (b12110) on an 8-t
 | Median abs. log10 error | 0.935 | **0.279** |
 | Within 2× | 3% | **52%** |
 | Parse rate | 99% | 100% |
+
+The first six tasks in the results file (not selected), base estimate / tuned estimate / measured wall-clock:
+
+| Task | Base | Tuned | Measured | Outcome |
+|---|---|---|---|---|
+| BigCodeBench/778 | 7 min | 23 s | 32.5 s | failed after 3 attempts |
+| HumanEval/95 | 7 min | 19 s | 6.5 s | passed on attempt 1 |
+| Mbpp/138 | 85 s | 8 s | 17.1 s | failed after 3 attempts |
+| BigCodeBench/273 | 7 min | 23 s | 116.1 s | failed after 3 attempts |
+| BigCodeBench/507 | 7 min | 23 s | 36.1 s | failed after 3 attempts |
+| HumanEval/116 | 7 min | 19 s | 7.0 s | passed on attempt 1 |
+
+The tuned model tracks the order of magnitude but, as the table shows, it stays near one value per family and misses long failing runs (BigCodeBench/273).
 
 Pass rate 0.34; median wall time 22.8 s per task. One estimate costs about 15 s on this CPU (45 s if three are sampled). Some rows ran while other local jobs shared the CPU, which adds contention noise to wall times.
 

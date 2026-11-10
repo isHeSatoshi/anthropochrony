@@ -74,10 +74,13 @@ def main():
     parser.add_argument("--n", type=int, default=100)
     parser.add_argument("--seed", type=int, default=20261110)
     parser.add_argument("--output", type=Path, default=ROOT / "data/x10/cpu-deployment.jsonl")
+    parser.add_argument(
+        "--proj8", action="store_true", help="run the eight PROJ-8 showcase tasks instead"
+    )
     args = parser.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     done = {r["task_id"] for r in read_jsonl(args.output)} if args.output.exists() else set()
-    tasks = sample(args.n, args.seed)
+    tasks = read_jsonl(ROOT / "data/tasks/proj8.jsonl") if args.proj8 else sample(args.n, args.seed)
     servers = [
         start(GGUF / "base/base-q4_k_m.gguf", 8081),
         start(GGUF / "m1-s0/m1-s0-q4_k_m.gguf", 8082),
@@ -95,7 +98,12 @@ def main():
         # One measurement at the start; per-call recalibration would add minutes per task.
         backend.calibrate = lambda: card
         demo.last_card = card
-        write_json(args.output.with_name("cpu-speed-card.json"), card.as_dict())
+        card_name = (
+            "cpu-speed-card.json"
+            if args.output.stem == "cpu-deployment"
+            else f"{args.output.stem}-speed-card.json"
+        )
+        write_json(args.output.with_name(card_name), card.as_dict())
         with args.output.open("a") as out:
             for task in tasks:
                 if task["task_id"] in done:
@@ -141,7 +149,7 @@ def summarize(path):
         }
     result["pass_rate"] = sum(r["passed"] for r in rows) / len(rows)
     result["median_wall_s"] = sorted(r["wall_s"] for r in rows)[len(rows) // 2]
-    write_json(path.with_name("cpu-deployment-summary.json"), result)
+    write_json(path.with_name(f"{path.stem}-summary.json"), result)
     print(json.dumps(result, indent=2))
 
 

@@ -86,6 +86,13 @@ tags: [lora, tiny-aya, self-estimation, time-estimation, coding-agents]
 
 Errors are against this model's own re-measured median completion time. Base model with the speed card: 1.375 (test) and 1.199 (test_ood). Full tables, CIs and hypotheses: [article]({GITHUB}/blob/main/paper/article.md).
 """
+    capability = ""
+    if run == "m1-s0":
+        capability = (
+            "\n**Capability check.** IFEval (first 200 prompts) prompt-level strict accuracy fell from "
+            "0.750 (base) to 0.700 (one seed, binomial SE about 3 points); ARC-Challenge "
+            "acc_norm 0.458 to 0.456; pass@1 on held-out coding tasks 0.209 to 0.214.\n"
+        )
     return (
         header
         + f"""# Anthropochrony LoRA adapter: {run}
@@ -111,7 +118,7 @@ model = PeftModel.from_pretrained(base, "{USER}/anthropochrony-tiny-aya-global-l
 
 Use the exact prompts in the repository (`docs/PROMPTS.md`).
 
-{results}
+{results}{capability}
 **Intended use.** Research on model self-knowledge, scheduling and budgeting experiments for coding agents, non-commercial. **Out of scope:** safety-critical timing, commercial use, estimates for other models or hardware without matching speed cards.
 
 {LIMITS}

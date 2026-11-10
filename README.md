@@ -22,7 +22,7 @@ All numbers are from **one training seed**, 255 held-out tasks (`test`) and 93 t
 | Tuned on raw measured labels (M3) | 0.21 [0.18, 0.23] | 73% | 0.24 |
 | **Tuned on curated measured labels (M1)** | **0.24 [0.21, 0.27]** | **66%** | **0.30 [0.23, 0.40]** |
 
-On a desktop CPU with a 4-bit GGUF, 100 held-out tasks: 52% of tuned-model estimates are within 2× of the real wall-clock (base: 3%). pass@1 and human-frame answers did not change measurably.
+On a desktop CPU with a 4-bit GGUF, 100 held-out tasks: 52% of tuned-model estimates are within 2× of the real wall-clock (base: 3%). pass@1 and human-frame answers did not change measurably; IFEval (first 200 prompts) fell 5 points, within noise for one seed; ARC-Challenge did not move.
 
 Pre-registered hypotheses: H2 (in-distribution), H3 (unseen family), H4 (held-out speeds), H5 (measured beats guessed) and H6a/H6b (coding and human-frame answers preserved) were met on the single seed. **H1 (the base model's large human-scale overestimate with a speed card) was not met.** See [Limitations](#limitations).
 
@@ -39,6 +39,7 @@ Read these before using any number above.
 - **H1 not met as pre-registered.** With a speed card the base model is erratic, not biased toward hours.
 - **Poor interval calibration** (stated 80% range covers 19% of fresh runs), **weak OOD ranking** (Spearman 0.08 on the unseen family), and **bad extrapolation to a much slower card** (0.49).
 - The **G6 merged-serving parity criterion was changed** after seeing validation results (before test data): bf16 merging flips some near-tied digits. See `docs/PREREGISTRATION.md` §7.
+- **General capability** was checked only on IFEval (first 200 prompts) and ARC-Challenge. M1 scored 5 points lower on IFEval prompt-level strict accuracy (0.750 to 0.700; within noise for one seed, but not a clean pass).
 - The estimate parser was **hand-audited on 60 rows by the research agent**, not an independent human (58/60 correct). No LLM judge was used.
 - The ROI comparison covers cost only; the closed model's accuracy on this task was not measured.
 - Several exploratory questions were not run (probe, cross-model, success prediction, GRPO). The list is in the article, §7.11.

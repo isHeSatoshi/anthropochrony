@@ -1929,3 +1929,30 @@ Reservation lmeval-m1-s0-38fafb1e2ee330a09c659c4d: ≤$1.5000, before submitting
 
 Reservation ftround-76f08c0e2b091783b9ab81c4: ≤$1.2000, before submitting the paid job.
 | 6af31191ab34849891abb8f6 | ftround-76f08c0e2b091783b9ab81c4 | l40sx1 | ≤40.0 | ≤1.2000 | Launched |
+
+## 2026-11-10: re-measurement, estimates, analyses, release staging
+
+- **Re-measurement** (merged bf16 serving, K=8, up to 3 attempts, `test` and `test_ood`): m1-s0, m2-s0, m3-s0, 2,784 trajectories each; own labels in `data/labels/{m1,m2,m3}-s0.parquet`. G3 quality checks for all three passed.
+- **Estimates** for the three fine-tuned models on `val`, `test`, `test_ood` (self, human, plan, generic, wording frames) from GPU jobs; E4 derived offline from the stored E1 estimates (`derive-e4`, 3,588 rows); common-base-target robustness file. `merge-estimates` produced 55,177 rows.
+- **Evaluation** (`anthropochrony eval`, 10,000 task-bootstrap resamples; Holm over H2/H3/H5): H2, H3, H4, H5, H6a, H6b met on seed 0; **H1 not met** (E1 GM ratio 0.54; AUR 0.024). Results in `results/metrics.json`, `results/hypotheses.json`.
+- **Extra analyses, simulations, plots**: `results/extra-analyses.json`, `results/simulations.json`, `paper/figures/F1..F5`.
+- **X10** real CPU deployment (llama.cpp b12110, Q4_K_M, 8 threads, 100 held-out tasks): base 0.935 / 3% within 2×, tuned 0.279 / 52%. Some rows ran concurrently with other local sandbox jobs.
+- **ROI**: `results/roi.json`, GPT-5-mini prices from developers.openai.com on 2026-11-10.
+- **lm-eval**: base and M2-s0 done; M1-s0 submitted (`6af31145ab34849891abb882`).
+- **PROJ-8 showcase**: base 64 trajectories (first-pass 0.0); M1 round submitted (`6af31191ab34849891abb8f6`).
+- **Budget incident**: earlier launches were rejected by the cap check while reservations of finished jobs were still unsettled; `reconcile_terminal_jobs` before every launch fixed this. Total at this entry: $28.53 including two unsettled reservations ($1.50 + $1.20).
+- **G0 assembled** from the component gates (`results/gates/G0.json`): remote candidate execution stays blocked by design, candidate code runs only in the local sandbox (docs/EXECUTION_BLOCKER.md).
+- **Release staging** (`anthropochrony release`, private): five dataset bundles with restricted statements (LeetCodeDataset, CodeContests, TACO) replaced by a marker, free-text answers dropped for those rows, few-shot prompts withheld, and a `grep -F` leak scan of every staged file against restricted statement text (no hits). Cards from `scripts/build_cards.py`. Uploaded privately to five dataset repos, the GGUF repo and cards for five adapters; two private collections created. The notebook ran from the private dataset snapshot with 0 mismatching estimators.
+- **GitHub**: private repo `isHeSatoshi/anthropochrony` created; the push is blocked because the CLI token lacks the `workflow` scope (the repo contains `.github/workflows/ci.yml`). Needs `gh auth refresh -h github.com -s workflow`, then `git push -u origin main --tags`. CI commands were run locally instead (ruff check and format, pytest `-m "not security"`, prompts check).
+
+2026-11-10T13:54:19.389338+00:00: lmeval-m1-s0 6af31145ab34849891abb882 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+2026-11-10T13:58:41.153289+00:00: ftround 6af31191ab34849891abb8f6 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+Reservation ftround-27ca470d0d79a9ae52248fee: ≤$1.2000, before submitting the paid job.
+| 6af323199737d9a9e090979a | ftround-27ca470d0d79a9ae52248fee | l40sx1 | ≤40.0 | ≤1.2000 | Launched |
+
+2026-11-10T14:02:15.010537+00:00: ftround 6af323199737d9a9e090979a terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+Reservation ftround-ad1393ff34482735bf0ae851: ≤$1.2000, before submitting the paid job.
+| 6af324d6ab34849891abf404 | ftround-ad1393ff34482735bf0ae851 | l40sx1 | ≤40.0 | ≤1.2000 | Launched |

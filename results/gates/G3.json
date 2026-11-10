@@ -1,0 +1,22 @@
+{
+  "gate": "G3",
+  "passed": true,
+  "checks": {
+    "harness_errors_below_1pct": true,
+    "runs_complete_99pct": true,
+    "length_below_5pct_each_family": true,
+    "pilot_100_tasks_k8": true,
+    "speed_card_invariance": true
+  },
+  "evidence": {
+    "phase": "pilot",
+    "pass_at_1_by_family": {
+      "CLASS": 0.16071428571428573,
+      "ALGO_IO": 0.041666666666666664,
+      "ALGO_FN": 0.041666666666666664,
+      "FUNC": 0.5517241379310345,
+      "LIB": 0.085
+    },
+    "tasks_sha256": "0657cd8a10bda27e5772b426d6bcaf2fc9d9ebc6f3872a1404c531d9e06f2d2b"
+  }
+}

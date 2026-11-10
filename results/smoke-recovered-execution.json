@@ -1,0 +1,55 @@
+{
+  "smoke_only": true,
+  "results": [
+    {
+      "task_id": "HumanEval/0",
+      "status": "fail",
+      "first_failure": "e 28, in execute\n    exec(compile(source, \"<candidate-and-tests>\", \"exec\"), namespace)\n  File \"<candidate-and-tests>\", line 1, in <module>\nNameError: name 'List' is not defined\nANTHROPOCHRONY_TIMING {\"wall_s\": 0.012151784991146997, \"cpu_s\": 0.033391}"
+    },
+    {
+      "task_id": "HumanEval/1",
+      "status": "fail",
+      "first_failure": "ute\n    exec(compile(source, \"<candidate-and-tests>\", \"exec\"), namespace)\n  File \"<candidate-and-tests>\", line 1, in <module>\nNameError: name 'List' is not defined\nANTHROPOCHRONY_TIMING {\"wall_s\": 0.0009682480012997985, \"cpu_s\": 0.020846999999999997}"
+    },
+    {
+      "task_id": "HumanEval/2",
+      "status": "pass",
+      "first_failure": ""
+    },
+    {
+      "task_id": "HumanEval/3",
+      "status": "pass",
+      "first_failure": ""
+    },
+    {
+      "task_id": "HumanEval/4",
+      "status": "pass",
+      "first_failure": ""
+    },
+    {
+      "task_id": "HumanEval/5",
+      "status": "fail",
+      "first_failure": "e 28, in execute\n    exec(compile(source, \"<candidate-and-tests>\", \"exec\"), namespace)\n  File \"<candidate-and-tests>\", line 1, in <module>\nNameError: name 'List' is not defined\nANTHROPOCHRONY_TIMING {\"wall_s\": 0.002362352010095492, \"cpu_s\": 0.024849}"
+    },
+    {
+      "task_id": "HumanEval/6",
+      "status": "fail",
+      "first_failure": "ute\n    exec(compile(source, \"<candidate-and-tests>\", \"exec\"), namespace)\n  File \"<candidate-and-tests>\", line 1, in <module>\nNameError: name 'List' is not defined\nANTHROPOCHRONY_TIMING {\"wall_s\": 0.0006380410050041974, \"cpu_s\": 0.021477999999999997}"
+    },
+    {
+      "task_id": "HumanEval/7",
+      "status": "fail",
+      "first_failure": " 28, in execute\n    exec(compile(source, \"<candidate-and-tests>\", \"exec\"), namespace)\n  File \"<candidate-and-tests>\", line 1, in <module>\nNameError: name 'List' is not defined\nANTHROPOCHRONY_TIMING {\"wall_s\": 0.0020760449988301843, \"cpu_s\": 0.022184}"
+    },
+    {
+      "task_id": "HumanEval/8",
+      "status": "pass",
+      "first_failure": ""
+    },
+    {
+      "task_id": "HumanEval/9",
+      "status": "fail",
+      "first_failure": "ecute\n    exec(compile(source, \"<candidate-and-tests>\", \"exec\"), namespace)\n  File \"<candidate-and-tests>\", line 1, in <module>\nNameError: name 'List' is not defined\nANTHROPOCHRONY_TIMING {\"wall_s\": 0.026905616017756984, \"cpu_s\": 0.04709599999999999}"
+    }
+  ]
+}

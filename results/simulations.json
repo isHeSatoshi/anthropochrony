@@ -1,0 +1,446 @@
+{
+  "B0|base": {
+    "n_tasks": 255,
+    "n_with_estimate": 255,
+    "scheduling": {
+      "sjf_relative_to_oracle": 1.6852820729680342,
+      "fifo_relative_to_oracle": 1.6852820729680342,
+      "n_queues": 1000
+    },
+    "tripwire": [
+      {
+        "multiplier": 1,
+        "false_stop_rate": 0.00663716814159292,
+        "failed_time_saved_s": 9270.489722121089,
+        "failed_time_saved_share": 0.43651377161147353
+      },
+      {
+        "multiplier": 1.5,
+        "false_stop_rate": 0.0022123893805309734,
+        "failed_time_saved_s": 6011.864137317472,
+        "failed_time_saved_share": 0.2830768996738369
+      },
+      {
+        "multiplier": 2,
+        "false_stop_rate": 0.0,
+        "failed_time_saved_s": 4418.769186155709,
+        "failed_time_saved_share": 0.20806383062232317
+      },
+      {
+        "multiplier": 3,
+        "false_stop_rate": 0.0,
+        "failed_time_saved_s": 3425.2692995910443,
+        "failed_time_saved_share": 0.16128352067331567
+      }
+    ],
+    "tripwire_n_runs": 2040,
+    "tripwire_n_failed_runs": 1588
+  },
+  "B1|base": {
+    "n_tasks": 255,
+    "n_with_estimate": 255,
+    "scheduling": {
+      "sjf_relative_to_oracle": 1.2089271947568723,
+      "fifo_relative_to_oracle": 1.6852820729680342,
+      "n_queues": 1000
+    },
+    "tripwire": [
+      {
+        "multiplier": 1,
+        "false_stop_rate": 0.0752212389380531,
+        "failed_time_saved_s": 7440.124385573161,
+        "failed_time_saved_share": 0.3503284998046425
+      },
+      {
+        "multiplier": 1.5,
+        "false_stop_rate": 0.0,
+        "failed_time_saved_s": 4687.2973522552065,
+        "failed_time_saved_share": 0.22070784901633578
+      },
+      {
+        "multiplier": 2,
+        "false_stop_rate": 0.0,
+        "failed_time_saved_s": 3815.9741222039365,
+        "failed_time_saved_share": 0.179680395144638
+      },
+      {
+        "multiplier": 3,
+        "false_stop_rate": 0.0,
+        "failed_time_saved_s": 3212.4253869875456,
+        "failed_time_saved_share": 0.15126147201784956
+      }
+    ],
+    "tripwire_n_runs": 2040,
+    "tripwire_n_failed_runs": 1588
+  },
+  "B2|base": {
+    "n_tasks": 255,
+    "n_with_estimate": 255,
+    "scheduling": {
+      "sjf_relative_to_oracle": 1.1413885825365688,
+      "fifo_relative_to_oracle": 1.6852820729680342,
+      "n_queues": 1000
+    },
+    "tripwire": [
+      {
+        "multiplier": 1,
+        "false_stop_rate": 0.084070796460177,
+        "failed_time_saved_s": 7844.368942333995,
+        "failed_time_saved_share": 0.3693629112990016
+      },
+      {
+        "multiplier": 1.5,
+        "false_stop_rate": 0.017699115044247787,
+        "failed_time_saved_s": 4644.652383536741,
+        "failed_time_saved_share": 0.21869985195323224
+      },
+      {
+        "multiplier": 2,
+        "false_stop_rate": 0.0,
+        "failed_time_saved_s": 3712.574779673111,
+        "failed_time_saved_share": 0.17481169474765937
+      },
+      {
+        "multiplier": 3,
+        "false_stop_rate": 0.0,
+        "failed_time_saved_s": 3065.3643003860607,
+        "failed_time_saved_share": 0.144336898290475
+      }
+    ],
+    "tripwire_n_runs": 2040,
+    "tripwire_n_failed_runs": 1588
+  },
+  "B2+|base": {
+    "n_tasks": 255,
+    "n_with_estimate": 255,
+    "scheduling": {
+      "sjf_relative_to_oracle": 1.1524381473922192,
+      "fifo_relative_to_oracle": 1.6852820729680342,
+      "n_queues": 1000
+    },
+    "tripwire": [
+      {
+        "multiplier": 1,
+        "false_stop_rate": 0.08185840707964602,
+        "failed_time_saved_s": 7805.8204942223665,
+        "failed_time_saved_share": 0.367547804548511
+      },
+      {
+        "multiplier": 1.5,
+        "false_stop_rate": 0.03761061946902655,
+        "failed_time_saved_s": 4787.41308992276,
+        "failed_time_saved_share": 0.22542193635766017
+      },
+      {
+        "multiplier": 2,
+        "false_stop_rate": 0.015486725663716814,
+        "failed_time_saved_s": 3796.4198174696485,
+        "failed_time_saved_share": 0.1787596537850487
+      },
+      {
+        "multiplier": 3,
+        "false_stop_rate": 0.0,
+        "failed_time_saved_s": 3141.3552588854623,
+        "failed_time_saved_share": 0.14791503719114088
+      }
+    ],
+    "tripwire_n_runs": 2040,
+    "tripwire_n_failed_runs": 1588
+  },
+  "B4|base": {
+    "n_tasks": 255,
+    "n_with_estimate": 255,
+    "scheduling": {
+      "sjf_relative_to_oracle": 1.3327400671427432,
+      "fifo_relative_to_oracle": 1.6852820729680342,
+      "n_queues": 1000
+    },
+    "tripwire": [
+      {
+        "multiplier": 1,
+        "false_stop_rate": 0.07964601769911504,
+        "failed_time_saved_s": 6748.669045126077,
+        "failed_time_saved_share": 0.3177703731461089
+      },
+      {
+        "multiplier": 1.5,
+        "false_stop_rate": 0.030973451327433628,
+        "failed_time_saved_s": 4213.234298398708,
+        "failed_time_saved_share": 0.1983859374643745
+      },
+      {
+        "multiplier": 2,
+        "false_stop_rate": 0.01991150442477876,
+        "failed_time_saved_s": 3029.9088503989224,
+        "failed_time_saved_share": 0.14266742961492732
+      },
+      {
+        "multiplier": 3,
+        "false_stop_rate": 0.0,
+        "failed_time_saved_s": 2337.795663954509,
+        "failed_time_saved_share": 0.11007832737192721
+      }
+    ],
+    "tripwire_n_runs": 2040,
+    "tripwire_n_failed_runs": 1588
+  },
+  "E0|base": {
+    "n_tasks": 255,
+    "n_with_estimate": 232,
+    "scheduling": {
+      "sjf_relative_to_oracle": 1.5321738872398296,
+      "fifo_relative_to_oracle": 1.7279691612593533,
+      "n_queues": 1000
+    },
+    "tripwire": [
+      {
+        "multiplier": 1,
+        "false_stop_rate": 0.02358490566037736,
+        "failed_time_saved_s": 364.4539118741655,
+        "failed_time_saved_share": 0.01862299972240201
+      },
+      {
+        "multiplier": 1.5,
+        "false_stop_rate": 0.02358490566037736,
+        "failed_time_saved_s": 169.26732001041916,
+        "failed_time_saved_share": 0.008649283629185317
+      },
+      {
+        "multiplier": 2,
+        "false_stop_rate": 0.02358490566037736,
+        "failed_time_saved_s": 150.26732001041916,
+        "failed_time_saved_share": 0.0076784146572868705
+      },
+      {
+        "multiplier": 3,
+        "false_stop_rate": 0.02358490566037736,
+        "failed_time_saved_s": 112.26732001041917,
+        "failed_time_saved_share": 0.005736676713489978
+      }
+    ],
+    "tripwire_n_runs": 1856,
+    "tripwire_n_failed_runs": 1432
+  },
+  "E1|base": {
+    "n_tasks": 255,
+    "n_with_estimate": 255,
+    "scheduling": {
+      "sjf_relative_to_oracle": 1.562335334757961,
+      "fifo_relative_to_oracle": 1.6852820729680342,
+      "n_queues": 1000
+    },
+    "tripwire": [
+      {
+        "multiplier": 1,
+        "false_stop_rate": 0.7300884955752213,
+        "failed_time_saved_s": 9935.443809165467,
+        "failed_time_saved_share": 0.46782405026822976
+      },
+      {
+        "multiplier": 1.5,
+        "false_stop_rate": 0.7300884955752213,
+        "failed_time_saved_s": 9140.508309474753,
+        "failed_time_saved_share": 0.4303934178465316
+      },
+      {
+        "multiplier": 2,
+        "false_stop_rate": 0.7300884955752213,
+        "failed_time_saved_s": 8701.878387900308,
+        "failed_time_saved_share": 0.4097399241102484
+      },
+      {
+        "multiplier": 3,
+        "false_stop_rate": 0.7101769911504425,
+        "failed_time_saved_s": 8210.678166334348,
+        "failed_time_saved_share": 0.38661108542327877
+      }
+    ],
+    "tripwire_n_runs": 2040,
+    "tripwire_n_failed_runs": 1588
+  },
+  "E2|base": {
+    "n_tasks": 255,
+    "n_with_estimate": 254,
+    "scheduling": {
+      "sjf_relative_to_oracle": 1.1930364822097774,
+      "fifo_relative_to_oracle": 1.6897056276052318,
+      "n_queues": 1000
+    },
+    "tripwire": [
+      {
+        "multiplier": 1,
+        "false_stop_rate": 0.4269911504424779,
+        "failed_time_saved_s": 9086.549749578055,
+        "failed_time_saved_share": 0.4295945444891854
+      },
+      {
+        "multiplier": 1.5,
+        "false_stop_rate": 0.18141592920353983,
+        "failed_time_saved_s": 6817.044834103817,
+        "failed_time_saved_share": 0.3222967298897115
+      },
+      {
+        "multiplier": 2,
+        "false_stop_rate": 0.084070796460177,
+        "failed_time_saved_s": 5470.006129873508,
+        "failed_time_saved_share": 0.25861133834932026
+      },
+      {
+        "multiplier": 3,
+        "false_stop_rate": 0.035398230088495575,
+        "failed_time_saved_s": 3880.309844397152,
+        "failed_time_saved_share": 0.18345356444651653
+      }
+    ],
+    "tripwire_n_runs": 2032,
+    "tripwire_n_failed_runs": 1580
+  },
+  "E4|base": {
+    "n_tasks": 255,
+    "n_with_estimate": 255,
+    "scheduling": {
+      "sjf_relative_to_oracle": 1.562335334757961,
+      "fifo_relative_to_oracle": 1.6852820729680342,
+      "n_queues": 1000
+    },
+    "tripwire": [
+      {
+        "multiplier": 1,
+        "false_stop_rate": 0.7300884955752213,
+        "failed_time_saved_s": 10144.63366537471,
+        "failed_time_saved_share": 0.4776740426476901
+      },
+      {
+        "multiplier": 1.5,
+        "false_stop_rate": 0.7300884955752213,
+        "failed_time_saved_s": 9325.860976347321,
+        "failed_time_saved_share": 0.4391210033484848
+      },
+      {
+        "multiplier": 2,
+        "false_stop_rate": 0.7300884955752213,
+        "failed_time_saved_s": 8828.63525861269,
+        "failed_time_saved_share": 0.4157084458788773
+      },
+      {
+        "multiplier": 3,
+        "false_stop_rate": 0.7101769911504425,
+        "failed_time_saved_s": 8316.767521159432,
+        "failed_time_saved_share": 0.3916064487525776
+      }
+    ],
+    "tripwire_n_runs": 2040,
+    "tripwire_n_failed_runs": 1588
+  },
+  "M1-S0|own": {
+    "n_tasks": 255,
+    "n_with_estimate": 255,
+    "scheduling": {
+      "sjf_relative_to_oracle": 1.360174811960322,
+      "fifo_relative_to_oracle": 1.6802801132853558,
+      "n_queues": 1000
+    },
+    "tripwire": [
+      {
+        "multiplier": 1,
+        "false_stop_rate": 0.13938053097345132,
+        "failed_time_saved_s": 7352.149169928208,
+        "failed_time_saved_share": 0.371342285694945
+      },
+      {
+        "multiplier": 1.5,
+        "false_stop_rate": 0.035398230088495575,
+        "failed_time_saved_s": 4934.613545707412,
+        "failed_time_saved_share": 0.24923741762194426
+      },
+      {
+        "multiplier": 2,
+        "false_stop_rate": 0.0,
+        "failed_time_saved_s": 3744.350932017259,
+        "failed_time_saved_share": 0.18911964398470765
+      },
+      {
+        "multiplier": 3,
+        "false_stop_rate": 0.0,
+        "failed_time_saved_s": 2885.9710185166505,
+        "failed_time_saved_share": 0.1457645988534542
+      }
+    ],
+    "tripwire_n_runs": 2040,
+    "tripwire_n_failed_runs": 1588
+  },
+  "M2-S0|own": {
+    "n_tasks": 255,
+    "n_with_estimate": 255,
+    "scheduling": {
+      "sjf_relative_to_oracle": 1.5109743060047929,
+      "fifo_relative_to_oracle": 1.78872467787168,
+      "n_queues": 1000
+    },
+    "tripwire": [
+      {
+        "multiplier": 1,
+        "false_stop_rate": 0.2222222222222222,
+        "failed_time_saved_s": 8316.717762553219,
+        "failed_time_saved_share": 0.4071352489048863
+      },
+      {
+        "multiplier": 1.5,
+        "false_stop_rate": 0.041666666666666664,
+        "failed_time_saved_s": 6143.157957961386,
+        "failed_time_saved_share": 0.30073115568957454
+      },
+      {
+        "multiplier": 2,
+        "false_stop_rate": 0.032407407407407406,
+        "failed_time_saved_s": 4719.923075645964,
+        "failed_time_saved_share": 0.23105834670348288
+      },
+      {
+        "multiplier": 3,
+        "false_stop_rate": 0.0,
+        "failed_time_saved_s": 3206.408968726977,
+        "failed_time_saved_share": 0.15696602323712244
+      }
+    ],
+    "tripwire_n_runs": 2040,
+    "tripwire_n_failed_runs": 1608
+  },
+  "M3-S0|base": {
+    "n_tasks": 255,
+    "n_with_estimate": 255,
+    "scheduling": {
+      "sjf_relative_to_oracle": 1.2434230085146736,
+      "fifo_relative_to_oracle": 1.6852820729680342,
+      "n_queues": 1000
+    },
+    "tripwire": [
+      {
+        "multiplier": 1,
+        "false_stop_rate": 0.1592920353982301,
+        "failed_time_saved_s": 6858.166963578276,
+        "failed_time_saved_share": 0.3229262333864932
+      },
+      {
+        "multiplier": 1.5,
+        "false_stop_rate": 0.024336283185840708,
+        "failed_time_saved_s": 4505.662701675352,
+        "failed_time_saved_share": 0.21215533143026336
+      },
+      {
+        "multiplier": 2,
+        "false_stop_rate": 0.004424778761061947,
+        "failed_time_saved_s": 3622.322043392799,
+        "failed_time_saved_share": 0.1705620204054326
+      },
+      {
+        "multiplier": 3,
+        "false_stop_rate": 0.0,
+        "failed_time_saved_s": 2905.1719681353,
+        "failed_time_saved_share": 0.13679402178340536
+      }
+    ],
+    "tripwire_n_runs": 2040,
+    "tripwire_n_failed_runs": 1588
+  }
+}

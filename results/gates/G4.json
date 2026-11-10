@@ -1,0 +1,21 @@
+{
+  "gate": "G4",
+  "passed": true,
+  "checks": {
+    "e0_parse_rate_at_least_90pct": true,
+    "e1_parse_rate_at_least_90pct": true,
+    "parser_hand_audit_agreement_at_least_90pct": true,
+    "h1_table_produced": true
+  },
+  "evidence": {
+    "parse_rates": {
+      "E0": 0.926829268292683,
+      "E1": 0.9701897018970189
+    },
+    "audit_agreement": 0.9666666666666667,
+    "audit_rows": 60,
+    "audit_sha256": "cf415d505d618e52969a5ef2281db087d98cd63008fe49148e7e4e47d5fdd98f",
+    "audit_file_sha256": "b9795d2e43bfd868aeb9c6d1011c9cd67c738171d7df90af94d63a46e8056c8c",
+    "auditor": "the research agent, reading raw outputs without parser output visible in the readings file"
+  }
+}

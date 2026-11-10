@@ -6,7 +6,9 @@ __pycache__/
 .coverage
 .ipynb_checkpoints/
 data/
-results/
+results/analysis_rows.jsonl
+results/*.manifest.json
+results/gates/*.manifest.json
 adapters/
 models/
 pins/

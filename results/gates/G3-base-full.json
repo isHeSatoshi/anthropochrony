@@ -1,0 +1,21 @@
+{
+  "gate": "G3-base-full",
+  "passed": true,
+  "checks": {
+    "harness_errors_below_1pct": true,
+    "runs_complete_99pct": true,
+    "length_below_5pct_each_family": true,
+    "speed_card_invariance": true
+  },
+  "evidence": {
+    "phase": "full",
+    "pass_at_1_by_family": {
+      "FUNC": 0.4685897435897436,
+      "LIB": 0.12464183381088825,
+      "ALGO_IO": 0.013745704467353952,
+      "ALGO_FN": 0.07142857142857142,
+      "CLASS": 0.09343434343434344
+    },
+    "tasks_sha256": "3856efba8c95e29f1104d11e2068757f32e82496d9185d33e88cfafa0ad97898"
+  }
+}

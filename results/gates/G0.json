@@ -1,0 +1,19 @@
+{
+  "gate": "G0",
+  "passed": true,
+  "checks": {
+    "identity_and_special_tokens": true,
+    "sandbox_security_suite": true,
+    "chat_template_and_assistant_mask": true,
+    "hf_jobs_gpu_smoke_completed": true,
+    "candidate_execution_local_only": true,
+    "work_disk_at_least_15gb": true,
+    "home_disk_at_least_10gb": true
+  },
+  "evidence": {
+    "disk_free_gb": {
+      "work": 22.666760192,
+      "home": 12.408459264
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "g6_prompts": 50,
+  "numeric_mismatches": 0,
+  "identical_texts": 32,
+  "round_rows": 50,
+  "round_merge_hash": "b5a53a2c29d514699e344a1c0561f6d1cd38504975a7edc46176e8a5d4cfcb02",
+  "scope": "random-adapter tooling smoke; not a research result"
+}

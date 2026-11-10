@@ -1,0 +1,106 @@
+{
+  "B2": {
+    "candidates": [
+      {
+        "alpha": 1,
+        "ridge_weight": 0,
+        "val_mdae": 0.14599875868263007
+      },
+      {
+        "alpha": 1,
+        "ridge_weight": 0.5,
+        "val_mdae": 0.13240480326176332
+      },
+      {
+        "alpha": 1,
+        "ridge_weight": 1,
+        "val_mdae": 0.13730109063124496
+      },
+      {
+        "alpha": 10,
+        "ridge_weight": 0,
+        "val_mdae": 0.14599875868263007
+      },
+      {
+        "alpha": 10,
+        "ridge_weight": 0.5,
+        "val_mdae": 0.13616718108760878
+      },
+      {
+        "alpha": 10,
+        "ridge_weight": 1,
+        "val_mdae": 0.14362161802503398
+      },
+      {
+        "alpha": 100,
+        "ridge_weight": 0,
+        "val_mdae": 0.14599875868263007
+      },
+      {
+        "alpha": 100,
+        "ridge_weight": 0.5,
+        "val_mdae": 0.14053302330177297
+      },
+      {
+        "alpha": 100,
+        "ridge_weight": 1,
+        "val_mdae": 0.15861400848658075
+      }
+    ],
+    "val_mdae": 0.13240480326176332,
+    "ridge_weight": 0.5,
+    "alpha": 1
+  },
+  "B2+": {
+    "candidates": [
+      {
+        "alpha": 1,
+        "ridge_weight": 0,
+        "val_mdae": 0.11918440887030227
+      },
+      {
+        "alpha": 1,
+        "ridge_weight": 0.5,
+        "val_mdae": 0.12815806340587263
+      },
+      {
+        "alpha": 1,
+        "ridge_weight": 1,
+        "val_mdae": 0.1279916185424398
+      },
+      {
+        "alpha": 10,
+        "ridge_weight": 0,
+        "val_mdae": 0.11918440887030227
+      },
+      {
+        "alpha": 10,
+        "ridge_weight": 0.5,
+        "val_mdae": 0.12484094745255703
+      },
+      {
+        "alpha": 10,
+        "ridge_weight": 1,
+        "val_mdae": 0.13997614389547447
+      },
+      {
+        "alpha": 100,
+        "ridge_weight": 0,
+        "val_mdae": 0.11918440887030227
+      },
+      {
+        "alpha": 100,
+        "ridge_weight": 0.5,
+        "val_mdae": 0.13130000987818088
+      },
+      {
+        "alpha": 100,
+        "ridge_weight": 1,
+        "val_mdae": 0.1500162468351557
+      }
+    ],
+    "val_mdae": 0.11918440887030227,
+    "ridge_weight": 0,
+    "alpha": 1
+  }
+}

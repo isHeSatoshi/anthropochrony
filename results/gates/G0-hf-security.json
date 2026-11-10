@@ -1,0 +1,13 @@
+{
+  "gate": "G0-hf-security",
+  "passed": false,
+  "state": "blocked",
+  "checks": {
+    "namespace_probe": false,
+    "candidate_execution_permitted": false
+  },
+  "evidence": {
+    "job_id": "6af196a50e0338d1bb857220",
+    "report": "data/smoke/exec-stage-v3.json"
+  }
+}

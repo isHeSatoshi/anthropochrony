@@ -1,0 +1,28 @@
+{
+  "gate": "G2",
+  "passed": false,
+  "checks": {
+    "100_real_sequential_val_loops": true,
+    "median_relative_error_at_most_10pct": false,
+    "log_time_r2_at_least_095": false,
+    "pooled_execution_ratio_at_most_110": true
+  },
+  "evidence": {
+    "metrics": {
+      "observed_runs": 100,
+      "median_absolute_relative_error": 0.3607501871040262,
+      "log_time_r2": 0.4329917242102207,
+      "median_relative_bias": -0.3607501871040262,
+      "latency_per_call_s": 0.0
+    },
+    "candidate_latency_fallback": {
+      "observed_runs": 100,
+      "median_absolute_relative_error": 0.02316316180884057,
+      "log_time_r2": 0.9977301042777748,
+      "median_relative_bias": 0.0010625281062816385,
+      "latency_per_call_s": 0.9670214232629406
+    },
+    "observations": "data/calibration/s2-throughput-validation-v3",
+    "topology": "HF-generation/local-bwrap"
+  }
+}

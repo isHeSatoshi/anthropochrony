@@ -1,0 +1,21 @@
+{
+  "synthetic": false,
+  "n_estimates": 55177,
+  "bootstrap_resamples": 10000,
+  "note": "Only supplied measured observations are reported. Missing experiments are not inferred.",
+  "available_estimators": [
+    "B0",
+    "B1",
+    "B2",
+    "B2+",
+    "B4",
+    "E0",
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "M1-S0",
+    "M2-S0",
+    "M3-S0"
+  ]
+}

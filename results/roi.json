@@ -1,0 +1,68 @@
+{
+  "measured": {
+    "requests": 6216,
+    "mean_input_tokens": 866.9946911196911,
+    "mean_output_tokens": 117.72635135135135,
+    "generation_elapsed_s": 199.0338111509991,
+    "output_tokens_per_second": 3676.696917815748,
+    "requests_per_second": 31.230874613982877,
+    "mean_gpu_utilization_pct": 99.42211055276383,
+    "gpu": "HF Jobs l40sx1",
+    "gpu_usd_per_hour": 1.8
+  },
+  "api": {
+    "model": "gpt-5-mini",
+    "input": 0.25,
+    "output": 2.0,
+    "source": "https://developers.openai.com/api/docs/models/gpt-5-mini",
+    "date": "2026-11-10"
+  },
+  "volumes": [
+    {
+      "monthly_estimates": 10000,
+      "gpu_hours": 0.08894332330142603,
+      "self_hosted_usd": 0.16009798194256686,
+      "api_usd": 4.522013754826255,
+      "price_source": "https://developers.openai.com/api/docs/models/gpt-5-mini",
+      "price_date": "2026-11-10",
+      "caveat": "Generation-only utilization estimate; excludes idle capacity, prefill and hosting overhead."
+    },
+    {
+      "monthly_estimates": 100000,
+      "gpu_hours": 0.8894332330142602,
+      "self_hosted_usd": 1.6009798194256686,
+      "api_usd": 45.22013754826255,
+      "price_source": "https://developers.openai.com/api/docs/models/gpt-5-mini",
+      "price_date": "2026-11-10",
+      "caveat": "Generation-only utilization estimate; excludes idle capacity, prefill and hosting overhead."
+    },
+    {
+      "monthly_estimates": 1000000,
+      "gpu_hours": 8.894332330142602,
+      "self_hosted_usd": 16.009798194256682,
+      "api_usd": 452.2013754826255,
+      "price_source": "https://developers.openai.com/api/docs/models/gpt-5-mini",
+      "price_date": "2026-11-10",
+      "caveat": "Generation-only utilization estimate; excludes idle capacity, prefill and hosting overhead."
+    },
+    {
+      "monthly_estimates": 10000000,
+      "gpu_hours": 88.94332330142602,
+      "self_hosted_usd": 160.09798194256683,
+      "api_usd": 4522.013754826255,
+      "price_source": "https://developers.openai.com/api/docs/models/gpt-5-mini",
+      "price_date": "2026-11-10",
+      "caveat": "Generation-only utilization estimate; excludes idle capacity, prefill and hosting overhead."
+    }
+  ],
+  "api_usd_per_estimate": 0.0004522013754826255,
+  "self_hosted_usd_per_estimate_saturated": 1.6009798194256684e-05,
+  "always_on_gpu_usd_per_month": 1314.0,
+  "break_even_estimates_per_month_always_on": 2905785.057813223,
+  "caveats": [
+    "GPU hours assume a saturated batch of 6,216 requests (99% mean GPU utilization); interactive traffic uses the GPU less well.",
+    "The API price excludes any hidden reasoning tokens, so it is a lower bound for a reasoning model.",
+    "The API model's accuracy at this task was not measured; this table compares cost only.",
+    "Local CPU deployment (llama.cpp Q4_K_M) has no per-estimate bill but took about 15 s per estimate on an 8-thread desktop CPU (median 45 s for three estimates, X10)."
+  ]
+}

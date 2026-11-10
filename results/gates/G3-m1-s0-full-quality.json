@@ -1,0 +1,20 @@
+{
+  "gate": "G3-m1-s0-full-quality",
+  "passed": true,
+  "checks": {
+    "harness_errors_below_1pct": true,
+    "runs_complete_99pct": true,
+    "length_below_5pct_each_family": true
+  },
+  "evidence": {
+    "phase": "full",
+    "pass_at_1_by_family": {
+      "LIB": 0.10869565217391304,
+      "ALGO_IO": 0.005813953488372093,
+      "ALGO_FN": 0.09523809523809523,
+      "CLASS": 0.12768817204301075,
+      "FUNC": 0.509375
+    },
+    "tasks_sha256": "1b00bd67c03be1f959a3eb09701a622f65cbc339ed93fd0c2cec14753eec420a"
+  }
+}

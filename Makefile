@@ -59,10 +59,15 @@ train:
 	. "$(ROOT)/env.sh"
 	uv run anthropochrony train --variant "$(VARIANT)" --seed "$(SEED)"
 
-eval figures:
+eval:
 	set -e
 	. "$(ROOT)/env.sh"
-	uv run anthropochrony $@
+	uv run anthropochrony eval
+
+figures:
+	set -e
+	. "$(ROOT)/env.sh"
+	uv run anthropochrony plots
 
 demo:
 	set -e

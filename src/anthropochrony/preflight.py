@@ -7,6 +7,7 @@ from huggingface_hub import HfApi, hf_hub_download
 from transformers import AutoTokenizer
 
 from anthropochrony.artifacts import file_hash, write_json
+from anthropochrony.gates import record_gate
 from anthropochrony.gen.engine import render, system_token_count
 from anthropochrony.prompts import system_prompt
 from anthropochrony.timemodel import SpeedCard
@@ -38,6 +39,37 @@ def pinned_tokenizer(root, pins):
     if file_hash(directory / "tokenizer.json") != subject["tokenizer_sha256"]:
         raise ValueError("Pinned official tokenizer hash changed")
     return AutoTokenizer.from_pretrained(directory, local_files_only=True)
+
+
+def _gate_passed(root, name):
+    path = Path(root) / "results/gates" / f"{name}.json"
+    return path.exists() and bool(json.loads(path.read_text()).get("passed"))
+
+
+def assemble_g0(root, results):
+    """Combine the individually recorded G0 evidence into the overall gate (PLAN S0).
+
+    Remote candidate execution is not available on HF Jobs (G0-hf-security stays unpassed by
+    design, docs/EXECUTION_BLOCKER.md), so the overall gate requires the approved alternative:
+    candidate code runs only in the local sandbox and G2 validated that topology.
+    """
+    ledger = json.loads((Path(root) / "artifacts/budget.json").read_text())["entries"]
+    gpu_smoke = any(
+        e["name"].startswith("s0-gpu-smoke") and e.get("state") == "completed" for e in ledger
+    )
+    hf_gate = Path(root) / "results/gates/G0-hf-security.json"
+    remote_blocked = hf_gate.exists() and not json.loads(hf_gate.read_text()).get("passed")
+    checks = {
+        "identity_and_special_tokens": bool(results["identity_verified"]),
+        "sandbox_security_suite": _gate_passed(root, "G0-security"),
+        "chat_template_and_assistant_mask": _gate_passed(root, "G0-template"),
+        "hf_jobs_gpu_smoke_completed": gpu_smoke,
+        "candidate_execution_local_only": remote_blocked and _gate_passed(root, "G2"),
+        "work_disk_at_least_15gb": results["disk_free_gb"]["work"] >= 15,
+        "home_disk_at_least_10gb": results["disk_free_gb"]["home"] >= 10,
+    }
+    record_gate(root, "G0", checks, evidence={"disk_free_gb": results["disk_free_gb"]})
+    return []
 
 
 def preflight(root, pins):
@@ -77,13 +109,7 @@ def preflight(root, pins):
             "work": shutil.disk_usage(root).free / 1e9,
             "home": shutil.disk_usage(Path.home()).free / 1e9,
         },
-        "remaining_G0": [
-            "generation smoke",
-            "HF Jobs volume and GPU smoke",
-            "sandbox security tests",
-            "stack/gen tokenizer parity",
-            "execution dependency coverage",
-        ],
     }
+    results["remaining_G0"] = assemble_g0(root, results)
     write_json(root / "results/preflight.json", results, config=pins)
     return results

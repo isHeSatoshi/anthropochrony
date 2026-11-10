@@ -1,0 +1,28 @@
+{
+  "gate": "G1",
+  "passed": true,
+  "checks": {
+    "kept_at_least_1250": true,
+    "all_families_80pct": true,
+    "test_at_least_240": true,
+    "val_at_least_90": true,
+    "ood_at_least_90": true,
+    "all_references_3_of_3": true,
+    "no_group_leakage": true
+  },
+  "evidence": {
+    "families": {
+      "LIB": 338,
+      "FUNC": 385,
+      "ALGO_IO": 203,
+      "ALGO_FN": 312,
+      "CLASS": 93
+    },
+    "splits": {
+      "train": 869,
+      "val": 114,
+      "test": 255,
+      "test_ood": 93
+    }
+  }
+}

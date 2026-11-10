@@ -1,0 +1,49 @@
+{
+  "gate": "G2",
+  "passed": true,
+  "checks": {
+    "100_real_sequential_val_loops": true,
+    "raw_formula_failed_before_fallback": true,
+    "median_relative_error_at_most_10pct": true,
+    "log_time_r2_at_least_095": true,
+    "heldout_median_error_at_most_10pct": true,
+    "pooled_execution_ratio_at_most_110": true
+  },
+  "evidence": {
+    "adopted_at": "2026-11-09T11:52:42.389177+00:00",
+    "fallback_adopted": true,
+    "per_call_latency_s": 0.967,
+    "raw_metrics": {
+      "observed_runs": 100,
+      "median_absolute_relative_error": 0.3607501871040262,
+      "log_time_r2": 0.4329917242102207,
+      "median_relative_bias": -0.3607501871040262,
+      "latency_per_call_s": 0.0
+    },
+    "metrics": {
+      "observed_runs": 100,
+      "median_absolute_relative_error": 0.0231508270554509,
+      "log_time_r2": 0.9977304457668319,
+      "median_relative_bias": 0.0010552295466981607,
+      "latency_per_call_s": 0.967
+    },
+    "cross_validation": {
+      "random_half_splits": 200,
+      "worst_heldout_median_absolute_relative_error": 0.03441267977997069,
+      "worst_heldout_log_time_r2": 0.9965212154266554,
+      "fitted_latency_range_s": [
+        0.9472008322943044,
+        0.9917693445338669
+      ],
+      "leave_one_family_out_median_absolute_relative_error": {
+        "ALGO_FN": 0.015597243056465888,
+        "ALGO_IO": 0.040419702717838395,
+        "FUNC": 0.04565869634455192,
+        "LIB": 0.022047640335986458
+      }
+    },
+    "observations": "data/calibration/s2-throughput-validation-v3",
+    "raw_attempt": "results/gates/G2-raw-attempt.json",
+    "topology": "HF-generation/local-bwrap"
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "gate": "G0-template",
+  "passed": true,
+  "checks": {
+    "official_matches_trl": true,
+    "assistant_mask_20": true
+  },
+  "evidence": {
+    "trl": "1.7.1",
+    "transformers": "5.21.1",
+    "checks": [
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      },
+      {
+        "masked_tokens": 9,
+        "rendering_identical": true
+      }
+    ]
+  }
+}

@@ -8,7 +8,7 @@ from anthropochrony.curate.pipeline import curate
 from anthropochrony.labels import build_labels, canonical_answer
 from anthropochrony.labels.speeds import sample_cards
 from anthropochrony.parse import parse
-from anthropochrony.release import redact_record
+from anthropochrony.release import TASK_MARKER, redact_record, redact_row
 from anthropochrony.tasks.splits import assign_splits, duplicate_groups, verify_splits
 from anthropochrony.timemodel import SpeedCard
 
@@ -142,3 +142,30 @@ def test_release_does_not_leak_restricted_text():
     assert "COPYRIGHTED" not in json.dumps(released)
     assert released["restricted_statement"]
     assert record["raw_text"] == "COPYRIGHTED"
+
+
+def test_redact_row_marks_statement_and_drops_free_text():
+    original = dict(task("lcd/b"), source="newfacade/LeetCodeDataset", task_turn="Task:\nSECRET")
+    record = {
+        "task_id": "lcd/b",
+        "frame": "human",
+        "messages": [
+            {"role": "user", "content": "Task:\nSECRET\n---\nHow long?"},
+            {"role": "assistant", "content": "Time estimate: 5 min\nSECRET code"},
+        ],
+        "raw_text": "SECRET",
+        "parsed": {"point_s": 1},
+    }
+    released = redact_row(record, {"lcd/b": original})
+    assert "SECRET" not in json.dumps(released)
+    assert TASK_MARKER in released["messages"][0]["content"]
+    assert released["raw_text"] is None and released["parsed"] == {"point_s": 1}
+    assert record["raw_text"] == "SECRET"
+
+
+def test_redact_row_withholds_few_shot_prompts_for_open_tasks():
+    original = task("open/a")
+    row = {"task_id": "open/a", "estimator": "E2", "messages": [{"content": "x"}]}
+    released = redact_row(row, {"open/a": original})
+    assert released["messages"] is None
+    assert row["messages"]

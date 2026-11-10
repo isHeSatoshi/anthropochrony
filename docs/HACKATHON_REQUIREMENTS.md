@@ -26,8 +26,8 @@ Internal target: everything ready by Nov 14, 12:00 AoE (PLAN.md CP4).
 ## 2. Team, accounts and credits
 
 - Teams have 1 to 3 members, and each person is in one team only. At least one member must join the Discord server (https://discord.gg/dtEDQ2Z3eg).
-- $20 HF coupon: for registered teams that joined Discord. It goes to the team lead's email (check spam), works for the first 800 teams, needs the HF username in the registration form to match, may need a payment method, and expires 30 days after redemption.
-- Our HF account (checked 2026-11-09): `isHeSatoshi`. It is not PRO, has a payment method on file (`canPay: true`) and belongs to no organization. The active token is the fine-grained "lexsi hack" token, with read/write on own repos, collections, Jobs, Inference Providers and billing read. Gated download of Tiny Aya Global works. Aya Expanse 8B is not yet accepted (PLAN.md U3).
+- HF credits: registered teams that joined Discord can redeem a hackathon coupon; the project budget is capped at $30.
+- Our HF account: `isHeSatoshi`, with a fine-grained token limited to what the project needs. Gated download of Tiny Aya Global works.
 - Hub storage: a free account gets 100 GB of private storage, and public storage is "best-effort". This is why PLAN.md pushes adapters only, not merged models.
 - Spaces: creating a Gradio or Docker Space needs a paid plan (PRO on a personal account). Free accounts in good standing (verified email, older than 30 days) can host up to 2 ZeroGPU Gradio Spaces, and static Spaces are free for everyone. `isHeSatoshi` was created on 2023-11-30, and none of its existing Spaces is running. PLAN.md U4 lists the demo options.
 

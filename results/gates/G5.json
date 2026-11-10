@@ -1,0 +1,31 @@
+{
+  "gate": "G5",
+  "passed": true,
+  "checks": {
+    "counts_and_retained_ids_match": true,
+    "m1_m2_prompts_and_human_targets_match": true,
+    "self_assistant_targets_differ": true,
+    "one_real_optimizer_step": true,
+    "dry_run_uses_current_data": true,
+    "assistant_only_mask": true,
+    "actual_training_collator_mask": true,
+    "approved_gpu": true,
+    "lora_targets_verified": true,
+    "shared_sequence_limit": true
+  },
+  "evidence": {
+    "dry_run_summary": "adapters/m1-dryrun-s0/training-summary.json",
+    "dry_run_sha256": "0d8d6082706eec0caf97144a7b01dea384ddfb319fe3589f1f8e5c6478b984c7",
+    "self_examples": 5898,
+    "different_self_targets": 5896,
+    "identical_self_targets": [
+      "c1390dd0f8ab124b538323c58ad271ffe6bbc975d4914dadebaf4fe0f78f9e87",
+      "d8f193f798b4d6fea85b097391c9dad1725a5ae2626237d2ab9e5ba868ae6d20"
+    ],
+    "counts": {
+      "m1": 6875,
+      "m2": 6875,
+      "m3": 7809
+    }
+  }
+}

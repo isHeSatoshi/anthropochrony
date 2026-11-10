@@ -1,0 +1,8 @@
+{
+  "gate": "G0-security",
+  "passed": true,
+  "checks": {
+    "sandbox_security_suite": true
+  },
+  "evidence": {}
+}

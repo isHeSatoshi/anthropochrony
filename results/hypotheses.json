@@ -1,0 +1,122 @@
+{
+  "H1": {
+    "status": "measured",
+    "passed": false,
+    "E0_gm_ratio": 55.28038641920224,
+    "E1_gm_ratio": 0.5414634156283656,
+    "E0_aur": 0.023529411764705882
+  },
+  "H2": {
+    "status": "measured",
+    "threshold_passed": true,
+    "mean_seed_mdae": 0.24186821684063253,
+    "sd_seed_mdae": null,
+    "n_seeds": 1,
+    "selected_base_prompt_on_val": "E2",
+    "p_raw": 0.0032203244366876124,
+    "p_holm": 0.0032203244366876124,
+    "passed": true
+  },
+  "H3": {
+    "status": "measured",
+    "threshold_passed": true,
+    "mean_seed_mdae": 0.2998096429664648,
+    "sd_seed_mdae": null,
+    "n_seeds": 1,
+    "selected_base_prompt_on_val": "E2",
+    "p_raw": 8.2157817085316e-05,
+    "p_holm": 0.000246473451255948,
+    "passed": true
+  },
+  "H4": {
+    "status": "measured",
+    "n_tasks": 255,
+    "cards": [
+      "REF",
+      "extrap-high",
+      "extrap-low",
+      "heldout-190",
+      "heldout-230",
+      "seen-cpu",
+      "seen-dc",
+      "seen-edge"
+    ],
+    "seed_aggregation": "mean_of_per_seed_task_medians",
+    "mdae_log10": 0.223546476234216,
+    "error_by_seed": {
+      "mean": 0.223546476234216,
+      "sd": 0,
+      "ci95": [
+        0.204782286943883,
+        0.2425174319217213
+      ],
+      "per_seed": {
+        "0": {
+          "median": 0.223546476234216,
+          "ci95": [
+            0.204782286943883,
+            0.2425174319217213
+          ]
+        }
+      }
+    },
+    "elasticity": 0.8007536910155791,
+    "elasticity_by_seed": {
+      "mean": 0.8007536910155791,
+      "sd": 0,
+      "ci95": [
+        0.7893393965490337,
+        0.8253220687867986
+      ],
+      "per_seed": {
+        "0": {
+          "median": 0.8007536910155791,
+          "ci95": [
+            0.7893393965490337,
+            0.8253220687867986
+          ]
+        }
+      }
+    },
+    "passed": true
+  },
+  "H5": {
+    "status": "measured",
+    "threshold_passed": true,
+    "p_raw": 0.00027974155951573975,
+    "p_holm": 0.0005594831190314795,
+    "passed": true
+  },
+  "H6a": {
+    "status": "measured",
+    "paired_pass1_difference_ci95": [
+      -0.021568627450980392,
+      0.030392156862745098
+    ],
+    "passed": true
+  },
+  "H6b": {
+    "status": "measured",
+    "n_tasks": 255,
+    "seed_aggregation": "mean_of_per_seed_task_medians",
+    "mean_seed_median_abs_log10_ratio": 0.0,
+    "seed_metrics": {
+      "mean": 0.0,
+      "sd": 0,
+      "ci95": [
+        0.0,
+        0.1505149978319906
+      ],
+      "per_seed": {
+        "0": {
+          "median": 0.0,
+          "ci95": [
+            0.0,
+            0.1505149978319906
+          ]
+        }
+      }
+    },
+    "passed": true
+  }
+}

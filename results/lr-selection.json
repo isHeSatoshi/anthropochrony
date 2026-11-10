@@ -1,0 +1,24 @@
+{
+  "learning_rate": 0.0002,
+  "scores_val_mdae_log10": {
+    "0.0001": 0.391573663662367,
+    "0.0002": 0.35266300719752613
+  },
+  "train_data_sha256": "6345be0552dc4c51638b673684e8e84400e6bfcb794a8f87bd489401afe7166e",
+  "inputs": {
+    "0.0001": {
+      "estimates_sha256": "ffa5f9cb6d5fbbc17c75accd99483fcd1a23cef1bcf1c57c73710e603a7449ee",
+      "training_summary_sha256": "1f78ef58fe55d8d6f56daa4d3cda1403c78de923634a6c978bbd2ab9ae1a59d3",
+      "identity_sha256": "d2d0f1d31bbed6c00754103e6573a3e2909742bda265aa68ca222b8ce32dd165",
+      "hardware_sha256": "4e6f44285609b2e5f04995a1f7d4219ecec1097392a4179ac19539b1767490d5"
+    },
+    "0.0002": {
+      "estimates_sha256": "28a0d95221735a838f8648f6a9ae1e68af62541fe7466df9fc9e0d4659b99e23",
+      "training_summary_sha256": "38d1fa45655f93adb8d79ae4548e19f82dca17bb4862d737930229544dc248df",
+      "identity_sha256": "deaac70dbb797be379fab4a99c8c73f6cb69fe0461b52ace743e6bf97992f0cb",
+      "hardware_sha256": "4e6f44285609b2e5f04995a1f7d4219ecec1097392a4179ac19539b1767490d5"
+    }
+  },
+  "tie_break": "lower_learning_rate",
+  "selection_split": "val"
+}

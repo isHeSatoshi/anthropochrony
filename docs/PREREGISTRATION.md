@@ -302,3 +302,17 @@ PLAN.md §8 has the full definitions. Priority: P0 = required for submission, P1
   finish within the 50-minute job limit; ARC-Challenge is full. (3) The first base
   lm-eval job timed out and was repeated with these settings ($1.47 spent on the failed
   attempt).
+
+- 2026-11-10, after the confirmatory results (reporting notes, no hypothesis, threshold or
+  split changed). (1) E4 (MetaTime speed-rescaling rule) is derived offline from the stored
+  E1 reference-card estimates (`anthropochrony derive-e4`); no extra model call was made.
+  (2) Aggregation over training seeds is code-wise unchanged, but with one seed the
+  reported SD is null and the per-seed CI is the task bootstrap only. (3) Exploratory
+  questions not run: X2 (hidden-state probe, B3), X4/M6/M9 (cross-model), X7, X8, X9
+  (M5 rescaling comparison), and the variants M4, M5, M7, M8. X11 (wordings) was run for
+  the base model and M1 seed 0 only; X12 (generic-AI control) is reported through the
+  generic frame in `results/extra-analyses.json`. X10 was run only on the local CPU with
+  llama.cpp (Q4_K_M, 100 held-out tasks); some of its rows ran while other local sandbox
+  jobs were using CPU time, so wall-clock values include that contention. (4) M3 is
+  scored against its own re-measured trajectories like M1 and M2. (5) Credits ran out
+  for seeds 1 and 2 and for the P1 and P2 variants; none were attempted.

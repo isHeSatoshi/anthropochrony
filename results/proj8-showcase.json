@@ -1,0 +1,241 @@
+{
+  "base": {
+    "card": {
+      "id": "REF",
+      "S": 96.0,
+      "P": 27000.0
+    },
+    "tasks": {
+      "PROJ8-bank-ledger": {
+        "runs": 8,
+        "first_pass": 0.0,
+        "pass_within_3": 0.0,
+        "median_time_s": 45.196710158253254,
+        "median_output_tokens": 4030.5
+      },
+      "PROJ8-csv-report": {
+        "runs": 8,
+        "first_pass": 0.0,
+        "pass_within_3": 0.0,
+        "median_time_s": 20.603891872182874,
+        "median_output_tokens": 1671.0
+      },
+      "PROJ8-lru-cache": {
+        "runs": 8,
+        "first_pass": 0.0,
+        "pass_within_3": 0.0,
+        "median_time_s": 29.7691542291236,
+        "median_output_tokens": 2547.0
+      },
+      "PROJ8-markdown": {
+        "runs": 8,
+        "first_pass": 0.0,
+        "pass_within_3": 0.0,
+        "median_time_s": 69.45327602593596,
+        "median_output_tokens": 6464.5
+      },
+      "PROJ8-notes-api": {
+        "runs": 8,
+        "first_pass": 0.0,
+        "pass_within_3": 0.0,
+        "median_time_s": 27.737719273532093,
+        "median_output_tokens": 2327.5
+      },
+      "PROJ8-snake": {
+        "runs": 8,
+        "first_pass": 0.0,
+        "pass_within_3": 0.0,
+        "median_time_s": 26.42982391552881,
+        "median_output_tokens": 2229.5
+      },
+      "PROJ8-todo-cli": {
+        "runs": 8,
+        "first_pass": 0.0,
+        "pass_within_3": 0.0,
+        "median_time_s": 27.663540910511045,
+        "median_output_tokens": 2340.0
+      },
+      "PROJ8-url-shortener": {
+        "runs": 8,
+        "first_pass": 0.0,
+        "pass_within_3": 0.0,
+        "median_time_s": 24.979337971429175,
+        "median_output_tokens": 2090.0
+      }
+    },
+    "mean_first_pass": 0.0,
+    "mean_pass_within_3": 0.0
+  },
+  "m1-s0": {
+    "card": {
+      "id": "REF",
+      "S": 96.0,
+      "P": 27000.0
+    },
+    "tasks": {
+      "PROJ8-bank-ledger": {
+        "runs": 8,
+        "first_pass": 0.0,
+        "pass_within_3": 0.0,
+        "median_time_s": 48.648279650718194,
+        "median_output_tokens": 4365.0
+      },
+      "PROJ8-csv-report": {
+        "runs": 8,
+        "first_pass": 0.0,
+        "pass_within_3": 0.0,
+        "median_time_s": 18.41422380927363,
+        "median_output_tokens": 1464.0
+      },
+      "PROJ8-lru-cache": {
+        "runs": 8,
+        "first_pass": 0.0,
+        "pass_within_3": 0.0,
+        "median_time_s": 30.86831341487173,
+        "median_output_tokens": 2656.0
+      },
+      "PROJ8-markdown": {
+        "runs": 8,
+        "first_pass": 0.0,
+        "pass_within_3": 0.0,
+        "median_time_s": 33.947554103655435,
+        "median_output_tokens": 2955.5
+      },
+      "PROJ8-notes-api": {
+        "runs": 8,
+        "first_pass": 0.0,
+        "pass_within_3": 0.0,
+        "median_time_s": 29.01495464640762,
+        "median_output_tokens": 2458.5
+      },
+      "PROJ8-snake": {
+        "runs": 8,
+        "first_pass": 0.0,
+        "pass_within_3": 0.0,
+        "median_time_s": 29.25096481968096,
+        "median_output_tokens": 2500.5
+      },
+      "PROJ8-todo-cli": {
+        "runs": 8,
+        "first_pass": 0.0,
+        "pass_within_3": 0.0,
+        "median_time_s": 26.771050065149872,
+        "median_output_tokens": 2250.0
+      },
+      "PROJ8-url-shortener": {
+        "runs": 8,
+        "first_pass": 0.0,
+        "pass_within_3": 0.0,
+        "median_time_s": 21.33417070678449,
+        "median_output_tokens": 1743.0
+      }
+    },
+    "mean_first_pass": 0.0,
+    "mean_pass_within_3": 0.0
+  },
+  "cpu_deployment": {
+    "card": {
+      "id": "demo-llamacpp",
+      "S": 20.0,
+      "P": 210.0
+    },
+    "tasks": [
+      {
+        "task_id": "PROJ8-todo-cli",
+        "wall_s": 194.32174476899672,
+        "passed": false,
+        "attempts": 3,
+        "base_estimate_s": 2545.584412271571,
+        "base_log10_error": 1.1172661016932572,
+        "tuned_estimate_s": 150.0,
+        "tuned_log10_error": -0.11243014218635819,
+        "human_estimate_s": 8818.163074019441,
+        "human_log10_error": 1.6568567247170696
+      },
+      {
+        "task_id": "PROJ8-notes-api",
+        "wall_s": 122.62527253001463,
+        "passed": false,
+        "attempts": 3,
+        "base_estimate_s": 1039.2304845413264,
+        "base_log10_error": 0.9281318921513926,
+        "tuned_estimate_s": 150.0,
+        "tuned_log10_error": 0.087511273463599,
+        "human_estimate_s": 8818.163074019441,
+        "human_log10_error": 1.8567981403670268
+      },
+      {
+        "task_id": "PROJ8-snake",
+        "wall_s": 162.44107101502595,
+        "passed": false,
+        "attempts": 3,
+        "base_estimate_s": 2545.584412271571,
+        "base_log10_error": 1.1950916586946034,
+        "tuned_estimate_s": 126.0,
+        "tuned_log10_error": -0.11032529912313052,
+        "human_estimate_s": 17636.326148038883,
+        "human_log10_error": 2.035712277382397
+      },
+      {
+        "task_id": "PROJ8-lru-cache",
+        "wall_s": 198.95360530301696,
+        "passed": false,
+        "attempts": 3,
+        "base_estimate_s": 1039.2304845413264,
+        "base_log10_error": 0.7179600641981428,
+        "tuned_estimate_s": 132.0,
+        "tuned_log10_error": -0.17817788233948217,
+        "human_estimate_s": 17636.326148038883,
+        "human_log10_error": 1.9476563080777582
+      },
+      {
+        "task_id": "PROJ8-csv-report",
+        "wall_s": 98.85163189301966,
+        "passed": false,
+        "attempts": 3,
+        "base_estimate_s": 424.26406871192853,
+        "base_log10_error": 0.632652409288573,
+        "tuned_estimate_s": 126.0,
+        "tuned_log10_error": 0.10538670185448296,
+        "human_estimate_s": 8818.163074019441,
+        "human_log10_error": 1.950394282696029
+      },
+      {
+        "task_id": "PROJ8-markdown",
+        "wall_s": 226.32707055998617,
+        "passed": false,
+        "attempts": 3,
+        "base_estimate_s": 2545.584412271571,
+        "base_log10_error": 1.0510510007185099,
+        "tuned_estimate_s": 126.0,
+        "tuned_log10_error": -0.2543659570992239,
+        "human_estimate_s": 13942.7400463467,
+        "human_log10_error": 1.7896116280783412
+      },
+      {
+        "task_id": "PROJ8-url-shortener",
+        "wall_s": 128.8427424649999,
+        "passed": false,
+        "attempts": 3,
+        "base_estimate_s": 424.26406871192853,
+        "base_log10_error": 0.5175762921883803,
+        "tuned_estimate_s": 126.0,
+        "tuned_log10_error": -0.009689415245709834,
+        "human_estimate_s": 17636.326148038883,
+        "human_log10_error": 2.1363481612598174
+      },
+      {
+        "task_id": "PROJ8-bank-ledger",
+        "wall_s": 270.74952643798315,
+        "passed": false,
+        "attempts": 3,
+        "base_estimate_s": 8818.163074019441,
+        "base_log10_error": 1.5128104202759731,
+        "tuned_estimate_s": 270.0,
+        "tuned_log10_error": -0.001203941524148627,
+        "human_estimate_s": 25455.84412271571,
+        "human_log10_error": 1.9732197972521606
+      }
+    ]
+  }
+}

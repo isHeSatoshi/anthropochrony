@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def trajectories(run):
     path = ROOT / "data/measure" / f"showcase-{run}" / "traces.jsonl"
     reference = json.loads((ROOT / "data/calibration/reference.json").read_text())
-    card = SpeedCard("REF", reference["S"], reference["P"])
+    card = SpeedCard("REF", reference["reference"]["S"], reference["reference"]["P"])
     rows = {}
     for trace in read_jsonl(path):
         rows.setdefault(trace["task_id"], []).append(trace)

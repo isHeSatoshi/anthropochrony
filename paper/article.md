@@ -280,7 +280,19 @@ An always-on L40S ($1,314/month) breaks even with the API at about 2.9 million e
 
 ### 7.8 Showcase: PROJ-8 tasks
 
-SHOWCASE_PLACEHOLDER
+We wrote eight project-sized tasks ("PROJ-8": a todo CLI, a notes API, a snake game, an LRU cache, a CSV report, a markdown converter, a URL shortener, a bank ledger). They were never in train, validation or test, and each has strict hidden tests. This is a demonstration, not a hypothesis test. Numbers are in `results/proj8-showcase.json`.
+
+**Trajectories on the reference card (8 runs per task, up to 3 attempts).** Neither the base model nor M1 passes any task, even on the third attempt (first-pass and pass-within-3 are 0/64 for both). The tests demand exact messages and behaviors that a 3.35B model does not guess. The model does finish and return code every time, so what we can measure is time. The median trajectory time is 21 to 69 s for the base model and 18 to 49 s for M1. They are close on seven of eight tasks; the only large gap is the markdown converter (69 s base, 34 s M1). So tuning did not make the agent faster; the aim of M1 is to *predict* the time, not to cut it.
+
+**CPU deployment (Q4_K_M GGUF, llama.cpp, one machine card measured at start: S = 20 tok/s decode, P = 210 tok/s prefill).** For each task we asked the base model and M1 for an estimate of the agent's wall-clock time, then ran the full 3-attempt loop on the same CPU. All eight real runs took 99 to 271 s.
+
+| | median abs. error | worst case |
+|---|---|---|
+| Base model, own estimate | 9.8x (log10 0.99) | 33x |
+| M1, own-time estimate | 1.28x (log10 0.108) | 1.8x |
+| M1, "a human would need" estimate | 89x | 137x |
+
+M1's estimates stay within a factor of 1.8 on all eight tasks. The base model overestimates by 3 to 33x, because it answers as a person would. The caveat is large: M1's answers sit in a narrow band (126 to 270 s, and 150 s for three tasks) while real times span 99 to 271 s. The tasks are similar to each other, so a near-constant guess works well here. We cannot say from eight tasks that M1 tracks differences between them. The estimates in the earlier tables (E4, B2, held-out cards) are the test of that.
 
 ### 7.9 Negative and surprising results (summary)
 
@@ -322,7 +334,7 @@ Built by [@isHeSatoshi](https://huggingface.co/isHeSatoshi). *(Add co-members he
 
 ## Appendix: reproduction
 
-`README.md` has the commands. In short: `uv sync && make figures` rebuilds the tables and figures from released data on CPU; `notebooks/reproduce_results.ipynb` checks the headline numbers against the released `metrics.json`. The full pipeline (`make tasks calibrate measure labels baselines sft-data train remeasure eval`) needs HF Jobs L40S time; the total spend for this study was about $TOTAL_USD of a $30 cap.
+`README.md` has the commands. In short: `uv sync && make figures` rebuilds the tables and figures from released data on CPU; `notebooks/reproduce_results.ipynb` checks the headline numbers against the released `metrics.json`. The full pipeline (`make tasks calibrate measure labels baselines sft-data train remeasure eval`) needs HF Jobs L40S time; the total spend for this study was $26.7 of a $30 cap ($24.9 on HF Jobs L40S, $1.7 on teacher-model API calls).
 
 **References.** Monperrus, M. and Stenqvist, O. on anthropocentric time bias in LLM coding agents; MetaTime and AgentTime as concurrent measurement studies (see `research/related_work.md` and `research/references.bib`). Tiny Aya: Cohere Labs. EvalPlus, BigCodeBench, ClassEval, LeetCodeDataset, CodeContests, TACO, IFEval, ARC.
 

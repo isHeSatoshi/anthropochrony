@@ -1956,3 +1956,12 @@ Reservation ftround-27ca470d0d79a9ae52248fee: ≤$1.2000, before submitting the 
 
 Reservation ftround-ad1393ff34482735bf0ae851: ≤$1.2000, before submitting the paid job.
 | 6af324d6ab34849891abf404 | ftround-ad1393ff34482735bf0ae851 | l40sx1 | ≤40.0 | ≤1.2000 | Launched |
+
+2026-11-10T14:15:05.591112+00:00: ftround 6af324d6ab34849891abf404 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+## 2026-11-10 (late): PROJ-8 showcase and final accounting
+
+- M1 showcase (`showcase-m1-s0`, 8 tasks x 8 runs, 3 rounds, GPU job 6af324d6…) and base showcase finished. Neither model passes any hidden-test task (0/64 each, pass-within-3 too). Median reference-card times: base 21-69 s, M1 18-49 s.
+- PROJ-8 CPU deployment (`scripts/x10_cpu_deployment.py --proj8`, Q4_K_M, machine card S=20 tok/s, P=210 tok/s): real wall-clock 99-271 s per task (3 attempts each). Median absolute error: base 9.8x, M1 1.28x (worst 1.8x), M1 human-frame 89x. M1 estimates lie in a narrow band, so this shows no per-task discrimination.
+- Fixed `scripts/proj8_summary.py` reference-card key; wrote `results/proj8-showcase.json`.
+- Budget reconciled: total $26.67 (HF Jobs $24.94, teacher APIs $1.73) of the $30 cap. No further paid jobs.

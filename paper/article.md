@@ -280,16 +280,16 @@ Table 6 summarizes three end-to-end systems simulations (`results/simulations.js
 
 | Estimator / Policy | Target source | `SJF` mean wait vs. oracle `test` (`q=50`, FIFO `1.685×`) | **`SJF` mean wait vs. oracle `CLASS` OOD (`q=30`, FIFO `1.377×`)** | `1.0×` tripwire false-abort rate (`test` passing runs, $\downarrow$) | `1.0×` tripwire failed-GPU time saved ($\uparrow$) | `15 s` Edge/DC SLA violations ($\downarrow$) / cost per `1k` runs |
 |---|:---:|---:|---:|---:|---:|---:|
-| `FIFO` / `Always-Edge` / `Always-DC` | `base` | `1.685×` (`FIFO`) | `1.377×` (`FIFO`) | `0.00%` (no cap) | `0.0%` | `31.2%` (`$0.98`) / `3.2%` (`$2.77` DC) |
-| `E1` Base + speed card | `base` | `1.562×` | `1.318×` | `73.01%` | `79.6%` | `10.6%` (`$2.24`) |
-| `E2` Base + 5-shot ICL | `base` | `1.193×` | `1.207×` | `42.70%` | `45.3%` | `13.3%` (`$2.08`) |
-| `B4` (`DeepSeek-V4-Pro`) | `base` | `1.333×` | `1.212×` | — | — | — |
-| `B2` Static text+AST GBDT | `base` | **`1.141×`** | `1.253×` | `20.80%` | `27.8%` | `15.1%` (`$1.87`) |
-| `M2-S0` Teacher SFT | `own` | `1.511×` | `1.243×` | `20.35%` | `27.3%` | `12.9%` (`$2.13`) |
-| `M1-S0` Raw verbal SFT | `own` | `1.360×` | `1.278×` | `13.94%` | `24.1%` | `17.4%` (`$1.91`) |
-| **`M1-Struct` / `M1-Struct+CP`** | `own` | `1.251×` (**`-30%`** excess vs `M1-S0`) | **`1.183×` (#1 non-privileged)** | **`1.33%` (`10.5×` safer)** | **`19.9%`** | **`6.3%` (`$2.04`, `-26.4%` vs DC)** |
+| `FIFO` / `Always-Edge` / `Always-DC` | `base` | `1.685×` (`FIFO`) | `1.377×` (`FIFO`) | `0.00%` (no cap) | `0.0%` | `31.2%` (`$0.98`) / `2.0%` (`$2.77` DC) |
+| `E1` Base + speed card | `base` | `1.562×` | `1.318×` | `73.01%` | `79.6%` | `16.3%` (`$1.86`) |
+| `E2` Base + 5-shot ICL | `base` | `1.193×` | `1.207×` | `42.70%` | `45.3%` | `13.3%` (`$2.22`) |
+| `B4` (`DeepSeek-V4-Pro`) | `base` | `1.333×` | `1.182×` | — | — | — |
+| `B2` Static text+AST GBDT | `base` | **`1.141×`** | `1.253×` | `20.80%` | `27.8%` | `15.1%` (`$2.11`) |
+| `M2-S0` Teacher SFT | `own` | `1.511×` | `1.243×` | `20.35%` | `27.3%` | `16.3%` (`$1.56`) |
+| `M1-S0` Raw verbal SFT | `own` | `1.360×` | `1.278×` | `13.94%` | `24.1%` | `17.4%` (`$1.45`) |
+| **`M1-Struct` / `M1-Struct+CP`** | `own` | `1.251×` (**`-30%`** excess vs `M1-S0`) | **`1.183×` (tied with `B4`, `1.182×`)** | **`1.33%` (`10.5×` safer)** | **`19.9%`** | **`6.3%` (`$2.04`, `-26.4%` vs DC)** |
 
-1. **Best OOD Shortest-Job-First (`SJF`) queue scheduling:** On unseen **`CLASS` OOD queues**, **`M1-Struct` (`1.183×` oracle) beats every non-privileged estimator**—including `E2` (`1.207×`), `B4` (`1.212×`), `M2-S0` (`1.243×`), **`B2` (`1.253×`, whose `CLASS` Spearman $\rho$ is `0.320` vs. `M1-Struct`'s `0.369`)**, and verbal `M1-S0` (`1.278×`).
+1. **Best OOD Shortest-Job-First (`SJF`) queue scheduling:** On unseen **`CLASS` OOD queues**, **`M1-Struct` (`1.183×` oracle) ties the frontier teacher `B4` (`1.182×`, a `0.001` gap that is noise) and beats every other non-privileged estimator**—including `E2` (`1.207×`), `M2-S0` (`1.243×`), **`B2` (`1.253×`, whose `CLASS` Spearman $\rho$ is `0.320` vs. `M1-Struct`'s `0.369`)**, and verbal `M1-S0` (`1.278×`).
 2. **Safe conformal timeout tripwires:** Raw upper bounds abort `13.9%–73.0%` of *passing* trajectories; **`M1-Struct+CP` cuts false aborts `10.5×` to `1.33%`** (`0.0%` at `1.5×`) while reclaiming **`19.9%`** of wasted failing GPU hours (`M1b`: `1.77%` false aborts, `21.3%` saved).
 3. **Multi-tier Edge/Datacenter SLA routing (`15 s` deadline):** Offloading jobs whose conformal upper bound fits `15 s` onto `$0.25/h` Edge GPUs (`56.1%` offloaded) and sending heavier jobs to `$1.80/h` Datacenter GPUs cuts cluster spend by **`26.4%`** vs. `Always-DC` while holding SLA violations to **`6.3%`** (`5.7%` for `M1b`).
 
@@ -330,7 +330,7 @@ On one HF Jobs `l40sx1` (`$1.80/h`), merged `M1-S0` served **`6,216` estimate re
 
 Two questions our pre-registered design could not answer: does the method carry over to another model, and does it hold on tasks outside the 1,465-task pool?
 
-**Second model: Aya Expanse 8B** (`CohereLabs/aya-expanse-8b`, listed Cohere model, `8.03B`). We ran the same pipeline with new, self-contained code (`src/anthropochrony/crossmodel/`, `jobs/xm_*.py`; the pinned tiny-aya pipeline is untouched). The model wrote its own solutions to `678` tasks (`330` train subset, all `255` `test`, all `93` `CLASS` OOD) with $K = 4$ three-attempt trajectories each (`2,712` runs, vLLM on an `l40sx1`, candidate code executed only in the local sandbox). Labels used the same `REF` card and time formula (the label is "time if served at the reference speed", not Aya's wall-clock on the L40S). One LoRA (`r16`, `α32`, `lr 2e-4`, `2` epochs, `1,980` examples, 6 speed cards per task, no human-frame rows) was trained with a plain PyTorch/PEFT loop, because the pinned AlignTune/TRL path needs a chat template with generation markers that Aya Expanse lacks. All training tokens are completion-only, ending in `<|END_OF_TURN_TOKEN|>`. Scored on the `REF`, `seen-cpu`, `extrap-low` and `heldout-190` cards.
+**Second model: Aya Expanse 8B** (`CohereLabs/aya-expanse-8b`, listed Cohere model, `8.03B`). We ran the same pipeline with new, self-contained code (`src/anthropochrony/crossmodel/`, `jobs/xm_*.py`; the pinned tiny-aya pipeline is untouched). The model wrote its own solutions to `678` tasks (`330` train subset, all `255` `test`, all `93` `CLASS` OOD) with $K = 4$ three-attempt trajectories each (`2,712` runs, vLLM on an `l40sx1`, candidate code executed only in the local sandbox). Labels used the `REF` card (`S = 96`, `P = 27,000` tok/s here versus `26,000` in the tiny-aya code, a `4%` difference in prefill speed that moves times by well under `1%`) and the same time formula (the label is "time if served at the reference speed", not Aya's wall-clock on the L40S). One LoRA (`r16`, `α32`, `lr 2e-4`, `2` epochs, `1,980` examples, 6 speed cards per task, no human-frame rows) was trained with a plain PyTorch/PEFT loop, because the pinned AlignTune/TRL path needs a chat template with generation markers that Aya Expanse lacks. All training tokens are completion-only, ending in `<|END_OF_TURN_TOKEN|>`. Scored on the `REF`, `seen-cpu`, `extrap-low` and `heldout-190` cards.
 
 Aya Expanse 8B solves `25.2%` of tasks within three attempts (`22.9%` on the first), similar to tiny-aya on the same task families.
 

@@ -66,6 +66,19 @@ We tested two ways it could fail to carry over.
 | **Adapter** | **1.4x** | **1.4x** |
 | **Adapter + formula** | **1.3x** | **1.5x** |
 
+A few tasks Aya Expanse 8B had never seen, in seconds (for each kind of task we took the one with the middle-sized error, so these are typical, not the best):
+
+| Task | What really happened | Untrained model said | Ours said |
+|---|--:|--:|--:|
+| BigCodeBench/778 | 13.3 | 735 | 16.0 |
+| Mbpp/19 | 2.4 | 424 | 1.3 |
+| cc/1553_D. Backspace | 7.5 | 600 | 11.0 |
+| lcd/test/find-the-number-of-copy-arrays | 11.5 | 1800 | 14.0 |
+| ClassEval_4 (new kind of task) | 23.0 | 1800 | 16.0 |
+| ClassEval_70 (new kind of task) | 17.4 | 900 | 12.0 |
+
+"What really happened" is the time at the reference speed (96 tokens a second writing, 27,000 reading), worked out from the model's own recorded runs.
+
 The pattern from the small model repeats, including the token counts (off by 1.4x against 1.6x with examples). The untrained model is wildly off, the adapter fixes it, the formula rescues slow hardware (2.8x off with the adapter alone at 1.5 tokens a second, 1.3x with the formula), and the adapter's lead is clear on the kind of task it never saw. On familiar tasks its margin over a plain average is small. One seed, 4 runs per task instead of 8, trained with the same recipe but not through AlignTune.
 
 **Brand-new tasks.** We wrote 30 coding tasks that are in none of our data (small functions up to 100-line modules) and ran `tiny-aya-global` on an ordinary CPU with real tests. These were hard: it solved 3 of 30. The untrained model was off by 7.3 times. The adapter was off by 1.9 times, with 17 of 30 estimates within 2x. The formula made it worse here (3.4 times) because the model needed all three tries on 27 tasks and the adapter had assumed fewer. And inside a size class, neither version ranked tasks well: its overall ranking comes mostly from task size, not from telling apart tasks of similar size.

@@ -1,6 +1,6 @@
 # Anthropochrony
 
-### Ask any AI how long a job will take. It answers for a human. It finishes in minutes.
+### Ask an AI how long a job will take and it says days. It finishes in minutes.
 
 _Built for the Lexsi AI Safety & Alignment Hackathon, Track 1._
 
@@ -10,9 +10,9 @@ _Built for the Lexsi AI Safety & Alignment Hackathon, Track 1._
 
 ## The problem is everywhere
 
-Ask a frontier model how long a piece of work will take. Hand Claude a refactor, a new feature, a migration, and it will often tell you it's "a few hours of work", or "two to three days". Then you let it run, and it's done before your coffee cools.
+Ask a frontier model how long a piece of work will take. Give Claude a refactor, a new feature, a migration, and you'll hear "this is a few days of work" or "figure on a week". Then you let it run, and it's done in minutes.
 
-It isn't lying. It learned from text written by people, and when people say how long something takes, they mean how long a person takes. The model gives you a human's answer to a question about itself.
+The model isn't lying. It learned from text written by people, and when people say how long a job takes, they mean how long a person takes. So you get the time a human engineer would need, from something that isn't one. It's like asking a calculator how long long division takes and hearing "about ten minutes, with a pencil".
 
 We wanted to know how bad this is, so we tested it on a small model where we could measure everything. `tiny-aya-global` writes a Python function in about 8 seconds. Before each task, we asked how long it would take.
 

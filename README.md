@@ -1,26 +1,26 @@
 # Anthropochrony
 
-### We asked an AI how long it would take to write a small Python function. It said two hours. It took 8 seconds.
+### Ask any AI how long a job will take. It answers for a human. It finishes in minutes.
 
-_Built for the Lexsi AI Safety & Alignment Hackathon, Track 1. Monperrus and Stenqvist named this bias before us. We set out to measure it properly and see if it could be fixed._
+_Built for the Lexsi AI Safety & Alignment Hackathon, Track 1._
 
 [Write-up](paper/article.md) · [For judges](docs/JUDGES.md) · [Technical tables](docs/README-technical.md) · [Models](https://huggingface.co/collections/isHeSatoshi/anthropochrony-models-6af31e769e666b4001e8c5f2) · [Data](https://huggingface.co/collections/isHeSatoshi/anthropochrony-data-6af31e776d6f33265b0c33a8)
 
 ![Estimated vs measured time](paper/figures/F1-estimated-vs-measured.png)
 
-## How this started
+## The problem is everywhere
 
-We had a small coding model, `tiny-aya-global`, writing Python functions in a sandbox. It was fast. Most tasks took it about 8 seconds.
+Ask a frontier model how long a piece of work will take. Hand Claude a refactor, a new feature, a migration, and it will often tell you it's "a few hours of work", or "two to three days". Then you let it run, and it's done before your coffee cools.
 
-Then we asked it a simple question before each task: how long will this take you?
+It isn't lying. It learned from text written by people, and when people say how long something takes, they mean how long a person takes. The model gives you a human's answer to a question about itself.
+
+We wanted to know how bad this is, so we tested it on a small model where we could measure everything. `tiny-aya-global` writes a Python function in about 8 seconds. Before each task, we asked how long it would take.
 
 "About two hours."
 
-It had never been slow in its life. But it had read millions of lines written by people, and for people, that is a fair answer. It wasn't lying. It was answering for the wrong species.
+We ran this on 1,465 tasks. On average the guess was 55 times too long. Telling it "you generate about 96 tokens a second" barely helped. It nodded and ignored the number.
 
-We ran this on 1,465 tasks. On average, the model's guess was 55 times too long. Telling it "you generate about 96 tokens a second" didn't help much. It nodded and ignored the number.
-
-If you want to schedule jobs, set a timeout, or decide whether a task goes to a phone or a server, that guess is useless.
+This matters because estimates drive decisions: how to queue jobs, when to time out a run, whether a task goes to a phone or a server, what to tell a customer about when their work will be done.
 
 ## So we taught it to know itself
 

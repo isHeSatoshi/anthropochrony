@@ -42,7 +42,10 @@ anthropochrony = "anthropochrony.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["security: real bubblewrap/cgroup isolation tests"]
+markers = [
+  "security: real bubblewrap/cgroup isolation tests",
+  "release_data: needs the released research data (scripts/fetch_release.py)",
+]
 
 [tool.ruff]
 target-version = "py312"

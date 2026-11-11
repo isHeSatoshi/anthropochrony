@@ -112,10 +112,15 @@ def test_gradio_builds_without_backend(tmp_path):
     assert not config.get("analytics_enabled")
 
 
+@pytest.mark.release_data
 def test_workbench_engine_redaction_and_zero_execution_safety():
     from anthropochrony.workbench import COHORTS, WorkbenchEngine
 
     root = SPEC.parent.parent
+    if not (root / "data/eval/estimates.jsonl").exists():
+        pytest.skip(
+            "needs the released research data; run `uv run python scripts/fetch_release.py`"
+        )
     engine = WorkbenchEngine(root)
     # 1) Showcase & OOD CLASS exploration
     p_md, table_md, fig = engine.explore_task(COHORTS[0], "PROJ8-todo-cli", "REF")
@@ -127,7 +132,6 @@ def test_workbench_engine_redaction_and_zero_execution_safety():
     assert ood_opts
     _, ood_table, _ = engine.explore_task(COHORTS[3], ood_opts[0][1], "extrap-low")
     assert "M1-Struct" in ood_table
-
     # 2) Restricted source statement redaction check
     restricted_ids = [
         tid

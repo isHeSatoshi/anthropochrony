@@ -77,12 +77,15 @@ Rebuild the headline confirmatory table, verify exact `1e-9` agreement against `
 git clone https://github.com/isHeSatoshi/anthropochrony && cd anthropochrony
 . ./env.sh                      # sets repo-local caches & bubblewrap path; never sets HF_HOME
 uv sync --locked --extra demo
+uv run python scripts/fetch_release.py   # public Hub release -> data/ (pinned revisions)
 uv run pytest -q                # runs full unit + bubblewrap sandbox security suite
 make eval && make figures       # recomputes metrics, extra-analyses, simulations & F1-F7
 uv run python scripts/run_notebook.py
 ```
 
-If `data/eval/estimates.jsonl` is not present locally, `scripts/run_notebook.py` reads `results/*` from `ANTHROPOCHRONY_DATA` (or downloads `results/*` from `isHeSatoshi/anthropochrony-eval`).
+`scripts/fetch_release.py` downloads the published datasets from the Hub at pinned revisions (`isHeSatoshi/anthropochrony-tasks`, `-eval`, `-traces`) into `data/`, which is gitignored because it holds measured trajectories. Everything else — code, `results/`, figures, the paper — is in the repository.
+
+The notebook reads `results/analysis_rows.jsonl` from `ANTHROPOCHRONY_DATA` if you point it at a local directory, otherwise it downloads `results/*` from `isHeSatoshi/anthropochrony-eval`. CI runs both jobs: it fetches the public release, asserts the released data reproduces `results/metrics.json` to `1e-9` across all 36 estimator × split × target-source groups, builds the workbench from the release, and executes the notebook end to end.
 
 ---
 

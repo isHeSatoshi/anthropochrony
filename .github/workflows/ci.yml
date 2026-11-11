@@ -9,5 +9,72 @@ jobs:
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
+      # Fetch the public release so the data-dependent workbench test actually runs
+      # here instead of skipping on a bare checkout.
+      - run: uv run python scripts/fetch_release.py
       - run: uv run pytest -m "not security"
       - run: uv run anthropochrony prompts --check
+
+  # Validate the *public* release artifacts, not just the source tree: a reviewer
+  # cloning this repo must be able to rebuild every reported number and drive the
+  # workbench using only what is published on the Hugging Face Hub.
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run python scripts/fetch_release.py
+      - name: Assert the released data reproduces the committed metrics exactly
+        run: |
+          uv run python - <<'PY'
+          import json
+          from pathlib import Path
+
+          from anthropochrony.artifacts import read_jsonl
+          from anthropochrony.eval.metrics import summary, task_records
+          from anthropochrony.eval.reporting import normalized_rows
+
+          rows = normalized_rows(read_jsonl('data/eval/estimates.jsonl'))
+          released = {
+              (m['estimator'], m['split'], m['card_id'], m['frame'], m['target_source']): m
+              for m in json.loads(Path('results/metrics.json').read_text())
+          }
+          groups = {}
+          for row in rows:
+              if row['card_id'] != 'REF' or row.get('frame', 'self') != 'self':
+                  continue
+              key = (row['estimator'], row['split'], row.get('target_source', 'base'))
+              groups.setdefault(key, []).append(row)
+
+          mismatches = []
+          for (est, split, target), group in sorted(groups.items()):
+              ref = released.get((est, split, 'REF', 'self', target))
+              if ref is None:
+                  continue
+              mine = summary(task_records(group))
+              for field in ('mdae_log10', 'within2x', 'spearman'):
+                  a, b = mine.get(field), ref.get(field)
+                  if a is None or b is None:
+                      continue
+                  if abs(a - b) > 1e-9:
+                      mismatches.append((est, split, target, field, a, b))
+
+          print(f'{len(groups)} estimator/split/target groups checked')
+          assert not mismatches, f'released data does not reproduce metrics.json: {mismatches[:5]}'
+          print('released data reproduces results/metrics.json to 1e-9')
+          PY
+      - name: Workbench builds and serves the public release
+        run: |
+          uv run python - <<'PY'
+          from anthropochrony.workbench import COHORTS, WorkbenchEngine
+
+          engine = WorkbenchEngine('.')
+          ood = engine.cohort_choices(COHORTS[3])
+          assert ood, 'no OOD cohort in the released data'
+          _, table, figure = engine.explore_task(COHORTS[3], ood[0][1], 'extrap-low')
+          assert 'M1-Struct' in table, 'M1-Struct missing from the released OOD table'
+          assert figure is not None
+          print(f'workbench serves {len(ood)} unseen-family OOD tasks from the release')
+          PY
+      - run: uv run python scripts/run_notebook.py

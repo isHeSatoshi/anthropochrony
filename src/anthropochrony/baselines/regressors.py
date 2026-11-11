@@ -1,4 +1,5 @@
 import ast
+import re
 from collections import defaultdict
 
 import numpy as np
@@ -9,18 +10,30 @@ from anthropochrony.timemodel import SpeedCard, completion_time
 
 
 def input_features(task, families, privileged=False):
-    text = task["task_turn"]
-    try:
-        tree = ast.parse(text)
-        functions = sum(isinstance(n, (ast.FunctionDef, ast.ClassDef)) for n in ast.walk(tree))
-    except SyntaxError:
-        import re
+    """Static, non-executing prompt features.
 
-        functions = len(re.findall(r"\b(?:def|class)\s+\w+", text))
+    ``task_turn`` is absent from the *public* release for restricted-source tasks
+    (license compliance), so the text-derived columns fall back to the released
+    ``prompt_tokens`` / ``ref_tokens`` counts, which are always published. Without
+    this fallback the released artifacts cannot rebuild the workbench at all.
+    """
+    text = task.get("task_turn")
+    if text:
+        try:
+            tree = ast.parse(text)
+            functions = sum(isinstance(n, (ast.FunctionDef, ast.ClassDef)) for n in ast.walk(tree))
+        except SyntaxError:
+            functions = len(re.findall(r"\b(?:def|class)\s+\w+", text))
+        n_chars, n_lines = len(text), len(text.splitlines())
+    else:
+        # Redacted statement: keep the feature vector shape identical by using the
+        # published token counts as the length proxies.
+        functions = 0
+        n_chars = n_lines = 4 * int(task.get("prompt_tokens", 0))
     values = [
         task["prompt_tokens"],
-        len(text),
-        len(text.splitlines()),
+        n_chars,
+        n_lines,
         functions,
         len(task.get("public_examples", {})),
     ]

@@ -9,12 +9,18 @@ PHASE ?= pilot
 LOCAL_DATA ?= ../scratch/data
 GENERATION ?=
 
-.PHONY: setup exec-env test lint smoke preflight tasks calibrate measure labels baselines sft-data train remeasure eval extra-analyses simulate figures demo release status prepare-round execute-round
+.PHONY: setup exec-env test lint smoke preflight tasks calibrate measure labels baselines sft-data train remeasure eval extra-analyses simulate figures demo release status prepare-round execute-round release-data
 
 setup:
 	set -e
 	. "$(ROOT)/env.sh"
 	uv sync --locked
+
+# Download the public Hub release (pinned revisions) into the gitignored `data/` layout.
+release-data:
+	set -e
+	. "$(ROOT)/env.sh"
+	uv run python scripts/fetch_release.py
 
 exec-env:
 	set -e

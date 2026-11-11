@@ -60,6 +60,48 @@ def fetch(include_x10: bool, out: Path) -> None:
         print(f"{repo}/{name} -> data/{destination}")
 
 
+def build_demo_tasks(out: Path) -> None:
+    """Rebuild `data/demo/tasks.jsonl` from the published artifacts.
+
+    The demo bundle is the PROJ-8 showcase plus seven quick, openly-licensed `test`
+    tasks per family. It is derived (not published) so that the Space and the
+    workbench can offer verified, executable tasks without a private checkout.
+    """
+    import pandas as pd
+
+    tasks_path = out / "tasks/tasks.jsonl"
+    labels_path = out / "labels/base.parquet"
+    proj8_path = out / "tasks/proj8.jsonl"
+    if not (tasks_path.exists() and labels_path.exists() and proj8_path.exists()):
+        print("skipped demo tasks: missing published tasks/labels/proj8 inputs")
+        return
+
+    restricted = {"newfacade/LeetCodeDataset", "deepmind/code_contests", "BAAI/TACO"}
+    tasks = [json.loads(line) for line in tasks_path.read_text().splitlines()]
+    labels = pd.read_parquet(labels_path)
+    ref = labels[(labels.card_id == "REF") & (labels.split == "test")]
+    quick = ref[(ref.T_med_s.between(3, 40)) & (ref.PFP >= 0.1)].set_index("task_id")
+
+    chosen = []
+    for family in ("FUNC", "LIB", "ALGO_FN"):
+        pool = [
+            task
+            for task in tasks
+            if task["task_id"] in quick.index
+            and task["family"] == family
+            and task["source"] not in restricted
+            and task.get("gt", {}).get("passes")
+        ]
+        pool.sort(key=lambda task: task["task_id"])
+        chosen += pool[:7]
+
+    showcase = [json.loads(line) for line in proj8_path.read_text().splitlines()]
+    target = out / "demo/tasks.jsonl"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("".join(json.dumps(t) + "\n" for t in showcase + chosen))
+    print(f"{len(showcase)} showcase + {len(chosen)} test tasks -> data/demo/tasks.jsonl")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", default=str(ROOT / "data"))
@@ -74,6 +116,7 @@ def main() -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     fetch(args.include_x10, out)
+    build_demo_tasks(out)
     print("release materialized under", out)
 
 

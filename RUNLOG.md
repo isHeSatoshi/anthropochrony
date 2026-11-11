@@ -1965,3 +1965,49 @@ Reservation ftround-ad1393ff34482735bf0ae851: ≤$1.2000, before submitting the 
 - PROJ-8 CPU deployment (`scripts/x10_cpu_deployment.py --proj8`, Q4_K_M, machine card S=20 tok/s, P=210 tok/s): real wall-clock 99-271 s per task (3 attempts each). Median absolute error: base 9.8x, M1 1.28x (worst 1.8x), M1 human-frame 89x. M1 estimates lie in a narrow band, so this shows no per-task discrimination.
 - Fixed `scripts/proj8_summary.py` reference-card key; wrote `results/proj8-showcase.json`.
 - Budget reconciled: total $26.67 (HF Jobs $24.94, teacher APIs $1.73) of the $30 cap. No further paid jobs.
+
+## 2026-11-11: budget
+
+- User approved +$5 HF credits (cap $35). Spend before this: $26.67. Purpose: supplementary cross-model replication (aya-expanse-8b) and fresh-task generalization. Every launch is ledgered as before; no single job over $5.
+
+Reservation xm-stage-aya-expanse-8b: ≤$0.0300, before submitting the paid job.
+| 6af44404ab34849891adfb41 | xm-stage-aya-expanse-8b | cpu-basic | ≤30.0 | ≤0.0300 | Launched |
+
+2026-11-11T10:32:20.179597+00:00: xm-stage-aya-expanse-8b 6af44404ab34849891adfb41 terminal=COMPLETED; cross-model arm.
+
+Reservation xmgen1-a33fa174495e3a18e00e49de: ≤$2.1000, before submitting the paid job.
+| 6af444d5ab34849891adfbe3 | xmgen1-a33fa174495e3a18e00e49de | l40sx1 | ≤70.0 | ≤2.1000 | Launched |
+
+2026-11-11: cross-model attempt 1 (xmgen1-a33fa174495e3a18e00e49de, 6af444d5ab34849891adfbe3) canceled by me after ~21 min: vLLM loading the 15 GiB Aya Expanse weights straight from the FUSE bucket mount took 16.5 min per 4 GiB shard and would have hit the 70 min timeout before generating. No outputs. Fix: jobs now copy weights to local /tmp sequentially first.
+
+Reservation xmgen1-d9b920478ba459f5caf20ede: ≤$2.1000, before submitting the paid job.
+| 6af450b79737d9a9e092d4ec | xmgen1-d9b920478ba459f5caf20ede | l40sx1 | ≤70.0 | ≤2.1000 | Launched |
+
+2026-11-11T12:05:35.318371+00:00: xmgen1 6af450b79737d9a9e092d4ec terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+Reservation xmgen2-ffb5eae5e423149a6c83fb49: ≤$1.3500, before submitting the paid job.
+| 6af45ad5ab34849891ae1170 | xmgen2-ffb5eae5e423149a6c83fb49 | l40sx1 | ≤45.0 | ≤1.3500 | Launched |
+
+2026-11-11T12:32:30.530779+00:00: xmgen2 6af45ad5ab34849891ae1170 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+Reservation xmgen3-47b2798ce294836f2b9c3376: ≤$1.0500, before submitting the paid job.
+| 6af460e99737d9a9e092e489 | xmgen3-47b2798ce294836f2b9c3376 | l40sx1 | ≤35.0 | ≤1.0500 | Launched |
+
+2026-11-11T12:47:43.904390+00:00: xmgen3 6af460e99737d9a9e092e489 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+Reservation xm-train-a6f2a2c16c3c: ≤$3.0000, before submitting the paid job.
+| 6af46476ab34849891ae1906 | xm-train-a6f2a2c16c3c | l40sx1 | ≤100.0 | ≤3.0000 | Launched |
+
+2026-11-11T13:16:56.762960+00:00: xm-train-a6f2a2c16c3c 6af46476ab34849891ae1906 terminal=ERROR; cross-model arm.
+
+Reservation xmesttuned-4dd59bd8ac940170434dde6d: ≤$1.5000, before submitting the paid job.
+
+Reservation xmestbase-7635a2c400b6bdb2c252bc55: ≤$1.2000, before submitting the paid job.
+| 6af46aed9737d9a9e092ee40 | xmesttuned-4dd59bd8ac940170434dde6d | l40sx1 | ≤50.0 | ≤1.5000 | Launched |
+| 6af46af69737d9a9e092ee4b | xmestbase-7635a2c400b6bdb2c252bc55 | l40sx1 | ≤40.0 | ≤1.2000 | Launched |
+
+2026-11-11T13:37:45.960438+00:00: xmesttuned 6af46aed9737d9a9e092ee40 terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+2026-11-11T13:51:32.004390+00:00: xmestbase 6af46af69737d9a9e092ee4b terminal=COMPLETED; reservation retained pending billing. No candidate ran in the GPU job.
+
+2026-11-11: cross-model arm finished (Aya Expanse 8B, `results/crossmodel.json`) and fresh-task CPU run finished (`results/fresh-tasks.json`). Jobs: staging (cpu-basic), 3 generation rounds, 1 training run, 2 estimate jobs. The training job saved the adapter to the bucket and then failed only at the in-job Hub push (PEFT wrote the job's temporary weight path as `base_model` in the model card); I pushed the adapter from the local machine after fixing the card and then removed the in-job push from `jobs/xm_train.py`. The 50 CPU-contending sandbox windows of the main study were not affected; the fresh CPU run was paused while the cross-model sandbox executed locally so wall-clock timings were not contended (one task interrupted mid-run was rerun from scratch). Ledger total $30.17 (conservative bound), cap $35.

@@ -93,13 +93,13 @@ def test_budget_hard_cap_and_single_job_limit(tmp_path):
     budget = Budget(tmp_path)
     with pytest.raises(BudgetError):
         budget.reserve("too-large", 5.01)
-    for i in range(6):
+    for i in range(7):
         budget.reserve(str(i), 5)
-    assert budget.total() == 30
+    assert budget.total() == 35
     with pytest.raises(BudgetError):
         budget.reserve("overflow", 0.01)
     budget.update("0", actual_usd=1)
-    assert budget.total() == 26
+    assert budget.total() == 31
 
 
 def test_artifact_sidecar_hash(tmp_path):

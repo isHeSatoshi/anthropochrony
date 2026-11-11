@@ -76,6 +76,7 @@ All confidence intervals are `10,000`-resample family-stratified percentile boot
 | Model | Role in study | License / terms |
 |---|---|---|
 | `CohereLabs/tiny-aya-global` @ `af89d219b53ed9b13b8a4645f9c8028973510324` | **Core subject model (`3.35B`):** all agent trajectories, base/few-shot estimates, SFT adapters (`M1`, `M2`, `M3`), and GGUF CPU deployments | CC-BY-NC-4.0 + Cohere Labs Acceptable Use Policy |
+| `CohereLabs/aya-expanse-8b` @ `5062468bf9bc0c6035fd64e06274333ec127d980` | **Cross-model replication (`8.03B`, §7.9):** its own K=4 trajectories on 678 tasks, one LoRA adapter (`xm8b-s0`), estimates. Listed Cohere model (hackathon rule 3) | CC-BY-NC-4.0 + Cohere Labs AUP |
 | Anthropochrony LoRA adapters (`m1-s0`, `m2-s0`, `m3-s0`, LR-sweep) & `Q4_K_M`/`Q8_0` GGUFs | Released fine-tuned artifacts derived from Tiny Aya Global | CC-BY-NC-4.0 + Cohere Labs AUP |
 | `deepseek-ai/DeepSeek-V4-Pro` | Supplementary **frontier teacher** for `B4` baseline and `M2` guessed-label SFT control (~`$1.70` total HF Inference Providers spend; API-only, no weights redistributed) | Model-card license (API inference only) |
 | `BAAI/bge-small-en-v1.5` | Frozen sentence embeddings (`384`-d, PCA-32 fit strictly on `train`) for static tabular regressor `B2` / `B2+` | MIT |
@@ -111,6 +112,7 @@ After CuratorKIT `SchemaGate`, reference-solution test verification, and MinHash
 | `anthropochrony-tiny-aya-global-lora-m2-s0` | **Teacher-guessed control (`M2-S0`):** identical prompts, tasks, and format trained on `DeepSeek-V4-Pro` guessed workloads (`6,077` examples) |
 | `anthropochrony-tiny-aya-global-lora-m3-s0` | **Uncurated measured control (`M3-S0`):** measured labels without S1 quality gates (`7,011` examples; see §7.5 forensic audit) |
 | `anthropochrony-tiny-aya-global-lora-lr-0.0001`, `-0.0002` | 1-epoch `val` learning-rate sweep adapters (`2e-4` selected on `val`: `0.35` vs `0.39` MdAE) |
+| `anthropochrony-aya-expanse-8b-lora-xm8b-s0` | **Cross-model adapter (§7.9):** rank-16 LoRA on Aya Expanse 8B, trained on its own measured labels (`1,980` examples, `330` tasks, no human-frame rows) |
 | `anthropochrony-tiny-aya-global-gguf` | `Q4_K_M` and `Q8_0` GGUF quantizations of merged `M1-S0` + base `Q4_K_M` GGUF for CPU deployment (`X10`) and local demo |
 
 **Serving parity note (Gate `G6`).** Because vLLM serves merged `bf16` weights on `Cohere2`, we audited greedy parity against `fp32` HF+PEFT on `50` `val` prompts (`results/g6-cpu-parity-m1-s0.json`). Exact `fp32` merging matches PEFT logits within `7e-5`, whereas `bf16` weight rounding perturbs logits by up to `1.2`, flipping near-tied digits (margin `0.009–0.22`) on `6/50` prompts (vs. the pre-registered `≤2/50` rule). We logged this before any fine-tuned `test` run (`PREREGISTRATION.md` §7) and report all numbers from the exact `bf16` serving path.
@@ -127,7 +129,7 @@ After CuratorKIT `SchemaGate`, reference-solution test verification, and MinHash
 | `anthropochrony-traces` | All $K = 8$ agent trajectory traces for `base` (`11,720` runs) and re-measured `m1-s0`, `m2-s0`, `m3-s0` (`2,784` `test` + `test_ood` runs each) |
 | `anthropochrony-sft` | Exact `M1`, `M2`, and `M3` ChatML training/validation sets + matched-length drop summaries (restricted statements redacted) |
 | `anthropochrony-eval` | Every raw model output and parsed estimate across all estimators, 8 speed cards, and 4 frames; `metrics.json`, `extra-analyses.json`, `simulations.json`, `roi.json`, `proj8-showcase.json`, `x10` CPU traces, and figures `F1–F7` |
-| `anthropochrony-logs` | AlignTune `trainer_state.json`, HF Jobs telemetry, gate manifests (`G0–G8`), `RUNLOG.md`, and `$26.7 / $30.0` budget ledger |
+| `anthropochrony-logs` | AlignTune `trainer_state.json`, HF Jobs telemetry, gate manifests (`G0–G8`), `RUNLOG.md`, and `$30.2 / $35.0` budget ledger (cap raised from `$30` on 2026-11-11 for §7.9) |
 
 ---
 
@@ -324,9 +326,41 @@ On one HF Jobs `l40sx1` (`$1.80/h`), merged `M1-S0` served **`6,216` estimate re
 
 *\*Saturated L40S costs exclude idle capacity; an always-on dedicated L40S (`$1,314/mo`) breaks even with `gpt-5-mini` at `2.91M` estimates/month (`~770k/mo` vs. `DeepSeek-V4-Pro`), whereas batched/serverless queues pay per active GPU-second.* Self-hosted **`M1-Struct` beats the frontier teacher `B4` on both `CLASS` OOD and `test` accuracy while costing ~100× less per batched estimate**.
 
-### 7.9 Summary of limitations, negative results, and deviations
+### 7.9 Does it generalize? A second model and brand-new tasks (post-hoc, not pre-registered)
 
-- **Single training seed (`S0`)** across `M1`, `M2`, and `M3` (`$26.7` spent under the `$30` cap); `0.02–0.04` $\text{log}_{10}$ gaps across SFT runs lack multi-seed error bars.
+Two questions our pre-registered design could not answer: does the method carry over to another model, and does it hold on tasks outside the 1,465-task pool?
+
+**Second model: Aya Expanse 8B** (`CohereLabs/aya-expanse-8b`, listed Cohere model, `8.03B`). We ran the same pipeline with new, self-contained code (`src/anthropochrony/crossmodel/`, `jobs/xm_*.py`; the pinned tiny-aya pipeline is untouched). The model wrote its own solutions to `678` tasks (`330` train subset, all `255` `test`, all `93` `CLASS` OOD) with $K = 4$ three-attempt trajectories each (`2,712` runs, vLLM on an `l40sx1`, candidate code executed only in the local sandbox). Labels used the same `REF` card and time formula (the label is "time if served at the reference speed", not Aya's wall-clock on the L40S). One LoRA (`r16`, `α32`, `lr 2e-4`, `2` epochs, `1,980` examples, 6 speed cards per task, no human-frame rows) was trained with a plain PyTorch/PEFT loop, because the pinned AlignTune/TRL path needs a chat template with generation markers that Aya Expanse lacks. All training tokens are completion-only, ending in `<|END_OF_TURN_TOKEN|>`. Scored on the `REF`, `seen-cpu`, `extrap-low` and `heldout-190` cards.
+
+Aya Expanse 8B solves `25.2%` of tasks within three attempts (`22.9%` on the first), similar to tiny-aya on the same task families.
+
+| Estimator (Aya Expanse 8B) | `test` `REF` MdAE (95% CI) | `test` within 2× | `CLASS` OOD `REF` MdAE (95% CI) | `test` `extrap-low` MdAE |
+|---|---:|---:|---:|---:|
+| `E0` zero-shot, no speed hint | `1.811` | `0.0%` | `1.921` | n/a |
+| `E1` zero-shot, speed card | `1.171` | `21.2%` | `1.284` | `0.451` |
+| `E2` five worked examples | `0.189` (`0.158–0.225`) | `71.0%` | `0.401` (`0.366–0.507`) | `0.197` |
+| `B1` constant (median train label for the card) | `0.190` (`0.162–0.228`) | `69.0%` | `0.315` (`0.294–0.346`) | `0.230` |
+| `E2-Struct` (few-shot tokens/attempts + exact timing) | `0.167` | `73.0%` | `0.419` | `0.184` |
+| **`XM8B` (adapter, verbal)** | **`0.145`** (`0.128–0.175`) | **`78.0%`** | **`0.161`** (`0.138–0.180`) | `0.448` |
+| **`XM8B-Struct` (adapter tokens/attempts + exact timing)** | **`0.117`** (`0.095–0.131`) | **`78.0%`** | **`0.166`** (`0.129–0.200`) | **`0.108`** |
+
+The structure of the `tiny-aya` result reappears. Zero-shot estimates are tens of times off; the adapter brings them to `1.4×`; its lead over both few-shot examples and the constant table is clear on the unseen `CLASS` family (`0.161` vs. `0.401` and `0.315`) and small and overlapping-CI on familiar `test` tasks. Verbal answers fail on the slow `extrap-low` card (`0.448`, a `2.8×` miss) while the formula on the adapter's workload prediction repairs it (`0.108`). Token-count error on `test` `REF` is `0.150` log₁₀ for the adapter against `0.211` for few-shot. Caveats: single seed; $K = 4$ labels are noisier than $K = 8$; the constant baseline here is a card-level median (one median per speed card, not the family lookup used for tiny-aya); `Struct` priors (feedback tokens and sandbox time per attempt) come from the same `train` subset. Raw outputs: `results/crossmodel.json`, `data/crossmodel/`.
+
+**Brand-new tasks.** We wrote `30` original Python tasks that appear in none of our data (`10` single functions of 4–12 reference lines, `10` classes or small function sets of 27–39 lines, `10` modules of 71–108 lines), each with hidden unittests that the reference passes 3/3 and a vacuous stub fails (`scripts/build_fresh_tasks.py`, `data/fresh/`). We ran base and `M1-S0` `Q4_K_M` on the 8-thread desktop CPU with the real sandbox, as in §7.7 (card $S = 19$, $P = 200$ tok/s, `results/fresh-tasks.json`):
+
+| Estimator on `30` fresh tasks | MdAE (median factor off) | within 2× | Spearman ρ vs. wall |
+|---|---:|---:|---:|
+| Base verbal | `0.866` (`7.3×`) | `3.3%` | `0.76` |
+| `M1-S0` verbal | **`0.285` (`1.9×`)** | **`56.7%`** | `0.69` |
+| `M1-Struct` (`L = 0`) | `0.529` (`3.4×`) | `26.7%` | `0.81` |
+
+These tasks were too hard for `tiny-aya` (`3/30` solved; most runs used all three attempts), so there is little pass/fail variation to predict. The adapter still cuts the error from `7.3×` to `1.9×`. `M1-Struct` is worse here because the adapter predicted about one attempt while the model used three. Within a size class, rank correlations are near zero (small `−0.15`, medium `−0.27`, large `0.09` for the adapter), so the overall `0.69` comes mostly from differences between size classes; the estimator does not separate one task from another of similar size. `n = 30`, one machine, one run each.
+
+**Not tested:** non-Python or non-coding work, a second seed, other hardware families.
+
+### 7.10 Summary of limitations, negative results, and deviations
+
+- **Single training seed (`S0`)** across `M1`, `M2`, and `M3` (`$26.7` for the main study under the original `$30` cap, `$30.2` in total including §7.9 under the raised `$35` cap); `0.02–0.04` $\text{log}_{10}$ gaps across SFT runs lack multi-seed error bars.
 - **Explicit `val`-selection failure (`§7.3.1` & `§7.4`):** Because `val` (`n = 114`) used `base` targets rather than post-SFT `own` targets, `val`-tuned `M1-Struct + B2` picked $w = 0.80$ (`0.116` on `val`) and underperformed standalone `B2` on `own` test targets (`0.178` / `0.202` vs. `0.138` / `0.122`), while `val`-calibrated split-conformal coverage dropped from `75.8%` (`test`) to `64.9%` (`CLASS` OOD) under covariate shift.
 - **Static `B2` beats standalone LMs on static prompt-to-time MdAE (`0.137` / `0.130`),** though `M1-Struct` beats `B2` on `CLASS` OOD `SJF` scheduling (`1.183×` vs. `1.253×`) and supports conversational `self`/`human` framing and post-update self-tracking.
 - **`H1` not met as pre-registered** (`E1` fails via `1.38`-decade variance rather than hour-scale units); **merged `bf16` parity (`G6`)** flipped near-tied digits on `6/50` `val` prompts; **`IFEval` (`200` prompts)** dipped `5.0 pp` (`0.750` $\rightarrow$ `0.700`, `SE ≈ 0.031`); **historical `M3`** benefited from `+62.4%` `ALGO_IO` volume plus `40` leaked `raw_extra` `CLASS` rows (remediated in code); unexecuted exploratory items (`X2`, `X4/M6/M9`, `X7`, `M4/M5/M7/M8` GRPO) remain open. Every note is dated in `docs/PREREGISTRATION.md` §7.
@@ -339,7 +373,7 @@ With the `$200` Demo Day compute allocation, in strict priority order:
 
 1. **Multi-seed replication (`S1`, `S2`), `val` `own`-target re-measurement, and clean `M3-clean`** (with our `CLASS` holdout fix active) to put multi-seed error bars on `H2–H5`, fix `val` ensemble selection on matched `own` targets, and separate pure data-volume gains from the `40` historical `CLASS` rows (`~$16`).
 2. **Breakdown-first SFT (`workload → exact timing → verbal summary`) & GRPO (`M8`):** Emit `(O, A, p_pass)` *before* the headline duration so autoregressive generation eliminates the `0.272` $\text{log}_{10}$ verbal division bottleneck natively (`~$18`).
-3. **2×2 Self-vs-Cross Model Matrix (`M6/M9` with `CohereLabs/aya-expanse-8b`):** Test whether `Tiny Aya` specifically requires *its own* trajectories vs. `Expanse 8B`'s trajectories when both are re-measured (`~$22`).
+3. **2×2 Self-vs-Cross Model Matrix (`M6/M9` with `CohereLabs/aya-expanse-8b`):** §7.9 now shows the method works *within* Aya Expanse 8B; the open question is cross-prediction: test whether `Tiny Aya` specifically requires *its own* trajectories vs. `Expanse 8B`'s trajectories when both are re-measured (`~$22`).
 4. **Hidden-state probe (`X2`/`B3`):** Test whether last-prompt-token residual activations of untuned `Tiny Aya` linearly encode log output tokens even while its verbal output says *"7 minutes"* (`~$4`).
 
 ---

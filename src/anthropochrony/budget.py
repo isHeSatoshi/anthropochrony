@@ -9,7 +9,7 @@ from pathlib import Path
 from anthropochrony.artifacts import now, write_json
 
 RATES = {"cpu-basic": Decimal("0.06"), "l40sx1": Decimal("1.80")}
-CAP = Decimal("30")
+CAP = Decimal("35")
 
 
 class BudgetError(RuntimeError):
@@ -29,7 +29,7 @@ class Budget:
             data = (
                 json.loads(self.path.read_text())
                 if self.path.exists()
-                else {"cap_usd": 30, "entries": []}
+                else {"cap_usd": 35, "entries": []}
             )
             yield data
             write_json(self.path, data)
@@ -47,7 +47,7 @@ class Budget:
                 Decimal(str(e.get("actual_usd", e["reserved_usd"]))) for e in data["entries"]
             )
             if total + cost > CAP:
-                raise BudgetError(f"Budget cap: ${total} + ${cost} would exceed $30")
+                raise BudgetError(f"Budget cap: ${total} + ${cost} would exceed ${CAP}")
             data["entries"].append(
                 {
                     "name": name,

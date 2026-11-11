@@ -77,10 +77,16 @@ def main():
     parser.add_argument(
         "--proj8", action="store_true", help="run the eight PROJ-8 showcase tasks instead"
     )
+    parser.add_argument("--tasks", type=Path, help="run tasks from this JSONL instead")
     args = parser.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     done = {r["task_id"] for r in read_jsonl(args.output)} if args.output.exists() else set()
-    tasks = read_jsonl(ROOT / "data/tasks/proj8.jsonl") if args.proj8 else sample(args.n, args.seed)
+    if args.tasks:
+        tasks = read_jsonl(args.tasks)
+    else:
+        tasks = (
+            read_jsonl(ROOT / "data/tasks/proj8.jsonl") if args.proj8 else sample(args.n, args.seed)
+        )
     servers = [
         start(GGUF / "base/base-q4_k_m.gguf", 8081),
         start(GGUF / "m1-s0/m1-s0-q4_k_m.gguf", 8082),

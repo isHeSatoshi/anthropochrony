@@ -16,20 +16,19 @@ The organizers "reserve the right to modify the schedule or event rules", and th
 | When | What |
 |---|---|
 | Nov 5 (passed) | Registration closed. Only registered teams can submit. |
-| **Nov 14, 23:59 AoE** | Submission deadline ("The initial stage ends on Nov 14, 23:59 AoE"). You can submit more than once; the latest submission counts. "Late or incomplete submissions may not be considered." |
-| Nov 15-16 | Judging. Up to 20 teams learn by Nov 16 that they are through to Demo Day. |
+| **Nov 15, 23:59 AoE** *(updated on live site from initial Nov 14, 23:59 AoE)* | Submission deadline. You can submit more than once; the latest submission counts. "Late or incomplete submissions may not be considered." |
+| Nov 16 | Judging. Up to 20 teams learn by Nov 16 that they are through to Demo Day. |
 | Nov 16-21 | Shortlisted teams "prove their thesis", with a further $200 in HF credits. |
 | Nov 22 | Demo Day: a live demo (in person in Bengaluru or online), then final judging. |
 
-Internal target: everything ready by Nov 14, 12:00 AoE (PLAN.md CP4).
+Internal target: everything ready ahead of the initial Nov 14, 12:00 AoE checkpoint (PLAN.md CP4).
 
 ## 2. Team, accounts and credits
 
 - Teams have 1 to 3 members, and each person is in one team only. At least one member must join the Discord server (https://discord.gg/dtEDQ2Z3eg).
 - HF credits: registered teams that joined Discord can redeem a hackathon coupon; the project budget is capped at $30.
-- Our HF account: `isHeSatoshi`, with a fine-grained token limited to what the project needs. Gated download of Tiny Aya Global works.
-- Hub storage: a free account gets 100 GB of private storage, and public storage is "best-effort". This is why PLAN.md pushes adapters only, not merged models.
-- Spaces: creating a Gradio or Docker Space needs a paid plan (PRO on a personal account). Free accounts in good standing (verified email, older than 30 days) can host up to 2 ZeroGPU Gradio Spaces, and static Spaces are free for everyone. `isHeSatoshi` was created on 2023-11-30, and none of its existing Spaces is running. PLAN.md U4 lists the demo options.
+- Public Hub namespace: `isHeSatoshi`. Model derivatives push LoRA adapters and GGUF artifacts rather than multi-copy full bf16 merges so every artifact remains compact and reproducible.
+- Demo & write-up formats: the write-up is shipped as `paper/article.md` plus `README.md` (an explicitly accepted submission format), and `space/app.py` provides a self-contained 4-tab Gradio workbench that runs on CPU out of the box (with optional live local `llama.cpp` GGUF execution).
 
 ## 3. Rules and how Anthropochrony meets them
 
@@ -86,7 +85,7 @@ From the kickoff slides' "Submission checklist", in this order:
 
 PLAN.md §12.1 maps our content onto these sections. The three R7 items must appear explicitly.
 
-**Access.** To publish an HF Blog Article under a personal namespace, you need a confirmed email plus either a PRO subscription or membership (write or admin role) in a Team or Enterprise organization. `isHeSatoshi` has neither (PLAN.md U7). The options are to subscribe to PRO ($9/month, which also raises private storage to 1 TB and allows creating CPU Spaces), or to use the GitHub README fallback that the rules allow. In both cases, write the article first as `paper/article.md` in the repo.
+**Write-up format.** Both HF Blog Articles and GitHub repository write-ups (`README.md` + `paper/article.md`) are accepted under the official rules. Keeping `paper/article.md` in version control guarantees full reproducibility of every table and figure link.
 
 ## 6. Judging
 

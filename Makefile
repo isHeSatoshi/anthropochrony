@@ -9,7 +9,7 @@ PHASE ?= pilot
 LOCAL_DATA ?= ../scratch/data
 GENERATION ?=
 
-.PHONY: setup exec-env test lint smoke preflight tasks calibrate measure labels baselines sft-data train remeasure eval figures demo release status prepare-round execute-round
+.PHONY: setup exec-env test lint smoke preflight tasks calibrate measure labels baselines sft-data train remeasure eval extra-analyses simulate figures demo release status prepare-round execute-round
 
 setup:
 	set -e
@@ -63,6 +63,13 @@ eval:
 	set -e
 	. "$(ROOT)/env.sh"
 	uv run anthropochrony eval
+	uv run anthropochrony extra-analyses
+	uv run anthropochrony simulate
+
+extra-analyses simulate:
+	set -e
+	. "$(ROOT)/env.sh"
+	uv run anthropochrony $@
 
 figures:
 	set -e

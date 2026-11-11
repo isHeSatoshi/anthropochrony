@@ -63,3 +63,54 @@ def common_base_targets(rows, labels):
             raise ValueError("Conflicting outputs for one common-target estimate")
         output[key] = converted
     return list(output.values())
+
+
+def own_trajectory_targets(rows, labels, *, expected_source):
+    """Retarget stored fine-tuned estimates (e.g. M3-S0) onto their own re-measured labels."""
+    index = {}
+    for label in labels:
+        if label.get("label_source") != expected_source:
+            raise ValueError(
+                f"Own-target retargeting requires genuine {expected_source!r} trajectory labels"
+            )
+        key = (label["task_id"], label["card_id"])
+        if key in index:
+            raise ValueError("Duplicate own-trajectory target labels")
+        index[key] = label
+    output = {}
+    for row in rows:
+        label = index[(row["task_id"], row["card_id"])]
+        if any(row[key] != label[key] for key in ("S", "P") if key in row):
+            raise ValueError("Own targets must use the same stated speed card")
+        key = (
+            row["estimator"],
+            row["task_id"],
+            row["card_id"],
+            row.get("frame", "self"),
+            row.get("template_id"),
+            row.get("phrasing_id"),
+            row.get("seed"),
+        )
+        converted = row | {
+            "T_med_s": label["T_med_s"],
+            "actual_s": label["T_med_s"],
+            "label_source": expected_source,
+            "target_source": "own",
+            "analysis_protocol": "own_trajectory_targets",
+        }
+        for field in (
+            "T_q10_s",
+            "T_q90_s",
+            "TOK_med",
+            "ATT_med",
+            "PFP",
+            "overhead_med_s",
+            "n_runs",
+        ):
+            if field in row and field in label:
+                converted[field] = label[field]
+        previous = output.get(key)
+        if previous and digest(previous) != digest(converted):
+            raise ValueError("Conflicting outputs for one own-target estimate")
+        output[key] = converted
+    return list(output.values())

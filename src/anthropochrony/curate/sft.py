@@ -49,6 +49,10 @@ def build_sft(
             label_map.setdefault(label["task_id"], []).append(label)
     rows, drops = [], []
     for task in sorted(tasks, key=lambda t: t["task_id"]):
+        if task["family"] in {"CLASS", "PROJ-8"}:
+            if task["split"] in {"train", "val", "raw_extra"}:
+                raise ValueError(f"Holdout family {task['family']} must never enter SFT splits")
+            continue
         if task["split"] not in (
             {"train", "val", "raw_extra"} if variant == "m3" else {"train", "val"}
         ):

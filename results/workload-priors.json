@@ -1,0 +1,17 @@
+{
+  "feedback_by_family": {
+    "CLASS": 162.0,
+    "FUNC": 162.0,
+    "ALGO_FN": 159.0,
+    "LIB": 300.0,
+    "ALGO_IO": 130.0
+  },
+  "feedback_default": 160.5,
+  "exec_per_attempt_by_family": {
+    "ALGO_FN": 0.06834656100545544,
+    "ALGO_IO": 0.06813708849949762,
+    "FUNC": 0.11861777800368145,
+    "LIB": 0.2677920995047316
+  },
+  "exec_per_attempt_default": 0.09348216950456845
+}

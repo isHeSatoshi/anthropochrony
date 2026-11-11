@@ -110,3 +110,58 @@ def test_gradio_builds_without_backend(tmp_path):
     assert "Anthropochrony" in config["title"]
     assert len(config["dependencies"]) == 2
     assert not config.get("analytics_enabled")
+
+
+def test_workbench_engine_redaction_and_zero_execution_safety():
+    from anthropochrony.workbench import COHORTS, WorkbenchEngine
+
+    root = SPEC.parent.parent
+    engine = WorkbenchEngine(root)
+    # 1) Showcase & OOD CLASS exploration
+    p_md, table_md, fig = engine.explore_task(COHORTS[0], "PROJ8-todo-cli", "REF")
+    assert "PROJ8-todo-cli" in p_md
+    assert "Real Desktop CPU Showcase" in table_md
+    assert fig is not None
+
+    ood_opts = engine.cohort_choices(COHORTS[3])
+    assert ood_opts
+    _, ood_table, _ = engine.explore_task(COHORTS[3], ood_opts[0][1], "extrap-low")
+    assert "M1-Struct" in ood_table
+
+    # 2) Restricted source statement redaction check
+    restricted_ids = [
+        tid
+        for tid, t in engine.tasks_by_id.items()
+        if t.get("source") in {"newfacade/LeetCodeDataset", "deepmind/code_contests", "BAAI/TACO"}
+    ]
+    if restricted_ids:
+        redacted_md = engine.safe_prompt_markdown(restricted_ids[0])
+        assert "Statement redacted for redistribution license compliance" in redacted_md
+
+    # 3) Tab 2 Live simulator parses hostile code statically without ever executing it
+    hostile_prompt = (
+        "Task:\n```python\nimport os\nos.kill(1, 9)\n"
+        "class Trap:\n    def boom(self):\n        raise RuntimeError('never run')\n```\n"
+    )
+    fast_md, _ = engine.simulate_prompt(hostile_prompt, 400.0, 40000.0, 25.0, 15.0)
+    slow_md, _ = engine.simulate_prompt(hostile_prompt, 8.0, 400.0, 25.0, 15.0)
+    assert "CLASS" in fast_md
+    assert "80% Split-Conformal SLA Interval" in fast_md
+    assert fast_md != slow_md
+
+    # 4) Tab 3 empirical fleet ROI calculator
+    roi_md, roi_fig = engine.compute_fleet_roi(250.0, 15.0, 1.0, 0.25, 1.80, 2.50)
+    assert "M1-Struct+CP" in roi_md
+    assert "DeepSeek-V4-Pro" in roi_md
+    assert roi_fig is not None
+
+
+def test_gradio_full_workbench_builds_on_root():
+    pytest.importorskip("gradio")
+    root = SPEC.parent.parent
+    functions = runpy.run_path(str(root / "space/app.py"))
+    interface = functions["app"](root=root)
+    config = interface.get_config_file()
+    assert "Anthropochrony" in config["title"]
+    assert not config.get("analytics_enabled")
+    assert len(config["dependencies"]) >= 8

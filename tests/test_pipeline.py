@@ -169,3 +169,24 @@ def test_redact_row_withholds_few_shot_prompts_for_open_tasks():
     released = redact_row(row, {"open/a": original})
     assert released["messages"] is None
     assert row["messages"]
+
+
+def test_verify_splits_rejects_raw_extra_class_and_eval_group_leaks():
+    base_train = dict(task("train-1", family="FUNC", split="train"), near_dup_group="g-train")
+    raw_ok = dict(task("raw-1", family="ALGO_IO", split="raw_extra"), near_dup_group="g-train")
+    verify_splits([base_train, raw_ok])
+
+    leaked_class = dict(task("class-raw", family="CLASS", split="raw_extra"), near_dup_group="g-c")
+    with pytest.raises(ValueError, match="CLASS must remain entirely held out"):
+        verify_splits([base_train, leaked_class])
+
+    leaked_proj8 = dict(task("proj-raw", family="PROJ-8", split="raw_extra"), near_dup_group="g-p")
+    with pytest.raises(ValueError, match="PROJ-8 must remain showcase-only"):
+        verify_splits([base_train, leaked_proj8])
+
+    test_row = dict(task("test-1", family="FUNC", split="test"), near_dup_group="g-eval")
+    raw_eval_leak = dict(
+        task("raw-eval", family="FUNC", split="raw_extra"), near_dup_group="g-eval"
+    )
+    with pytest.raises(ValueError, match="Near-duplicate group leaks across splits"):
+        verify_splits([base_train, test_row, raw_eval_leak])

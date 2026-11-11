@@ -8,7 +8,11 @@ from anthropochrony.eval.hypotheses import confirmatory
 from anthropochrony.eval.preservation import collect_preservation
 from anthropochrony.eval.prompts import build_evaluation_prompts
 from anthropochrony.eval.reporting import report
-from anthropochrony.eval.targets import common_base_targets, primary_rows
+from anthropochrony.eval.targets import (
+    common_base_targets,
+    own_trajectory_targets,
+    primary_rows,
+)
 from anthropochrony.gates import GateError
 
 
@@ -70,6 +74,35 @@ def test_common_base_comparisons_retarget_every_model_without_new_generation():
     assert [row["parsed"] for row in converted] == [row["parsed"] for row in rows]
     assert rows == original
     assert common_base_targets(converted + converted, labels) == converted
+
+
+def test_own_trajectory_targets_retarget_m3_onto_own_labels():
+    own_labels = [
+        {
+            "task_id": "a",
+            "card_id": "REF",
+            "S": 96,
+            "P": 26000,
+            "T_med_s": 4.5,
+            "T_q10_s": 3.0,
+            "T_q90_s": 7.0,
+            "TOK_med": 320,
+            "ATT_med": 2,
+            "PFP": 0.4,
+            "label_source": "m3-s0",
+        }
+    ]
+    rows = [estimate("a", "M3-S0", target_source="base") | {"TOK_med": 100, "PFP": 0.1}]
+    retargeted = own_trajectory_targets(rows, own_labels, expected_source="m3-s0")
+    assert len(retargeted) == 1
+    assert retargeted[0]["target_source"] == "own"
+    assert retargeted[0]["label_source"] == "m3-s0"
+    assert retargeted[0]["T_med_s"] == retargeted[0]["actual_s"] == 4.5
+    assert retargeted[0]["TOK_med"] == 320 and retargeted[0]["PFP"] == 0.4
+    with pytest.raises(ValueError, match="genuine 'm3-s0'"):
+        own_trajectory_targets(
+            rows, [own_labels[0] | {"label_source": "base"}], expected_source="m3-s0"
+        )
 
 
 def test_report_does_not_pool_own_and_common_base_targets(tmp_path):

@@ -316,3 +316,27 @@ PLAN.md §8 has the full definitions. Priority: P0 = required for submission, P1
   jobs were using CPU time, so wall-clock values include that contention. (4) M3 is
   scored against its own re-measured trajectories like M1 and M2. (5) Credits ran out
   for seeds 1 and 2 and for the P1 and P2 variants; none were attempted.
+- 2026-11-11, post-confirmatory offline analyses and forensic audit (reported separately in
+  `results/extra-analyses.json` and `results/simulations.json`; all frozen confirmatory
+  results in `results/metrics.json` and `results/hypotheses.json` remain untouched).
+  (1) Computed already-collected secondary and exploratory diagnostics on stored outputs:
+  `X1` fresh-trajectory interval coverage and Winkler scores, `X8` first-pass probability
+  calibration (Brier, AUROC, ECE), token-level MdAE and verbal arithmetic consistency,
+  pairwise and counter-intuitive ordering accuracy, `B2+` privileged reference-length upper
+  bound, and the split-half trajectory noise ceiling (`0.04` log10).
+  (2) Evaluated two zero-retraining inference/calibration post-processors fitted strictly on
+  `train` and `val`: `M1-Struct` / `E2-Struct` / `M2-Struct` (evaluates the serving formula
+  on the model's already-emitted token and attempt breakdown using `train`-only `exec_s` and
+  retry-feedback medians in `results/workload-priors.json`, with `L = 0` on local `llama.cpp`
+  CPU runs) and `M1b` / `M1-Struct+CP` (split-conformal multiplicative interval calibration
+  on `val`, `n = 114`, finite-sample level `0.8070`). Added multi-tier hardware SLA routing
+  (`seen-edge` vs `seen-dc`) to `results/simulations.json`.
+  (3) Forensic audit of historical `M3` (`m3_curation_audit`): `raw_extra` contained 134
+  tasks (`+894` valid rows over `M1`/`M2`) plus 6 `ClassEval` tasks (`ClassEval_17, 44, 45,
+  48, 69, 93` = 40 SFT rows) that entered historical `M3` training when holdout-family
+  filtering skipped `raw_extra`; in addition, `results/metrics.json` scored `M3-S0` against
+  `base` trajectories (`0.2045` `test`, `0.2388` `test_ood`), whereas matched all-`own`
+  scoring gives `0.2099` (`test`) and `0.2354` (`test_ood`). Pipeline and curation code now
+  block holdout families and cross-split near-duplicates in `raw_extra`, and both frozen and
+  matched-`own` numbers are reported.
+

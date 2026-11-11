@@ -168,15 +168,19 @@ def build_tasks(root, pins, tokenizer, sandbox, card, *, local_root=None, worker
             rejected_ids = {r["task_id"] for r in rejects}
             raw += [t for t in subset if t["task_id"] in rejected_ids]
     evaluation_groups = {
-        t["near_dup_group"] for t in split_tasks if t["split"] in {"val", "test", "test_ood"}
-    }
+        t["near_dup_group"]
+        for t in split_tasks
+        if t["split"] in {"val", "test", "test_ood", "showcase"}
+    } | {groups[t["task_id"]] for t in legal if t["family"] in {"CLASS", "PROJ-8"}}
     raw_extra = []
     for task in raw:
+        if task["family"] in {"CLASS", "PROJ-8"}:
+            continue
         group = groups[task["task_id"]]
         if group not in evaluation_groups:
             raw_extra.append(dict(task, split="raw_extra", near_dup_group=group))
-    verify_splits(curated)
-    # raw_extra can share training groups but never evaluation groups.
+    verify_splits(curated + raw_extra)
+    # raw_extra can share training groups but never evaluation or holdout-family groups.
     assert all(t["near_dup_group"] not in evaluation_groups for t in raw_extra)
     write_jsonl(directory / "tasks.jsonl", curated + raw_extra, config=pins)
     write_jsonl(directory / "tasks_dropped.jsonl", dropped, config=pins)

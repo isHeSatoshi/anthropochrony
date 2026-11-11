@@ -177,3 +177,19 @@ def test_export_counts_are_after_actual_curation(tmp_path, monkeypatch):
     exported = sft.export_sft(rows, tmp_path)
     assert len(exported) == 2
     assert json.loads((tmp_path / "counts.json").read_text()) == {"train": 1, "val": 1}
+
+
+def test_build_sft_blocks_holdout_families_in_raw_extra():
+    tasks, labels, human, teachers = matched_inputs()
+    contaminated = copy.deepcopy(tasks)
+    contaminated[-1]["family"] = "CLASS"
+    with pytest.raises(ValueError, match="Holdout family CLASS must never enter SFT splits"):
+        sft.build_sft(
+            contaminated,
+            labels,
+            human,
+            ShortTokenizer(),
+            variant="m3",
+            teachers=teachers,
+            feedback_by_family={"FUNC": 20, "CLASS": 20},
+        )

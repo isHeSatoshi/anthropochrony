@@ -9,8 +9,13 @@ from anthropochrony.artifacts import read_jsonl, write_json
 from anthropochrony.eval.metrics import summary, task_records
 from anthropochrony.eval.reporting import normalized_rows
 from anthropochrony.eval.stats import json_safe, stratified_bootstrap
+from anthropochrony.eval.structured import (
+    build_structured_rows,
+    compute_posthoc_bundle,
+    fit_workload_priors,
+)
 
-MODELS = ("E1", "E2", "B2", "M1-S0", "M2-S0", "M3-S0")
+MODELS = ("E1", "E2", "B2", "M1-S0", "M1-Struct", "M2-S0", "M3-S0")
 
 
 def _mdae(records):
@@ -87,22 +92,31 @@ def extra_report(root, resamples=2000):
     root = Path(root)
     rows = normalized_rows(read_jsonl(root / "data/eval/estimates.jsonl"))
     common = normalized_rows(read_jsonl(root / "data/eval/common-base-estimates.jsonl"))
-    own = rows
+    tasks = {t["task_id"]: t for t in read_jsonl(root / "data/tasks/tasks.jsonl")}
+    priors = fit_workload_priors(root)
+    m1_struct_own = build_structured_rows(
+        rows, tasks, priors, source_estimator="M1-S0", estimator_name="M1-Struct"
+    )
+    m1_struct_common = build_structured_rows(
+        common, tasks, priors, source_estimator="M1-S0", estimator_name="M1-Struct"
+    )
+    own = rows + m1_struct_own
+    common_all = common + m1_struct_common
     out = {"resamples": resamples}
 
     out["common_base_targets"] = {
         f"{estimator}|{split}": _line(
-            _group(common, estimator=estimator, split=split, card_id="REF", frame="self"), resamples
+            _group(common_all, estimator=estimator, split=split, card_id="REF", frame="self"),
+            resamples,
         )
-        for estimator in ("M1-S0", "M2-S0", "M3-S0")
+        for estimator in ("M1-S0", "M1-Struct", "M2-S0", "M3-S0")
         for split in ("test", "test_ood")
     }
     for split in ("test", "test_ood"):
-        for estimator in ("E2", "B2"):
-            out["common_base_targets"][f"{estimator}|{split}"] = _line(
-                _group(rows, estimator=estimator, split=split, card_id="REF", frame="self"),
-                resamples,
-            )
+        for estimator in ("E2", "B2", "B4"):
+            sub = _group(rows, estimator=estimator, split=split, card_id="REF", frame="self")
+            if sub:
+                out["common_base_targets"][f"{estimator}|{split}"] = _line(sub, resamples)
 
     cards = sorted(
         {r["card_id"] for r in rows if r["split"] == "test" and r["estimator"] == "M1-S0"}
@@ -162,5 +176,6 @@ def extra_report(root, resamples=2000):
                     "gm_ratio": stats["gm_ratio"],
                 }
     out["behavior_shift"] = behavior_shift(root)
+    out.update(compute_posthoc_bundle(root, resamples=resamples))
     write_json(root / "results/extra-analyses.json", json_safe(out))
     return out

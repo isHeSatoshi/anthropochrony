@@ -94,18 +94,25 @@ def upload(api, gguf_dir):
             commit_message="Model card",
         )
         print("card", repo)
+    gguf_repo = f"{USER}/{GGUF_REPO}"
+    gguf_card_path = RELEASE / "models" / GGUF_REPO / "README.md"
     if gguf_dir:
-        repo = f"{USER}/{GGUF_REPO}"
-        api.create_repo(repo, repo_type="model", private=True, exist_ok=True)
-        card = RELEASE / "models" / GGUF_REPO / "README.md"
+        api.create_repo(gguf_repo, repo_type="model", private=True, exist_ok=True)
+    if gguf_card_path.exists() and (gguf_dir or api.repo_exists(gguf_repo, repo_type="model")):
         api.upload_file(
-            path_or_fileobj=str(card), path_in_repo="README.md", repo_id=repo, repo_type="model"
+            path_or_fileobj=str(gguf_card_path),
+            path_in_repo="README.md",
+            repo_id=gguf_repo,
+            repo_type="model",
+            commit_message="Model card",
         )
+        print("card", gguf_repo)
+    if gguf_dir:
         manifest = {}
         for source, target in GGUF_FILES.items():
             path = Path(gguf_dir) / source
             api.upload_file(
-                path_or_fileobj=str(path), path_in_repo=target, repo_id=repo, repo_type="model"
+                path_or_fileobj=str(path), path_in_repo=target, repo_id=gguf_repo, repo_type="model"
             )
             print("uploaded", target)
         for run in ("base", "m1-s0"):
@@ -118,7 +125,7 @@ def upload(api, gguf_dir):
         api.upload_file(
             path_or_fileobj=json.dumps(manifest, indent=2).encode(),
             path_in_repo="gguf-manifest.json",
-            repo_id=repo,
+            repo_id=gguf_repo,
             repo_type="model",
         )
 

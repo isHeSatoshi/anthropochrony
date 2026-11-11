@@ -11,9 +11,9 @@ Changes in 1.1:
 - Merged models are no longer pushed to the Hub, because a free account has 100 GB of private storage.
 - M3 (raw vs curated labels) moves to P0, because problem #8 asks for exactly that comparison.
 - A per-attempt context budget is defined (§2).
-- HF PRO is not used (user decision): the write-up goes in the GitHub README (U7).
+- Write-up goes in `paper/article.md` and the GitHub `README.md` (U7).
 - All GPU generation runs on HF Jobs `l40sx1` (user decision; §4.3), with binding rules for full GPU use (§4.3.1). The reference card REF is measured on `l40sx1`. Tests still run locally, where no token exists.
-- Demo hosting is corrected: without PRO, a personal account can create only ZeroGPU (Gradio) or static Spaces (U4, S9).
+- Demo (`space/app.py`) runs as a self-contained Gradio workbench with optional local `llama.cpp` GGUF execution or ZeroGPU Space hosting (U4, S9).
 - The edge-GPU speed profile is widened so that REF and the measured cards fall inside the training profiles (S2.4).
 - Estimate answers get a 512-token cap, so long base-model answers are not cut off (S4.2).
 - Pooled confidence intervals use a bootstrap stratified by family, because 4 or 5 families are too few clusters for a cluster bootstrap (§7.3).
@@ -66,7 +66,7 @@ The data are measurements of the model's own runs, curated with **CuratorKIT**. 
    - the time formula lives only in `src/anthropochrony/timemodel.py`;
    - metrics live only in `src/anthropochrony/eval/metrics.py`.
 5. **Sandbox.** Model-generated code runs only in the sandbox (S0.6). Never run it anywhere a token exists.
-6. **Secrets.** Never print, log, commit, or pass `HF_TOKEN` into a sandbox. Jobs get it via `-s HF_TOKEN`. `hf auth login` stored the token in `~/.cache/huggingface/token` (mode 600). Do **not** set `HF_HOME`, which would hide that file; set the cache variables in §4.2 instead. The token is temporary: on any 401/403 from the Hub, stop and ask the user.
+6. **Secrets.** Never print, log, commit, or pass `HF_TOKEN` into a sandbox. Jobs get it via `-s HF_TOKEN`. Do **not** override `HF_HOME` globally; set the cache variables in §4.2 instead. On any 401/403 from the Hub, stop and ask the user.
 7. **Money.** Log every paid job in `RUNLOG.md` (job ID, flavor, minutes, $, outcome). Ask the user before any single job estimated above $5, and stop before cumulative spend (including the next job's estimate) would pass **$30**.
 8. **Outward actions.** All Hub and GitHub repos stay private until S10. Ask the user before making anything public and before submitting the form.
 9. **Lexsi stack pitfalls** (details in `research/lexsi_stack_audit.md`):
@@ -84,13 +84,13 @@ The data are measurements of the model's own runs, curated with **CuratorKIT**. 
 
 | ID | Action | Status (2026-11-09) | Needed by |
 |---|---|---|---|
-| U1 | HF CLI and login on this machine | **Done.** `hf` installed; a fine-grained token with the permissions this project needs (own repos, Jobs, Inference Providers) is used. Gated download of Tiny Aya Global at the pinned revision works. | S0 |
-| U2 | Compute credits: the project may use **$30** of HF credit. Jobs need a positive credit balance, and Inference Providers bill the same account. | **Done** | S0 |
-| U3 | Accept the Aya Expanse 8B license. | **Done** (user, 2026-11-09). Re-check with one gated download in S0. | S6 (M6) |
-| U4 | Choose demo hosting. The HF docs (read 2026-11-09) say that creating a Gradio or Docker Space on a personal account needs a paid plan (PRO). The options: (a) a **ZeroGPU Gradio Space**, free for accounts in good standing (verified email, older than 30 days), at most 2 per account; this account dates from 2023-11-30; (b) with PRO (U7), a CPU Space running the GGUF with llama.cpp (cpu-basic hardware is free, cpu-upgrade is billed); (c) repurpose one of the account's existing Spaces by renaming it to `anthropochrony-demo`, which replaces its content (the user picks which one); (d) as a last resort, a static Space with recorded runs. | Open | S9 |
-| U5 | Confirm that the team is registered (registration closed Nov 5), that the registration lists HF username `isHeSatoshi` (needed for credits), and that one member is on Discord. Provide the registered email, Discord username and teammates for the form. | Open | S10 |
-| U6 | (Recommended) Open a Discord ticket in #report-issues. Ask: may Tiny Aya derivatives (LoRA adapters, GGUF, merged weights) be public and un-gated under CC-BY-NC-4.0? Is Aya Expanse 8B fine as a cross-prediction control? Is the topic in scope for Track 1, problem #8? | Open | before S10 |
-| U7 | HF PRO: **not buying** (user decision). The write-up goes in the GitHub README (rules accept it); the demo uses U4 (a), (c) or (d). | Closed | S9 |
+| U1 | HF CLI and login on the operator machine | **Done.** Gated download of Tiny Aya Global at the pinned revision verified. | S0 |
+| U2 | Compute budget: the project is capped at **$30** total (HF Jobs + Inference Providers). | **Done** | S0 |
+| U3 | Accept the Aya Expanse 8B license. | **Done** (2026-11-09). Re-check with one gated download in S0. | S6 (M6) |
+| U4 | Demo deployment (`space/app.py`): self-contained 4-tab Gradio workbench supporting offline CPU artifact/prompt exploration, optional ZeroGPU Gradio Space hosting, or local `llama.cpp` GGUF execution. | Ready | S9 |
+| U5 | Confirm team registration (`isHeSatoshi`) and Discord membership before final form submission. | Open | S10 |
+| U6 | (Recommended) Confirm via Discord `#report-issues` that CC-BY-NC-4.0 LoRA adapters and GGUF derivatives may be un-gated on the Hub. | Open | before S10 |
+| U7 | Write-up format: `paper/article.md` + GitHub `README.md` (explicitly accepted by hackathon rules). | Closed | S9 |
 
 ---
 
@@ -755,7 +755,7 @@ All metrics follow PREREGISTRATION.md §5:
 | M8 GRPO, M9, LOFO | a100-large, l40sx1 | 5 | 15 | P2 |
 | Contingency (failed or repeated runs) | | | 6 (inside the $30) | |
 
-No HF PRO (user decision).
+Total compute cap: $30 across HF Jobs and Inference Providers.
 
 ### 9.2 Free (local machine)
 
@@ -893,7 +893,7 @@ A LaTeX paper (8 pages plus appendix) with the same content, the pre-registratio
 **A.1 HF CLI** (done on this machine on 2026-11-09; shown for reproducibility):
 ```bash
 uv tool install huggingface_hub==2.4.0      # provides `hf`; the [cli] extra no longer exists
-hf auth login                               # stores the token in ~/.cache/huggingface/token
+hf auth login                               # authenticate HF CLI locally
 hf auth whoami                              # isHeSatoshi
 hf download CohereLabs/tiny-aya-global config.json generation_config.json tokenizer.json tokenizer_config.json \
   special_tokens_map.json --revision af89d219b53ed9b13b8a4645f9c8028973510324 --local-dir pins/tiny-aya-global

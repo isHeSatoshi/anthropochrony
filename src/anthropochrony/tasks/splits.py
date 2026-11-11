@@ -105,5 +105,11 @@ def verify_splits(tasks):
         groups[task["near_dup_group"]].add(task["split"])
         if task["family"] == "CLASS" and task["split"] != "test_ood":
             raise ValueError("CLASS must remain entirely held out")
-    if any(len(splits) > 1 for splits in groups.values()):
-        raise ValueError("Near-duplicate group leaks across splits")
+        if task["family"] == "PROJ-8" and task["split"] != "showcase":
+            raise ValueError("PROJ-8 must remain showcase-only")
+    for group_splits in groups.values():
+        non_raw = group_splits - {"raw_extra"}
+        if len(non_raw) > 1 or (
+            "raw_extra" in group_splits and group_splits & {"val", "test", "test_ood", "showcase"}
+        ):
+            raise ValueError("Near-duplicate group leaks across splits")

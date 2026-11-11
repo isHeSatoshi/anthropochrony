@@ -332,8 +332,11 @@ def main(argv=None):
                     raise ValueError(
                         "Fine-tuned runs must identify their variant and seed, e.g. m1-s0"
                     )
+            has_own_labels = (root / f"data/labels/{args.run}.parquet").exists()
             own_targets = (
-                fine_tuned and not args.run.startswith("m3-") and args.split in {"test", "test_ood"}
+                fine_tuned
+                and args.split in {"test", "test_ood"}
+                and (not args.run.startswith("m3-") or has_own_labels)
             )
             label_name = args.run if own_targets else "base"
             labels = pd.read_parquet(root / f"data/labels/{label_name}.parquet").to_dict("records")

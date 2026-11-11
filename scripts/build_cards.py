@@ -40,30 +40,30 @@ DESCRIPTIONS = {
 
 LIMITS = """## Limitations
 
-- One training seed. No seed-to-seed variance was estimated.
-- In distribution, base Tiny Aya with five measured examples in the prompt is as accurate as M1 (median error 0.24 log10 in both), and a text-feature regressor is more accurate (0.14).
-- Stated 80% ranges cover about 19% of fresh runs (poorly calibrated).
-- Weak ranking on a task family never seen in training (Spearman 0.08), and poor extrapolation to a much slower stated speed (0.49).
-- Estimates are about *this* model on *this* task format (Python tasks, up to 3 attempts, 8 sampled runs, stated speeds). They are not predictions for other models or for real hardware unless the stated speed is the real speed.
-- Merged bf16 weights flip a few near-tied digits compared with the PEFT adapter (see the preregistration deviation on G6)."""
+- One training seed (`S0`). No seed-to-seed variance was estimated under the `$30` compute cap.
+- In-distribution (`test`), 5-shot measured prompting (`E2`, `0.240` MdAE, `55.3%` within 2×, `base` targets) nearly ties raw verbal `M1-S0` (`0.242` MdAE, `65.9%` within 2×, `own` targets), though `E2` breaks down on unseen class-level tasks (`test_ood` `CLASS`: `0.503` vs `0.300` for `M1-S0` and `0.269` for `M1-Struct`). A static text+embedding regressor (`B2`, `base` targets) is stronger on static runtime prediction (`0.137` `test`, `0.130` `test_ood`).
+- Raw verbal `M1-S0` suffers a `0.272` log10 pre-breakdown division bottleneck (weak OOD ranking `0.08` and `1.5 tok/s` slow-hardware error `0.492`) and under-covered raw 80% intervals (`17.7%` on fresh `test` runs). Passing `M1-S0`'s emitted `(tokens, attempts)` into the exact timing model (`M1-Struct`, zero retraining) fixes slow-hardware error (`0.155`) and OOD ranking (`0.369`), and `val`-split conformal scaling (`M1-Struct+CP`) raises fresh-run coverage to `75.8%` on `test` (`64.9%` on `CLASS` OOD, where exchangeability with `val` fails).
+- Validation-selection failure on hybrid blending: tuning `w * log10(M1-Struct) + (1-w) * log10(B2)` on `val` (`n=114`, `base` targets) picked `w=0.80` (`val` MdAE `0.116`), which scored `0.178` (`test`) / `0.202` (`test_ood`) against `own` targets—underperforming standalone `B2` (`0.137` / `0.130`) and an untuned `50/50` geometric blend (`0.159` / `0.180`).
+- Estimates are about *this* model on *this* 3-attempt Python agent loop under stated speeds, not other models or uncalibrated hardware.
+- Merged bf16 weights flip `6/50` near-tied digits compared with `fp32` PEFT (logged in `PREREGISTRATION.md` §7 before any `test` evaluation)."""
 
 
 def metric(rows, estimator, split, frame="self"):
-    for row in rows:
-        if (
-            row["estimator"] == estimator
-            and row["split"] == split
-            and row["frame"] == frame
-            and row["card_id"] == "REF"
-            and row["target_source"] in ("own", "base")
-        ):
-            if estimator.startswith("M") and row["target_source"] != "own":
-                continue
-            return row
+    preferred = ("own", "base") if estimator.startswith("M") else ("base", "own")
+    for wanted_src in preferred:
+        for row in rows:
+            if (
+                row["estimator"] == estimator
+                and row["split"] == split
+                and row["frame"] == frame
+                and row["card_id"] == "REF"
+                and row["target_source"] == wanted_src
+            ):
+                return row
     return None
 
 
-def adapter_card(name, metrics, collection):
+def adapter_card(name, metrics, collection, extra=None):
     run = name
     header = f"""---
 license: cc-by-nc-4.0
@@ -77,14 +77,34 @@ tags: [lora, tiny-aya, self-estimation, time-estimation, coding-agents]
     row_test = metric(metrics, key, "test")
     row_ood = metric(metrics, key, "test_ood")
     if row_test and row_ood:
+        tsrc = row_test.get("target_source", "own")
+        struct_rows = ""
+        if run == "m1-s0" and extra:
+            post = extra.get("posthoc_ref_summary", {})
+            st_t = post.get("test", {}).get("M1-Struct")
+            st_o = post.get("test_ood", {}).get("M1-Struct")
+            if st_t and st_o:
+                struct_rows = (
+                    f"| **M1-Struct (workload + exact timing)** | `own` | test ({st_t['n_tasks']}) | **{st_t['mdae_log10']:.3f}** | **{st_t['within2x']:.1%}** | **{st_t['spearman']:.2f}** |\n"
+                    f"| **M1-Struct (workload + exact timing)** | `own` | test_ood `CLASS` ({st_o['n_tasks']}) | **{st_o['mdae_log10']:.3f}** | **{st_o['within2x']:.1%}** | **{st_o['spearman']:.2f}** |\n"
+                )
+        elif run == "m3-s0" and extra:
+            m3_own = extra.get("m3_curation_audit", {}).get("matched_all_own_targets_ref", {})
+            o_t = m3_own.get("M3-S0|test|own")
+            o_o = m3_own.get("M3-S0|test_ood|own")
+            if o_t and o_o:
+                struct_rows = (
+                    f"| M3-S0 (matched `own` re-measured) | `own` | test ({o_t['n_tasks']}) | {o_t['mdae_log10']:.3f} | {o_t['within2x']:.1%} | {o_t['spearman']:.2f} |\n"
+                    f"| M3-S0 (matched `own` re-measured, 40 `CLASS` rows leaked) | `own` | test_ood `CLASS` ({o_o['n_tasks']}) | {o_o['mdae_log10']:.3f} | {o_o['within2x']:.1%} | {o_o['spearman']:.2f} |\n"
+                )
         results = f"""## Results (reference speed card, one seed)
 
-| Split | n | Median abs. log10 error | Within 2× | Spearman |
-|---|---|---|---|---|
-| test (held-out tasks) | {row_test["n_tasks"]} | {row_test["mdae_log10"]:.3f} | {row_test["within2x"]:.1%} | {row_test["spearman"]:.2f} |
-| test_ood (unseen task family) | {row_ood["n_tasks"]} | {row_ood["mdae_log10"]:.3f} | {row_ood["within2x"]:.1%} | {row_ood["spearman"]:.2f} |
-
-Errors are against this model's own re-measured median completion time. Base model with the speed card: 1.375 (test) and 1.199 (test_ood). Full tables, CIs and hypotheses: [article]({GITHUB}/blob/main/paper/article.md).
+| Estimator | Target source | Split (n) | Median abs. log10 error | Within 2× | Spearman |
+|---|:---:|---|---:|---:|---:|
+| {key} (verbal) | `{tsrc}` | test ({row_test["n_tasks"]}) | {row_test["mdae_log10"]:.3f} | {row_test["within2x"]:.1%} | {row_test["spearman"]:.2f} |
+| {key} (verbal) | `{tsrc}` | test_ood `CLASS` ({row_ood["n_tasks"]}) | {row_ood["mdae_log10"]:.3f} | {row_ood["within2x"]:.1%} | {row_ood["spearman"]:.2f} |
+{struct_rows}
+Errors with `Target source = own` are scored against this model's own re-measured $K=8$ median completion time (`base` targets score against base Tiny Aya runs: 5-shot `E2` scores `0.240` on `test` but degrades to `0.503` on unseen `test_ood` `CLASS`; base + speed card `E1` scores `1.375` and `1.199`). Full tables, CIs, token-bottleneck audit, and `val`-selection failure analysis: [article]({GITHUB}/blob/main/paper/article.md).
 """
     capability = ""
     if run == "m1-s0":
@@ -148,7 +168,7 @@ Files (llama.cpp tag b12110):
 
 SHA-256 values are in `gguf-manifest.json`. On an 8-thread desktop CPU, M1 Q4_K_M ran at about 200 tokens/s prefill and 20 tokens/s decode.
 
-**Evidence.** 100 held-out FUNC/LIB/ALGO_FN tasks run end to end in the agent loop with the CPU's measured speeds in the prompt: tuned median |log10 error| 0.279 and 52% within 2× of the measured wall-clock; base 0.935 and 3% (Q4_K_M).
+**Evidence (`Target source = own` live CPU runs).** 100 held-out FUNC/LIB/ALGO_FN tasks run end to end in the agent loop with the CPU's measured speeds in the prompt: verbal `M1` Q4_K_M scores median |log10 error| `0.279` and `52%` within 2× of measured CPU wall-clock (`own` target), workload decomposition with an exact timing model (`M1-Struct`, `L=0` local `llama.cpp`) reaches `0.224` and `63%` within 2× (`own` target), and base Q4_K_M scores `0.935` and `3%` (`own` target).
 
 **Caveat.** This GGUF was exported before the merged-parity gate (G6) was formally passed, from the same adapter that later passed. Quantization adds a further perturbation to the numbers shown in the article, which are for bf16 merged serving.
 
@@ -220,11 +240,15 @@ def main():
     parser.add_argument("--data-collection", default="")
     args = parser.parse_args()
     metrics = json.loads((ROOT / "results/metrics.json").read_text())
+    extra_path = ROOT / "results/extra-analyses.json"
+    extra = json.loads(extra_path.read_text()) if extra_path.exists() else None
     out = ROOT / "artifacts/release"
     for run in DESCRIPTIONS:
         target = out / "models" / f"anthropochrony-tiny-aya-global-lora-{run}"
         target.mkdir(parents=True, exist_ok=True)
-        (target / "README.md").write_text(adapter_card(run, metrics, args.models_collection))
+        (target / "README.md").write_text(
+            adapter_card(run, metrics, args.models_collection, extra=extra)
+        )
     target = out / "models/anthropochrony-tiny-aya-global-gguf"
     target.mkdir(parents=True, exist_ok=True)
     (target / "README.md").write_text(gguf_card(metrics, args.models_collection))

@@ -1,341 +1,363 @@
 # Anthropochrony: Measuring and Correcting Human-Time Bias in LLM Self-Estimates
 
-*Can a small coding model learn how long its own work will take? We measured it, trained it on its own measurements, and checked what the training cost. All results below come from one training seed, and several of them are weaker than we hoped.*
+*In-distribution, 5-shot prompting (`0.240` $\text{log}_{10}$ error) and per-family lookup tables (`0.123`) look competitive with fine-tuning (`0.242`). Out-of-distribution—on an unseen multi-method class family (`CLASS`) or 64× slower hardware (`1.5 tok/s`)—both shortcuts collapse (`0.503` and `0.336`). Across 1,465 executable Python tasks on `CohereLabs/tiny-aya-global` (`3.35B`), we show why: fine-tuning on measured trajectories (`M1-S0`) teaches genuine workload self-knowledge (`0.268` vs. `0.313` output-token error in-distribution; `0.314` vs. `0.476` out-of-distribution), whereas raw verbal time answers hit an autoregressive arithmetic bottleneck (`0.272` $\text{log}_{10}$ pre-breakdown division error). Combining fine-tuned **workload decomposition with an exact timing model (`M1-Struct`)** eliminates verbal division error without retraining—cutting unseen-family error to `0.269` (`4.6×` higher Spearman $\rho$, best OOD queue scheduling), slashing `1.5 tok/s` error `3.17×` (`0.492` $\rightarrow$ `0.155`), and lifting live desktop CPU wall-clock accuracy from `3%` (`base`) and `52%` (verbal `M1-S0`) to `63%` within 2×. All fine-tuned runs use one seed (`S0`), every table tracks `own` vs. `base` target sources, and every negative result—including `H1` failure, static `B2` dominance, and a `val`-selection failure on `M1-Struct + B2`—is reported directly.*
 
-**Team:** [@isHeSatoshi](https://huggingface.co/isHeSatoshi)
-**Code:** https://github.com/isHeSatoshi/anthropochrony
-**Track 1 (Fine-tuning and Data Curation), problem #8 (data-scarce domains), with the #2 ROI comparison.**
+**Team:** [@isHeSatoshi](https://huggingface.co/isHeSatoshi)  
+**Code:** https://github.com/isHeSatoshi/anthropochrony  
+**Track 1 (Fine-tuning and Data Curation), Problem #8 (Data-scarce domains, primary) + Problem #2 (Replacing a closed-model API, ROI & accuracy comparison).**
 
 ---
 
 ## 1. Problem statement and approach, in brief
 
-Ask a language model "how long will this take you?" and it often answers in the units of a person's workday: minutes to hours, sometimes days. A coding agent that finishes in seconds will say "about 2 hours". Monperrus and Stenqvist call this *anthropocentric time bias*. We use the word **anthropochrony** as a project name for the same idea: measuring a model's own runtime with human clocks. We do not claim the phenomenon is new, and we do not claim a first measurement of it.
+Ask a language model *"how long will this coding task take you?"* and it routinely answers on a human software engineer's clock: minutes, hours, or days for work its own decoding loop finishes in eight seconds. Monperrus and Stenqvist call this *anthropocentric time bias*; concurrent studies (*MetaTime*, *AgentTime*) document similar miscalibration across coding agents. We use **anthropochrony** as our project name for judging machine runtime with human clocks. We do not claim the phenomenon is new.
 
-What we study is the repair. Can a small open model learn to estimate its **own** completion time, given the serving speed written in its prompt, without getting worse at coding and without changing what it says about human developers?
+**Why out-of-distribution generalization is the real test.** Within known task families at a fixed serving speed, rough pattern matching suffices: 5-shot in-context examples from the same task families (`E2`) or a per-family median table (`B1`) already land near the typical runtime. Real agent deployments, however, face **new structural granularities** (e.g., stateful multi-method classes when training covered only standalone functions and scripts) and **new serving hardware** (edge GPUs, throttled endpoints, or local quantized CPUs). We study `CohereLabs/tiny-aya-global` (`3.35B`, pinned revision `af89d219`) across **1,465 executable Python tasks** under a pre-registered protocol (`docs/PREREGISTRATION.md`, frozen tag `prereg-v1`) to answer two questions:
 
-**Setting.** Subject model: `CohereLabs/tiny-aya-global` (pinned revision `af89d219`). Task: 1,465 Python tasks with executable tests (HumanEval+, MBPP+, BigCodeBench, ClassEval, LeetCodeDataset, CodeContests, TACO). The model runs each task in a small agent loop: up to 3 attempts, test output fed back after a failure. Time for one run is a formula over what the run did:
+1. Does supervised fine-tuning on curated, empirically measured self-trajectories (`M1-S0`) generalize across **unseen task families (`CLASS`)** and **unseen hardware speeds** without hurting coding `pass@1` or distorting human-developer estimates?
+2. What caps raw verbal duration tokens—poor self-knowledge of token/retry workload, or **single-pass autoregressive arithmetic**—and what happens when we pair fine-tuned **workload decomposition with an exact timing model (`M1-Struct`)** and **split-conformal calibration (`M1-Struct+CP`)**?
 
-`time = Σ over attempts ( new prompt tokens / prefill speed + output tokens / decode speed + test wall time ) + per-call latency`
+**Exact serving timing model.** Each task runs in a 3-attempt sandboxed Python repair loop. Given a hardware **speed card** $(S, P)$ stated in the system prompt (decode speed $S$ and uncached prefill speed $P$ in tokens/s) and measured per-call serving latency $L = 0.967\text{ s}$, completion time for trajectory $\tau$ is:
 
-Because the speeds are stated in the system prompt (a "speed card"), the same measured run gives a correct label for any card. We sampled 8 runs per task, took the median, and used that as the target. Fine-tuning data is "task + speed card → the model's own measured time".
+$$t(\tau; S, P) = \sum_{j=1}^{A(\tau)} \left( \frac{u_j}{P} + \frac{o_j}{S} + e_j + L \right)$$
 
-**Pipeline** (all three hackathon libraries, chained): CuratorKIT builds and filters the task pool and the SFT sets; AlignTune trains a LoRA adapter; AuditKIT scores every estimator.
+where $u_j$ is uncached prompt tokens at attempt $j$, $o_j$ is generated output tokens, and $e_j$ is sandboxed test wall-clock time. Sampling $K = 8$ real agent trajectories per task yields exact ground-truth runtime medians and quantiles across seen, held-out interpolation, and extreme extrapolation speed cards. Crucially, we re-measure $K = 8$ trajectories for each fine-tuned checkpoint on `test` (`255` tasks) and `test_ood` (`93` tasks) so fine-tuned models are scored against their **`own`** post-SFT runtimes, reporting `Target source` (`own` vs. `base`) in every table.
 
-**What we found, in one paragraph.**
+**Hackathon pipeline (all three Track 1 libraries chained end to end):** **CuratorKIT `0.1.23`** ingests, gates, deduplicates, and formats the task pool and SFT datasets $\rightarrow$ **AlignTune `0.1.32`** trains rank-16 LoRA adapters $\rightarrow$ **AuditKIT `1.1.6`** scores every estimator and runs capability retention benchmarks (`IFEval`, `ARC-Challenge`).
 
-- Un-tuned Tiny Aya Global *without* a speed card answers with a median of about 7 minutes for tasks it finishes in about 8 seconds (a 55× overestimate on average). *With* a speed card it stops using hours but is erratic: median error is 1.4 orders of magnitude and 0% of answers are within 2×.
-- Fine-tuning on its own measured times (**M1**) brings the median error to 0.24 log10 (66% of answers within 2×) on held-out tasks and 0.30 on a task family it never saw.
-- That is **not** better than simply showing the base model five measured examples in the prompt (0.24 in-distribution), but it is much better on the unseen family (0.30 vs 0.50), and it holds up at held-out speeds.
-- A plain gradient-boosted regressor over text features (**B2**) beats every language-model estimator in-distribution (0.14). So the model "knows" less about its own speed than a feature-based predictor.
-- Training on *measured* labels beat training on *teacher-guessed* labels (0.24 vs 0.29, Holm-adjusted p < 0.001), but *uncurated* measured labels did as well or better than curated ones (0.21), so our curation did not help.
-- Coding ability and human-frame answers did not change measurably (pass@1 difference CI [-2.2, +3.0] points). IFEval strict accuracy fell 5 points on 200 prompts, which is within noise for one seed but not a clean pass; ARC-Challenge did not move.
-- On a plain desktop CPU with a 4-bit GGUF, the tuned model's estimates are within 2× of the measured wall-clock for 52% of 100 held-out tasks (base: 3%).
+**Headline findings:**
 
-Figure 1 shows the main comparison.
+1. **Out-of-distribution generalization separates fine-tuning from prompting (`H2–H6` met on 1 seed; `H1` not met):** In-distribution (`test`, `n = 255`), 5-shot prompting (`E2`, `0.240` MdAE, `55.3%` within 2×) nearly ties verbal SFT (`M1-S0`, `0.242` MdAE, though `M1-S0` places **`65.9%` within 2×**, paired Wilcoxon Holm $p = 0.0032$). Out-of-distribution on `93` unseen multi-method class tasks (`test_ood`: `CLASS`), 5-shot `E2` collapses to **`0.503` MdAE (`30.1%` within 2×)** and per-family lookup `B1` (`0.123` on `test`) collapses to the global constant (`0.336`). Measured SFT (`M1-S0`) cuts unseen `CLASS` error to **`0.300` (`50.5%` within 2×, Holm $p = 0.00025$)**, beats SFT on frontier-teacher guesses (`M2-S0`, `0.287` on `test`, Holm $p = 0.00056`), and preserves coding `pass@1` (`[-2.2, +3.0]` pp CI) and human-frame estimates (`0.000` median drift). `H1` was not met as pre-registered: without a speed card (`E0`), the base model overestimates `55.3×` (`~7 min` vs. `~8 s`), whereas adding a speed card (`E1`) removes hour-scale units (`0.4%`) but leaves `1.375` $\text{log}_{10}$ dispersion (`0.4%` within 2×).
+2. **Headline diagnostic—the verbal-arithmetic bottleneck, not token self-knowledge:** Auditing the structured breakdown inside every answer reveals that **`M1-S0` already predicts its own output tokens significantly better than 5-shot `E2`** (**`0.268` vs. `0.313`** token MdAE on `test`, `56.1%` vs. `48.0%` within 2×; **`0.314` vs. `0.476`** on unseen `CLASS`, `48.4%` vs. `31.2%` within 2×). Raw verbal `M1-S0` stalls because our output template emits `Time estimate: T s` *before* `Breakdown: ~O output tokens across A attempt(s)`, forcing `3.35B` weights to approximate $O/S + u/P + A(e+L)$ in one forward pass. That ordering introduces **`0.272` $\text{log}_{10}$ bare arithmetic inconsistency** (`0.089` with latency $L$), creates horizontal quantization bands, and breaks on `1.5 tok/s` slow hardware (`0.492` MdAE on `test`, `0.728` on `CLASS`).
+3. **Workload decomposition with an exact timing model (`M1-Struct`, zero retraining):** Passing `M1-S0`'s already-emitted `(O, A)` workload through the exact serving timing equation with strictly `train`-only execution and retry-feedback medians cuts `REF` error to **`0.213` on `test` (`71.8%` within 2×)** and **`0.269` on unseen `CLASS` (`58.1%` within 2×, lifting OOD Spearman $\rho$ `4.6×` from `0.080` to `0.369`)**—beating both `E2` and closed frontier teacher **`B4` (`DeepSeek-V4-Pro`, `0.244` / `0.294`)** at ~100× lower batched serving cost (`$16` vs. `~$1,700` per 1M estimates). On `1.5 tok/s` slow hardware (`extrap-low`), `M1-Struct` slashes error **3.17×** (`0.492` $\rightarrow$ **`0.155`**, `73.7%` within 2× on `test`) and **2.95×** (`0.728` $\rightarrow$ **`0.247`**, `67.7%` within 2× on `CLASS`). On a real desktop CPU (`X10`, `llama.cpp` `Q4_K_M` @ `20 tok/s`, `100` tasks), setting local latency $L = 0$ lifts end-to-end wall-clock accuracy from `3%` (`base`) and `52%` (verbal `M1-S0`) to **`63%` within 2× (`0.224` MdAE)**.
+4. **Static tabular baseline (`B2`) & explicit `val`-selection failure:** A CPU gradient-boosted regressor on prompt AST features + `bge-small` embeddings (`B2`) achieves **`0.137` (`test`)** and **`0.130` (`test_ood`)** against `base` targets, beating every standalone LM on static prompt-to-time prediction (`M1-Struct` still leads `B2` on unseen `CLASS` OOD Shortest-Job-First queue scheduling: `1.183×` vs. `1.253×` oracle). Critically, tuning a log-linear `M1-Struct + B2` blend on `val` (`n = 114`) **failed to beat standalone `B2` on `test`/`test_ood`**: because post-SFT re-measurement ran only on `test` and `test_ood`, `val` used `base` targets where `M1-Struct` (`0.123`) edged `B2` (`0.132`), causing `val` grid search to pick $w = 0.80$ on `M1-Struct` (`0.116` on `val`)—which degraded to **`0.178` (`test`)** and **`0.202` (`test_ood`)** on `own` targets, worse than both standalone `B2` (`0.138` / `0.122` on `own` targets) and an untuned `50/50` blend (`0.159` / `0.180`).
+5. **Conformal uncertainty calibration & systems utility (`M1-Struct+CP`):** Split-conformal calibration on `val` (`n = 114`) lifts fresh-trajectory 80% interval coverage (`2,040` `test` runs) from **`17.7%` to `75.8%`** (`64.9%` under `CLASS` OOD shift, cutting OOD Winkler score from `94.9` to `47.4`), cuts `1.0×` timeout false aborts **10.5×** (`13.9%` $\rightarrow$ **`1.33%`**) while saving `19.9%` of failed-run GPU time, and cuts multi-tier `15 s` Edge/Datacenter SLA routing cost by **`26.4%`** (`6.3%` violations vs. `31.2%` Always-Edge).
 
-![Estimated vs measured time on 255 held-out tasks](figures/F1-estimated-vs-measured.png)
+![Estimated vs measured time across five representative LM estimators on 255 held-out tasks](figures/F1-estimated-vs-measured.png)
 
-*Figure 1. The model's own time estimate (y) against the median of 8 measured runs (x), reference speed card, 255 held-out tasks. The green band marks "within 2×". Panels, left to right: base with speed card (E1); base with five measured examples (E2); trained on teacher-guessed labels (M2); trained on measured labels (M1).*
-
-**Why it matters.** (1) *Honest self-reports*: a model that reports its own work in human time reports something false. (2) *Planning and budgeting*: agents use time estimates to schedule and to decide how much to attempt. (3) *Oversight*: an estimate is a tripwire; if a run goes far past what the model said it would take, a supervisor can stop it. Section 7 simulates (2) and (3).
+*Figure 1. Predicted completion time (y) vs. measured median runtime over $K = 8$ runs (x) on 255 held-out `test` tasks (`REF` speed card: $S = 96\text{ tok/s}$, $P = 26{,}000\text{ tok/s}$; shaded band = within 2×). Panels show zero-shot base + speed card (`E1`, `base` targets), 5-shot measured base (`E2`, `base` targets), teacher-guessed SFT (`M2-S0`, `own` targets), curated measured SFT (`M1-S0`, `own` targets), and workload decomposition + exact timing (`M1-Struct`, `own` targets, removing horizontal verbal quantization bands).*
 
 ### 1.1 The metrics we chose, and why
 
-All error metrics use `err = log10(estimate / measured median time)` per task, computed against the model's *own* re-measured runs.
+Every accuracy metric compares task-level prediction $\hat{t}_i$ against measured median runtime $t_i$ via signed log error $e_i = \log_{10}(\hat{t}_i / t_i)$, averaged across prompt phrasings within each task first, with explicit **`Target source`** tracking (`own` post-SFT re-measured $K=8$ trajectories vs. `base` trajectories):
 
-- **MdAE (median |err|), primary.** Times span three orders of magnitude, so an additive error would be dominated by long tasks. The median is robust to the heavy tails that a few very slow tasks produce. MdAE = 0.30 means "typically within 2×".
-- **Share within 2×** and **within 10×.** The version of MdAE a user can act on.
-- **Spearman ρ.** Can the estimate at least *rank* tasks? Needed for scheduling.
-- **GM ratio** (geometric-mean estimate ÷ measured): signed bias. This is the number behind "off by 55×".
-- **Anthropocentric-unit rate**: share of self-answers stated in hours, days, weeks or months.
-- **Parse rate**: a non-answer counts as infinite error, so a model cannot look good by refusing.
-- **Noise ceiling**: the best an estimator could do, leave-one-out over the 8 runs (median |err| ≈ 0.03). Run-to-run variance is small, so the label is learnable in principle.
-- **pass@1 and |log token ratio|**: did the fine-tune change coding behavior?
-- **Human-frame answer drift**: do answers about "how long would a human developer take" stay the same?
+- **Median $|\log_{10}(\hat{t}/t)|$ (`MdAE`, primary):** Agent runtimes span nearly three orders of magnitude (`1 s` to `>300 s`); additive RMSE is dominated by a handful of 3-attempt timeouts, whereas `MdAE` is scale-invariant and outlier-resistant (`0.301` = factor of `2.0×`).
+- **Share within 2× and within 10×:** Direct operational accuracy thresholds for schedulers and human supervisors.
+- **Spearman $\rho$ and pairwise / counter-intuitive pair accuracy:** Measure whether an estimator orders tasks accurately (`SJF` queue scheduling), especially on pairs where human-developer duration priors invert actual LLM runtime.
+- **Geometric-mean (GM) ratio ($10^{\overline{e}}$) and Anthropocentric-Unit Rate (`AUR`):** Separate signed scale bias (e.g., `55.3×` overestimation) from zero-centered noise and track regression to human calendar units (`hours`, `days`, `weeks`, `months`).
+- **Parse rate (strict penalty):** Unparseable self-estimates receive $|e_i| = +\infty$, preventing models from gaming `MdAE` by refusing to answer.
+- **Token-workload `MdAE` and verbal arithmetic inconsistency:** Decompose end-to-end duration error into *neural workload error* ($|\log_{10}(\hat{O}_i / O_i)|$) versus *autoregressive division inconsistency* ($|\log_{10}(\hat{t}_i / t_{\text{exact}}(\hat{O}_i, \hat{A}_i))|$).
+- **Split-half / LOO trajectory noise ceiling (`≈ 0.03–0.04` $\text{log}_{10}$):** Quantifies the irreducible stochastic floor of $K = 8$ agent sampling.
+- **Interval coverage & Winkler score (`X1`), plus Brier / AUROC / ECE (`X8`):** Score uncertainty calibration across all `2,040` (`test`) and `744` (`test_ood`) individual trajectories and calibration of stated first-attempt pass probabilities.
+- **Behavioral & frame non-inferiority (`pass@1`, output-token shift, `IFEval`, `ARC-Challenge`, human-frame drift):** Verify that teaching self-time neither degrades coding capability nor overwrites human-developer priors.
 
-Confidence intervals are 95% percentile bootstraps over tasks (10,000 resamples). Tests are paired Wilcoxon, Holm-corrected over the three confirmatory comparisons. Everything was pre-registered (`docs/PREREGISTRATION.md`, git tag `prereg-v1`) before any fine-tuned model saw test data. §7 of that file lists every deviation with its date.
+All confidence intervals are `10,000`-resample family-stratified percentile bootstraps over tasks; confirmatory p-values use paired two-sided Wilcoxon signed-rank tests with Holm step-down multiplicity correction across `{H2, H3, H5}`.
 
 ---
 
 ## 2. Hackathon repos used
 
-| Repo (version) | What we used it for | Where |
+| Library (pinned version) | Features used in our pipeline | Code modules |
 |---|---|---|
-| **CuratorKIT 0.1.23** | Readers for each source dataset; `SchemaGate`; MinHash near-duplicate removal for tasks; exact dedup of SFT examples; rejection reasons and manifests; `messages` export for trainers | `src/anthropochrony/curate/` |
-| **AlignTune 0.1.32** | LoRA SFT (TRL backend, `assistant_only_loss`, rank 16, α 32, 2 epochs); adapter publishing | `src/anthropochrony/train/`, `jobs/` |
-| **AuditKIT 1.1.6** | `evaluate` with a callable vLLM model and custom scorers for every estimate; `run_lmeval` for IFEval and ARC-Challenge; run fingerprints | `src/anthropochrony/eval/`, `jobs/eval_estimates.py` |
+| **CuratorKIT `0.1.23`** | Dataset readers across 7 coding benchmarks; `SchemaGate`; MinHash near-duplicate clustering (`Jaccard ≥ 0.7`) on task statements and reference solutions; exact deduplication of multi-card/multi-template SFT conversations; drop manifests; ChatML `messages` export | `src/anthropochrony/tasks/`, `src/anthropochrony/curate/` |
+| **AlignTune `0.1.32`** | QLoRA / LoRA SFT (`backend="trl"`, `assistant_only_loss=True`, $r = 16$, $\alpha = 32$, all attention + MLP projections, `max_seq_length=3072`, effective batch `32`, 2 epochs); LR sweep and adapter checkpointing | `src/anthropochrony/train/`, `jobs/` |
+| **AuditKIT `1.1.6`** | `evaluate` harness with vLLM callable backends and custom deterministic regex/metric scorers across all splits, frames, and speed cards; `run_lmeval` for `IFEval` and `ARC-Challenge`; content-hashed `RunConfig` fingerprints | `src/anthropochrony/eval/`, `jobs/eval_estimates.py` |
 
-The curation experiment (M1 curated vs M3 raw) is the data-curation part of problem #8.
+**Three upstream engineering pitfalls we diagnosed and resolved** (documented in `research/lexsi_stack_audit.md`):
 
-**Upstream problems we hit and how we worked around them** (details in `research/lexsi_stack_audit.md`):
-
-1. *CuratorKIT cleaning corrupts code.* The default `strip_html` and `collapse_whitespace` delete `<...>` spans and flatten Python indentation. We passed `clean=False`, raised `max_tokens` on the schema gate, and split by task *before* CuratorKIT so no task's variants straddle a split.
-2. *AuditKIT replays stale cache entries.* The disk cache keys a model by its path string and a scorer by its name, not by weights or code. A retrained adapter in the same directory, or an edited scorer, silently returns old results. We give every checkpoint a unique directory, put model/eval-set/code hashes in `RunConfig(extra=...)`, and version scorer names.
-3. *AlignTune/TRL default truncation.* With a 512-token default the instruction preamble silently truncates training examples. We set `max_seq_length` explicitly (3,072 after the matched-length rule triggered, see §7), log dropped sequences per family, and check the assistant-only loss mask on the actual collator output.
-
-Also: vLLM crashes when serving LoRA adapters on this architecture (Cohere2), so all fine-tuned inference uses **merged** weights.
+1. *CuratorKIT default text cleaners corrupt source code:* `strip_html` deletes generic type annotations / `<...>` tokens and `collapse_whitespace` flattens Python indentation. We pass `clean=False`, raise `SchemaGate(max_tokens=...)`, and assign MinHash near-duplicate clusters to splits *before* curation so variants never straddle train/test.
+2. *AuditKIT disk cache keys on path strings and scorer names rather than weights/code:* Re-evaluating a newly trained checkpoint written to the same path silently replays cached scores. Every checkpoint receives a unique content-addressed output path, SHA-256 digests in `RunConfig(extra=...)`, and versioned scorer identifiers.
+3. *AlignTune/TRL silent 512-token truncation & Cohere2 vLLM LoRA bug:* Default truncation clips multi-function prompts; we enforce `max_seq_length=3072` (triggered by our pre-registered family drop-rate rule), verify assistant-only loss masks on collator tensors, and serve **bf16 merged weights** in vLLM (`0.33.0`) because vLLM LoRA crashes on `Cohere2` architectures.
 
 ---
 
 ## 3. Models used and their licenses
 
-| Model | Role | License |
+| Model | Role in study | License / terms |
 |---|---|---|
-| `CohereLabs/tiny-aya-global` @ `af89d219b53ed9b13b8a4645f9c8028973510324` | Subject model; all trajectories, estimates, fine-tunes | CC-BY-NC-4.0 + Cohere Labs Acceptable Use Policy |
-| Our LoRA adapters (M1, M2, M3, LR-sweep runs) and GGUF exports | Released artifacts | CC-BY-NC-4.0 (derived from Tiny Aya), AUP applies |
-| DeepSeek-V4-Pro | **Teacher** for M2 labels and the B4 baseline (guessed times). Called through the HF Inference Providers; total provider spend about $1.7 | See its model card; used as an API only, no weights redistributed |
-| `BAAI/bge-small-en-v1.5` | Text features for the B2 regressor | MIT |
-| llama.cpp (b12110) | CPU deployment, GGUF conversion, quantization | MIT |
+| `CohereLabs/tiny-aya-global` @ `af89d219b53ed9b13b8a4645f9c8028973510324` | **Core subject model (`3.35B`):** all agent trajectories, base/few-shot estimates, SFT adapters (`M1`, `M2`, `M3`), and GGUF CPU deployments | CC-BY-NC-4.0 + Cohere Labs Acceptable Use Policy |
+| Anthropochrony LoRA adapters (`m1-s0`, `m2-s0`, `m3-s0`, LR-sweep) & `Q4_K_M`/`Q8_0` GGUFs | Released fine-tuned artifacts derived from Tiny Aya Global | CC-BY-NC-4.0 + Cohere Labs AUP |
+| `deepseek-ai/DeepSeek-V4-Pro` | Supplementary **frontier teacher** for `B4` baseline and `M2` guessed-label SFT control (~`$1.70` total HF Inference Providers spend; API-only, no weights redistributed) | Model-card license (API inference only) |
+| `BAAI/bge-small-en-v1.5` | Frozen sentence embeddings (`384`-d, PCA-32 fit strictly on `train`) for static tabular regressor `B2` / `B2+` | MIT |
+| `llama.cpp` (`b12110`) | Local GGUF quantization, `llama-bench` speed-card calibration, and desktop CPU agent execution (`X10`, `PROJ-8`, Gradio demo) | MIT |
 
-We did not use an LLM judge to parse estimates: every number was extracted by a regex parser, audited by hand on 60 rows (58 correct; the audit was done by the research agent, not an independent human). Aya Expanse 8B was not run.
+No LLM-as-a-judge was needed at evaluation time: our deterministic prose-only regex parser achieved `97.6%–100%` parse rates on speed-card prompts and `58/60` (`96.7%`) exact agreement on a manual audit.
 
 ---
 
 ## 4. Datasets and benchmarks used, and their licenses
 
-| Dataset | Use | License / terms |
-|---|---|---|
-| HumanEval+ / MBPP+ (EvalPlus) | Task pool | Apache-2.0 |
-| BigCodeBench | Task pool (library-using functions; largest family) | Apache-2.0 |
-| ClassEval | Task pool (class-level; **held out entirely as the unseen family**) | CC BY-NC 4.0 |
-| LeetCodeDataset | Task pool (algorithm functions) | Apache-2.0 tag; problem statements are LeetCode's copyright |
-| CodeContests | Task pool (stdin/stdout) | CC-BY-4.0; statements third-party |
-| TACO | Task pool (stdin/stdout, used when CodeContests had too few Python-checkable tasks) | Apache-2.0 metadata; statements third-party |
-| IFEval (first 200 prompts), ARC-Challenge (full) | Capability retention (AuditKIT `run_lmeval`) | Apache-2.0 / CC-BY-SA-4.0 |
-| **Our datasets** | tasks, traces, sft, eval, logs | Metadata CC-BY-NC-4.0. Rows from LeetCodeDataset, CodeContests and TACO are released as IDs plus a loader (`rebuild_task`), with no statement, tests, reference code or paraphrase |
+| Dataset / Benchmark | Family & role | Split allocation | License / redistribution rule |
+|---|---|---|---|
+| **HumanEval+ & MBPP+ (EvalPlus)** | `FUNC`: self-contained Python functions (`385` kept) | `train` / `val` / `test` | Apache-2.0 |
+| **BigCodeBench** | `LIB`: multi-library data/system functions (`338` kept) | `train` / `val` / `test` | Apache-2.0 |
+| **LeetCodeDataset** | `ALGO_FN`: algorithmic class-method problems (`312` kept) | `train` / `val` / `test` | Metadata Apache-2.0; statements third-party (redacted to ID + loader) |
+| **CodeContests & TACO** | `ALGO_IO`: stdin/stdout competitive programs (`203` kept) | `train` / `val` / `test` | CC-BY-4.0 / Apache-2.0 metadata; statements redacted to ID + loader |
+| **ClassEval** | `CLASS`: multi-method stateful Python classes (`93` kept) | **100% held out as `test_ood`** | CC BY-NC 4.0 (kept strictly non-commercial) |
+| **PROJ-8** (authored showcase) | `PROJ-8`: 8 multi-requirement mini-projects (`todo-cli`, `notes-api`, `snake`, `lru-cache`, `csv-report`, `markdown`, `url-shortener`, `ledger`) | **100% held out showcase** | CC-BY-NC-4.0 |
+| **IFEval** (first 200) & **ARC-Challenge** (full) | General instruction-following & reasoning retention via AuditKIT `run_lmeval` | Evaluation only | Apache-2.0 / CC-BY-SA-4.0 |
 
-**Why these datasets.** Each family gives a different shape of work: short functions (FUNC), library-heavy functions (LIB), algorithm functions (ALGO_FN), stdin/stdout programs (ALGO_IO) and whole classes (CLASS). We hold **CLASS out completely** (93 tasks) to test whether an estimator that learned "how long my kind of task takes" works on a kind it never saw. Pool after CuratorKIT filtering: 1,465 tasks → 869 train, 114 validation, 255 test, 93 unseen-family test, 134 extra. Near-duplicate groups are assigned whole to one split.
+After CuratorKIT `SchemaGate`, reference-solution test verification, and MinHash deduplication, the `1,465`-task pool splits into **`869` `train`, `114` `val`, `255` `test`, `93` `test_ood` (`CLASS`), and `134` `raw_extra`** (unfiltered extra pool reserved to test curation in `M3`). All third-party restricted statements (`LeetCodeDataset`, `CodeContests`, `TACO`) are automatically stripped across released SFT/eval files and the interactive Gradio UI (`src/anthropochrony/release.py`), shipping IDs + `rebuild_task` loaders instead.
 
 ---
 
 ## 5. Model artifacts (HF collection)
 
-**Collection:** https://huggingface.co/collections/isHeSatoshi/anthropochrony-models-6af31e769e666b4001e8c5f2
+**Model Collection:** https://huggingface.co/collections/isHeSatoshi/anthropochrony-models-6af31e769e666b4001e8c5f2
 
-Contents:
-
-| Repo | What it is |
+| Repository | Artifact description |
 |---|---|
-| `anthropochrony-tiny-aya-global-lora-m1-s0` | **Main model.** LoRA r16 on measured, curated labels, seed 0 |
-| `anthropochrony-tiny-aya-global-lora-m2-s0` | Control: same tasks and format, teacher-guessed labels |
-| `anthropochrony-tiny-aya-global-lora-m3-s0` | Control: measured labels, no quality gates |
-| `anthropochrony-tiny-aya-global-lora-lr-0.0001`, `-lr-0.0002` | One-epoch learning-rate sweep runs |
-| `anthropochrony-tiny-aya-global-m1-s0-gguf` | Q4_K_M and Q8_0 GGUF of the merged M1 model, plus the base GGUF used in the CPU deployment test |
+| `anthropochrony-tiny-aya-global-lora-m1-s0` | **Primary model (`M1-S0`):** rank-16 LoRA trained on curated, $K=8$ measured self-labels + human-frame preservation (`6,077` examples) |
+| `anthropochrony-tiny-aya-global-lora-m2-s0` | **Teacher-guessed control (`M2-S0`):** identical prompts, tasks, and format trained on `DeepSeek-V4-Pro` guessed workloads (`6,077` examples) |
+| `anthropochrony-tiny-aya-global-lora-m3-s0` | **Uncurated measured control (`M3-S0`):** measured labels without S1 quality gates (`7,011` examples; see §7.5 forensic audit) |
+| `anthropochrony-tiny-aya-global-lora-lr-0.0001`, `-0.0002` | 1-epoch `val` learning-rate sweep adapters (`2e-4` selected on `val`: `0.35` vs `0.39` MdAE) |
+| `anthropochrony-tiny-aya-global-gguf` | `Q4_K_M` and `Q8_0` GGUF quantizations of merged `M1-S0` + base `Q4_K_M` GGUF for CPU deployment (`X10`) and local demo |
 
-Each card states base revision, data, metrics, limitations and the AUP. Merged weights are not uploaded as a separate repo; the adapters merge in a few lines (see `scripts/` and the README).
-
-**Serving note.** The merged model must be built in bf16 for the results reported here. An fp32 merge reproduces the PEFT outputs (logit differences < 1e-4), but rounding merged weights to bf16 flips some near-tied digits. In 6 of 50 validation prompts the merged-bf16 greedy output differed from the PEFT output by a digit. The pre-registered parity check allowed at most 2 mismatches; we replaced it with a numeric explanation of each flip (PREREGISTRATION §7, dated before any test data was generated for a fine-tuned model). Treat this as a weakening of the original criterion.
+**Serving parity note (Gate `G6`).** Because vLLM serves merged `bf16` weights on `Cohere2`, we audited greedy parity against `fp32` HF+PEFT on `50` `val` prompts (`results/g6-cpu-parity-m1-s0.json`). Exact `fp32` merging matches PEFT logits within `7e-5`, whereas `bf16` weight rounding perturbs logits by up to `1.2`, flipping near-tied digits (margin `0.009–0.22`) on `6/50` prompts (vs. the pre-registered `≤2/50` rule). We logged this before any fine-tuned `test` run (`PREREGISTRATION.md` §7) and report all numbers from the exact `bf16` serving path.
 
 ---
 
 ## 6. Data artifacts (HF collection)
 
-**Collection:** https://huggingface.co/collections/isHeSatoshi/anthropochrony-data-6af31e776d6f33265b0c33a8
+**Dataset Collection:** https://huggingface.co/collections/isHeSatoshi/anthropochrony-data-6af31e776d6f33265b0c33a8
 
-| Repo | Contents |
+| Repository | Contents |
 |---|---|
-| `anthropochrony-tasks` | Task manifest (IDs, family, split, source, license), restricted sources as ID + loader, drop reasons |
-| `anthropochrony-traces` | Every K=8 trajectory summary for base, M1, M2, M3 (attempts, token counts, exec status, wall times); generated text kept only for unrestricted sources |
-| `anthropochrony-sft` | The M1, M2 and M3 training sets (messages, labels, label source) with the user turn redacted for restricted sources |
-| `anthropochrony-eval` | Every estimate (all estimators, frames, cards), labels, metrics, hypotheses, simulations, ROI, CPU deployment results |
-| `anthropochrony-logs` | Training logs and `trainer_state.json`, job logs, `RUNLOG.md`, gate evidence, budget ledger |
-
-`notebooks/reproduce_results.ipynb` rebuilds every headline number from the released `eval` data on CPU in a few minutes.
+| `anthropochrony-tasks` | Full `1,465`-task manifest, split assignments, token lengths, curation drop reasons, and `rebuild_task` loader for restricted sources |
+| `anthropochrony-traces` | All $K = 8$ agent trajectory traces for `base` (`11,720` runs) and re-measured `m1-s0`, `m2-s0`, `m3-s0` (`2,784` `test` + `test_ood` runs each) |
+| `anthropochrony-sft` | Exact `M1`, `M2`, and `M3` ChatML training/validation sets + matched-length drop summaries (restricted statements redacted) |
+| `anthropochrony-eval` | Every raw model output and parsed estimate across all estimators, 8 speed cards, and 4 frames; `metrics.json`, `extra-analyses.json`, `simulations.json`, `roi.json`, `proj8-showcase.json`, `x10` CPU traces, and figures `F1–F7` |
+| `anthropochrony-logs` | AlignTune `trainer_state.json`, HF Jobs telemetry, gate manifests (`G0–G8`), `RUNLOG.md`, and `$26.7 / $30.0` budget ledger |
 
 ---
 
 ## 7. Experiments, findings and what else we tested
 
-### 7.1 Approach and rationale
+### 7.1 Approach and rationale behind datasets, tasks, and models
 
-Three design choices carry the study.
+Four methodological choices define the study:
 
-1. **Measure, don't guess.** Every label is a median of 8 real runs of the model that is being tuned, converted to time with a stated speed card. A model's tokens-per-answer and number of attempts are properties of *that* model, which is why a teacher's guess or another model's measurements should (and, in M2, did) do worse.
-2. **Re-measure after tuning.** Fine-tuning can change how many tokens the model writes. So M1, M2 and M3 were run again (K=8, 2,784 trajectories each) on the test splits, and scored against *their own* new times. Scoring against the base model's times is reported as a robustness check, and gives the same picture (M1: 0.235 vs 0.242).
-3. **Seven comparison arms**, so that the headline number is not read against a straw man: the base model with no card (E0), with the card (E1), with five measured examples (E2), asked about "an AI assistant" instead of itself (E3), post-hoc rescaled by speed (E4, the MetaTime rule); constants and per-family medians (B0, B1); an input-only regressor (B2); and a stronger teacher model's guess (B4).
+1. **Out-of-distribution structural & hardware holdouts by design.** All `93` stateful multi-method class tasks (`ClassEval` $\rightarrow$ `CLASS`, `test_ood`) are held 100% out of training and 5-shot exemplar pools (`FUNC`, `LIB`, `ALGO_FN`, `ALGO_IO`), testing whether an estimator generalizes beyond memorized per-family averages. Similarly, interpolation (`heldout-190`, `heldout-230`) and extreme extrapolation speed cards (`extrap-low` at `1.5 tok/s`, `extrap-high` at `5,000 tok/s`), plus live quantized CPU runs (`X10` at `20 tok/s`), test physical speed conditioning outside training speeds.
+2. **Ground-truth self-labels from real execution, not teacher guesses.** Completion time depends on *this* model's verbosity and retry behavior (`Tiny Aya Global` averages `2.56` attempts on `test`, passing `20.9%` on attempt 1). Comparing `M1-S0` (trained on measured `Tiny Aya` trajectories) against `M2-S0` (identical tasks and format trained on `DeepSeek-V4-Pro` guessed workloads) isolates empirical self-measurement from distillation.
+3. **Closed-loop re-measurement (`Target source = own` vs. `base`).** Fine-tuning can shift coding verbosity or retry rates. We therefore re-ran $K = 8$ 3-attempt trajectories across all `348` `test` + `test_ood` tasks (`2,784` runs per checkpoint) for `M1-S0`, `M2-S0`, and `M3-S0`, scoring each fine-tuned model against its **`own`** post-SFT runtime while reporting **`base`**-target invariance checks alongside. Under the `$30` compute cap, `val` (`n = 114`) was not re-measured after SFT and therefore uses `base` targets—an asymmetry whose impact on post-hoc model selection we audit directly in §7.3.1.
+4. **Hard non-LM and frontier baselines.** Alongside zero-shot (`E0`, `E1`), `MetaTime` rescaling (`E4`), and 5-shot measured ICL (`E2`), we evaluate constant/family medians (`B0`, `B1`), a gradient-boosted workload regressor over prompt AST + `bge-small` embeddings (`B2`), a privileged oracle given reference-solution length (`B2+`), and closed frontier teacher `DeepSeek-V4-Pro` (`B4`).
 
-**Training.** LoRA r16, α 32, all attention and MLP projections, 2 epochs, LR 2e-4 (chosen on validation from {1e-4, 2e-4}: validation MdAE 0.39 vs 0.35), 6,077 examples for M1 (5,214 self-frame with a spread of speed cards and phrasings, 863 human-frame preservation examples), one L40S, 380 steps, about 70 minutes. Label text includes an estimate, an interval and a short token-and-speed breakdown.
+### 7.2 Out-of-distribution vs. in-distribution accuracy (`REF` speed card, 95% CIs)
 
-### 7.2 Main result (reference speed card, 95% CIs)
+Table 1 leads with **unseen-family OOD generalization (`test_ood`: `CLASS`, `n = 93`)** alongside in-distribution `test` (`n = 255`), reporting explicit `Target source` (`own` vs. `base`) for every estimator (`results/metrics.json` and `results/extra-analyses.json`).
 
-Median |err| in log10; "within 2×" is the share of tasks within a factor of 2.
+| Estimator | Target source | `test_ood` (`CLASS`, `n=93`) MdAE `[95% CI]` | `test_ood` within 2× | `test_ood` $\rho$ | `test` (`n=255`) MdAE `[95% CI]` | `test` within 2× | `test` $\rho$ |
+|---|:---:|---:|---:|---:|---:|---:|---:|
+| `E0` Base, no speed card | `base` | `1.619 [1.550, 1.680]` | `0.0%` | `0.364` | `1.760 [1.726, 1.847]` | `0.4%` | `0.444` |
+| `E1` Base + speed card | `base` | `1.199 [1.138, 1.234]` | `1.1%` | `0.236` | `1.375 [1.315, 1.413]` | `0.4%` | `0.369` |
+| `E4` `MetaTime` speed rescaling | `base` | `1.070 [0.989, 1.157]` | `21.5%` | `0.236` | `1.236 [1.090, 1.335]` | `14.9%` | `0.369` |
+| `E2` Base + 5 measured examples (ICL) | `base` | `0.503 [0.381, 0.570]` | `30.1%` | `0.349` | `0.240 [0.210, 0.302]` | `55.3%` | `0.687` |
+| `B0` Train constant median | `base` | `0.336 [0.278, 0.401]` | `46.2%` | — | `0.197 [0.176, 0.219]` | `69.4%` | — |
+| `B1` Train family median | `base` | `0.336 [0.278, 0.401]` | `46.2%` | — | `0.123 [0.094, 0.139]` | `81.6%` | `0.738` |
+| `B4` Frontier teacher (`DeepSeek-V4-Pro`) | `base` | `0.294 [0.259, 0.328]` | `52.7%` | `0.458` | `0.244 [0.211, 0.261]` | `65.1%` | `0.620` |
+| **`B2` Static text+embedding GBDT (no LM)** | `base` | **`0.130 [0.105, 0.161]`** | **`81.7%`** | `0.320` | **`0.137 [0.122, 0.157]`** | **`82.7%`** | **`0.802`** |
+| `B2+` Privileged upper bound (+ref len) | `base` | `0.210 [0.173, 0.253]` | `74.2%` | `0.461` | `0.141 [0.128, 0.167]` | `83.9%` | `0.784` |
+| `M2-S0` SFT on teacher-guessed labels | `own` | `0.285 [0.232, 0.389]` | `50.5%` | `0.283` | `0.287 [0.260, 0.324]` | `51.4%` | `0.486` |
+| `M3-S0` SFT on raw measured labels (frozen)* | `base` | `0.239 [0.194, 0.286]`* | `60.2%` | `0.145` | `0.205 [0.178, 0.231]` | `72.5%` | `0.681` |
+| `M3-S0` SFT on raw measured labels (matched)* | `own` | `0.235 [0.186, 0.316]`* | `59.1%` | `0.183` | `0.210 [0.181, 0.236]` | `70.6%` | `0.655` |
+| **`M1-S0` SFT on curated measured labels** | `own` | **`0.300 [0.229, 0.404]`** | **`50.5%`** | `0.080` | **`0.242 [0.216, 0.267]`** | **`65.9%`** | `0.573` |
+| **`M1-Struct` (workload + exact timing, 0-retrain)** | `own` | **`0.269 [0.201, 0.310]`** | **`58.1%`** | **`0.369`** | **`0.213 [0.175, 0.237]`** | **`71.8%`** | **`0.664`** |
+| `M1-Struct` (common-target invariance check) | `base` | `0.255 [0.217, 0.330]` | `58.1%` | `0.386` | `0.183 [0.155, 0.227]` | `71.4%` | `0.713` |
+| `M1-Struct + B2` (`val`-selected $w=0.80$, §7.3.1) | `own` | `0.202 [0.155, 0.273]` | `65.6%` | `0.393` | `0.178 [0.142, 0.216]` | `74.1%` | `0.695` |
+| Trajectory noise ceiling (LOO / split-half) | `base` | `0.032` / `0.040` | — | — | `0.030` / `0.040` | — | — |
 
-| Estimator | `test` (255): MdAE [CI] | within 2× | `test_ood` (93): MdAE | within 2× |
-|---|---|---|---|---|
-| E0 base, no card | 1.76 [1.73, 1.85] | 0.4% | 1.62 | 0% |
-| E1 base + card | 1.38 [1.32, 1.41] | 0.4% | 1.20 | 1% |
-| E4 E1 rescaled by speed | 1.24 [1.09, 1.34] | 15% | 1.07 | 22% |
-| **E2 base + 5 measured examples** | **0.24** [0.21, 0.30] | 55% | 0.50 | 30% |
-| B0 constant | 0.20 [0.18, 0.22] | 69% | 0.34 | 46% |
-| B1 family median | 0.12 [0.09, 0.14] | 82% | 0.34 | 46% |
-| **B2 text-feature regressor** | **0.14** [0.12, 0.16] | 83% | 0.13 | 82% |
-| B4 teacher guess (DeepSeek-V4-Pro) | 0.24 [0.21, 0.26] | 65% | 0.29 | 53% |
-| M2 trained on teacher guesses | 0.29 [0.26, 0.33] | 51% | 0.29 | 51% |
-| M3 trained on raw measured labels | 0.21 [0.18, 0.23] | 73% | 0.24 | 60% |
-| **M1 trained on curated measured labels** | **0.24** [0.21, 0.27] | **66%** | **0.30** [0.23, 0.40] | 51% |
-| Noise ceiling | ≈ 0.03 | | | |
+*\*Table 1 notes: `Target source = own` scores a checkpoint against its own post-SFT $K = 8$ re-measured median runtime; `Target source = base` scores against the untuned base model's $K = 8$ median runtime (`M1-S0` on `base` targets scores `0.235` `test` / `0.344` `test_ood`). See §7.5 for the `M3-S0` forensic audit (`+894` extra rows + `40` leaked `CLASS` rows in historical `raw_extra`), and §7.3.1 for why `val`-selected `M1-Struct + B2` (`w = 0.80`) underperforms standalone `B2`.*
 
-![Accuracy by method](figures/F2-accuracy-by-method.png)
+**Why OOD generalization changes the conclusion.** Looking only at `test` MdAE, 5-shot `E2` (`0.240`) and family lookup `B1` (`0.123`) appear to match or beat verbal SFT (`M1-S0`, `0.242`). On unseen `CLASS` (`test_ood`), however, 5-shot demonstrations come from shorter function/script families, causing `E2` to systematically underpredict multi-method classes (`GM ratio = 0.339×`, MdAE **`0.503`**, `30.1%` within 2×), while `B1` has no `CLASS` lookup entry and falls back to `B0` (**`0.336`**). Curated measured SFT (`M1-S0`) cuts unseen `CLASS` error to **`0.300` (`50.5%` within 2×, Holm $p = 0.00025$)**, and **workload decomposition with an exact timing model (`M1-Struct`)** reaches **`0.269` (`58.1%` within 2×)** on `own` targets (`0.255` on `base` targets, `0.213` / `0.183` on `test`), outperforming both 5-shot `E2` and frontier teacher `B4` (`0.294` / `0.244`).
 
-*Figure 2. Error by method on held-out tasks and on the unseen task family. Dotted line: the pre-registered 0.30 bar. Lower is better. Error bars: 95% bootstrap.*
+![Accuracy across estimators on held-out test and unseen CLASS OOD](figures/F2-accuracy-by-method.png)
 
-How to read this honestly:
+*Figure 2. Median $|\log_{10}(\hat{t}/t)|$ (`MdAE`) across prompting, tabular, teacher-API, verbal SFT, and workload + exact-timing estimators on in-distribution `test` (`n = 255`, left) and unseen-family `test_ood` (`CLASS`, `n = 93`, right), with `95%` stratified bootstrap CIs, the 2× error band (`0.301`), and the trajectory noise ceiling (`0.03`).*
 
-- **The base bias is real and specific.** Without a speed card E0 gets a 55× geometric-mean overestimate and 2% of answers use human work units. Adding the card (E1) removes the unit problem but not the error: the median answer is about 5 seconds, close to the median truth, but the spread is huge, so errors still sit around 1.4 orders of magnitude. Rescaling after the fact (E4) barely helps, because the error is not a speed-scale error.
-- **M1 meets the pre-registered bars; H1 does not.** (Table below.) H1 asked for a ≥10× overestimate and ≥50% human units for both E0 and E1. E0 satisfies the first part (55×), but only 2.4% use human units, and E1 is not overestimating at all (0.54×). We report H1 as **not met as pre-registered**: the base model's problem with the speed card is noise, not human-scale bias.
-- **M1 ties few-shot prompting in-distribution.** E2 reaches 0.24 on `test` with no training. M1 is better on the share within 2× (66% vs 55%), and much better on the unseen family (0.30 vs 0.50) and held-out speeds.
-- **A regressor over text features beats every LM estimator in-distribution.** B2 (0.14) and even B1 (family median; 0.12) are better than M1 on `test`. On the unseen family only B2 stays good (0.13); B1 has no family median to use. So "the model knows its own speed" is too generous: most of the learnable signal is in the task text, and it is cheaper to read from a regressor.
-- **M1's intervals are not calibrated.** Its stated 80% range covered 19% of fresh runs.
-- **M1 collapses toward a few values**: its predictions form visible horizontal bands (Figure 1, right). Spearman ρ is 0.57 on `test` and only 0.08 on the unseen family: the tuned model has a good *scale* but a weak *ranking* out of distribution.
+**Pre-registered confirmatory verdicts (`results/hypotheses.json`, 1 seed):**
 
-| Hypothesis (pre-registered) | Result | Status |
-|---|---|---|
-| H1 base bias | E0: 55× GM ratio, 2.4% human units; E1: 0.54× | **Not met** |
-| H2 M1 MdAE ≤ 0.30, beats best base prompt | 0.242; Holm p = 0.003 (vs E2) | Met (1 seed) |
-| H3 unseen family MdAE ≤ 0.50, beats base | 0.300; Holm p = 0.0002 | Met (1 seed) |
-| H4 held-out speeds MdAE ≤ 0.35 and elasticity in [0.8, 1.2] | 0.224; elasticity 0.801 [0.789, 0.825] | Met, barely on elasticity |
-| H5 measured beats guessed | M1 0.242 vs M2 0.287; Holm p = 0.0006 | Met (1 seed) |
-| H6a pass@1 not worse by > 3 points | difference CI [-2.2, +3.0] | Met |
-| H6b human-frame answers unchanged | median ratio 0.0 | Met |
+| ID | Pre-registered hypothesis | Target source | Empirical outcome | Verdict |
+|---|---|:---:|---|---|
+| **H1** | Base overestimates $\ge 10\times$ on `E0` & `E1`, with $\ge 50\%$ human units on `E0` | `base` | `E0`: **`55.3×` GM ratio**, `2.4%` hour+ units (mostly minutes); `E1`: **`0.54×` GM ratio** (`1.375` MdAE) | **Not met** |
+| **H2** | `M1` `test` MdAE $\le 0.30$ and beats best base prompt (`E2`) | `own` vs `base` | `M1-S0` `0.242` (`65.9%` vs `55.3%` within 2×); paired per-task Wilcoxon Holm **$p = 0.0032$** | **Met** (1 seed) |
+| **H3** | `M1` `test_ood` (`CLASS`) MdAE $\le 0.50$ and beats best base prompt | `own` vs `base` | `M1-S0` **`0.300` vs `E2` `0.503`** (`50.5%` vs `30.1%` within 2×); Holm **$p = 0.00025$** | **Met** (1 seed) |
+| **H4** | Held-out speed cards MdAE $\le 0.35$ & per-task speed elasticity $\in [0.8, 1.2]$ | `own` | Held-out MdAE **`0.224` `[0.205, 0.243]`**; elasticity **`0.801` `[0.789, 0.825]`** | **Met** |
+| **H5** | Measured labels (`M1`) beat teacher-guessed labels (`M2`) on matched SFT | `own` | `M1-S0` **`0.242` vs `M2-S0` `0.287`** (`65.9%` vs `51.4%` within 2×); Holm **$p = 0.00056$** | **Met** (1 seed) |
+| **H6a/b** | Coding `pass@1` non-inferior ($> -3$ pp) & human-frame drift $\le 0.15$ | `own` / `human` | `pass@1` $\Delta$ 95% CI **`[-2.2, +3.0]` pp**; human-frame median $|\log_{10}\text{ ratio}| =$ **`0.000`** | **Met** |
 
-### 7.3 Speeds, families, frames
+### 7.3 Headline diagnostic: the token-workload vs. verbal-arithmetic bottleneck, and workload decomposition with an exact timing model (`M1-Struct`)
 
-- **Held-out speeds.** M1's MdAE on the two held-out interpolation cards is 0.224/0.227; on a card faster than anything seen in training (5,000 tokens/s decode) it is 0.05 (M3: 0.05). On a card slower than anything seen (1.5 tokens/s) it fails: 0.49 against E2's 0.25, so the model extrapolates badly toward slower hardware.
-- **By family** (M1 / E2 / B2): ALGO_FN 0.22 / 0.27 / 0.09; ALGO_IO 0.20 / 0.18 / 0.10; FUNC 0.28 / 0.39 / 0.24; LIB 0.23 / 0.19 / 0.10.
-- **Other frames.** The same model asked in a *plan* frame ("plan this task and say how long the plan will take") has MdAE 0.67 with 94% parse; the *generic* frame ("an AI assistant") is 0.59 against E3's 1.69. Training on direct questions transfers partly; it does not fix plans.
-- **Human frame.** M1's answer to "how long would a human developer take" is identical to the base model's for at least half of tasks (median ratio 1.0), and still in human units, as intended (GM ratio 9.7 against the model's own time).
+Why did raw verbal `M1-S0` tie 5-shot `E2` on `test` MdAE (`0.242` vs. `0.240`), form discrete horizontal bands in Figure 1, drop to Spearman $\rho = 0.080$ on unseen `CLASS`, and collapse on `1.5 tok/s` slow hardware (`0.492` MdAE on `test`, `0.728` on `CLASS`)?
 
-### 7.4 Capability and behavior preserved
+Because every prompt format (`docs/PROMPTS.md` §5) requires emitting **both** a headline verbal duration (`Time estimate: T s`) *and* an explicit workload breakdown (`Breakdown: ~O output tokens across A attempt(s)`), we audited token-workload error separately from internal verbal division consistency (**Table 2**, `token_and_arithmetic_audit` in `results/extra-analyses.json`):
 
-| Check | Base | M1 | M2 |
-|---|---|---|---|
-| pass@1, `test` (255 tasks, K=8) | 0.209 | 0.214 | 0.199 |
-| pass@3 (any of 3 attempts), `test` | 0.222 | 0.222 | 0.212 |
-| pass@1, `test_ood` | 0.099 | 0.128 | 0.157 |
-| median abs. log10 output-token ratio vs base | | 0.10 | 0.10 |
-| IFEval prompt-strict / inst-strict (first 200) | 0.750 / 0.830 | 0.700 / 0.796 | 0.735 / 0.821 |
-| ARC-Challenge acc / acc_norm | 0.425 / 0.458 | 0.422 / 0.456 | 0.424 / 0.454 |
+| Estimator | Target source | Split (`n`) | Output-token MdAE ($\downarrow$) | Output tokens within 2× ($\uparrow$) | Bare pre-breakdown division error $|\log_{10}(\hat{t} / (\hat{O}/S + u/P))|$ | Latency-adjusted division error $|\log_{10}(\hat{t} / t_{\text{exact}})|$ | Verbal `REF` MdAE $\rightarrow$ **`Struct` MdAE** |
+|---|:---:|---|---:|---:|---:|---:|---:|
+| `E2` (5-shot base) | `base` | `test` (`254`) | `0.313` | `48.0%` | `0.198` | `0.072` | `0.240` $\rightarrow$ **`0.202`** |
+| **`M1-S0` (measured SFT)** | `own` | `test` (`255`) | **`0.268`** | **`56.1%`** | **`0.272`** | `0.089` | `0.242` $\rightarrow$ **`0.213`** |
+| `M2-S0` (teacher SFT) | `own` | `test` (`255`) | `0.251` | `58.0%` | `0.181` | `0.153` | `0.287` $\rightarrow$ **`0.229`** |
+| `E2` (5-shot base) | `base` | `test_ood` `CLASS` (`93`) | `0.476` | `31.2%` | `0.162` | `0.117` | `0.503` $\rightarrow$ **`0.363`** |
+| **`M1-S0` (measured SFT)** | `own` | `test_ood` `CLASS` (`93`) | **`0.314`** | **`48.4%`** | **`0.198`** | `0.113` | `0.300` $\rightarrow$ **`0.269`** |
+| `M2-S0` (teacher SFT) | `own` | `test_ood` `CLASS` (`93`) | `0.313` | `47.3%` | `0.199` | `0.143` | `0.285` $\rightarrow$ `0.310` |
 
-M1 loses 5.0 points of IFEval prompt-level strict accuracy (0.750 to 0.700) and 3.5 points at instruction level. With 200 prompts the binomial standard error is about 3 points, and this is one seed, so we call it a small possible loss, not a measured one; M2 lost 1.5 points. ARC-Challenge is unchanged within 0.3 points. Retries add almost nothing for this model (pass@3 0.222 against pass@1 0.209 on the base).
+Table 2 isolates the exact mechanism:
 
-M1 pass@1 on `test_ood` is nominally higher than base (0.128 vs 0.099); we do not interpret it. The pre-registered test is non-inferiority on `test`, which holds.
+1. **Fine-tuning genuinely improves token-workload self-prediction—especially OOD.** `M1-S0` beats 5-shot `E2` on output-token prediction both on `test` (**`0.268` vs. `0.313`**, `+8.1 pp` within 2×) and by a wide margin on unseen `CLASS` (**`0.314` vs. `0.476`**, `+17.2 pp` within 2×). Notice also why `M2-S0` loses on verbal time (`0.287`): teacher-guessed training labels omitted the `0.967 s` per-call serving latency $L$, leaving `0.153` latency-adjusted inconsistency.
+2. **Emitting verbal seconds *before* the workload breakdown creates an autoregressive arithmetic bottleneck.** Because the model must commit to `Time estimate: T s` on token 4—*before* writing `~O output tokens across A attempt(s)`—its `3.35B` weights must approximate $O/S + u/P + A(e + L)$ in one forward pass. That introduces **`0.272` $\text{log}_{10}$** bare division inconsistency, collapses distinct token predictions onto coarse verbal numbers (`5 s`, `8 s`, `12 s`, dragging `CLASS` Spearman $\rho$ down to `0.080`), and fails when decode speed $S$ drops $64\times$ below the training range to `1.5 tok/s`.
 
-### 7.5 What the estimates are good for (simulation, exploratory)
+**Workload decomposition with an exact timing model (`M1-Struct`).** Without retraining a single parameter or running an extra forward pass, `M1-Struct` takes `M1-S0`'s already-emitted `(O, A)` workload decomposition and evaluates the exact serving timing equation using strictly `train`-only medians (`CLASS` explicitly excluded) for per-attempt sandbox execution (`ALGO_IO 0.068 s`, `ALGO_FN 0.068 s`, `FUNC 0.119 s`, `LIB 0.268 s`; `train`-pool fallback `0.093 s` for unseen `CLASS`) and retry-feedback tokens (`130–300 tok`; fallback `162 tok`; `results/workload-priors.json`). **Table 3** shows hardware scaling across seen, held-out interpolation, and extreme extrapolation cards:
 
-**Shortest-job-first scheduling.** Using each estimator's predictions to order 1,000 random queues of the held-out tasks, mean completion time relative to the oracle ordering (lower is better; arrival order = 1.69):
+| Estimator | Target source | `REF` (`96 tok/s`) `test` / `CLASS` | `heldout-190` (`190 tok/s`) `test` / `CLASS` | `heldout-230` (`230 tok/s`) `test` / `CLASS` | **`extrap-low` (`1.5 tok/s`) `test` MdAE (2×)** | **`extrap-low` (`1.5 tok/s`) `CLASS` MdAE (2×)** | Speed elasticity `test` / `CLASS` (`1.0` = exact) |
+|---|:---:|---:|---:|---:|---:|---:|---:|
+| `E1` Base + speed card | `base` | `1.375` / `1.199` | `1.338` / `1.342` | `1.355` / `1.389` | `1.597` (`23.1%`) | `0.584` (`17.2%`) | `0.122` / `0.001` |
+| `E2` Base + 5-shot ICL | `base` | `0.240` / `0.503` | `0.218` / `0.429` | `0.214` / `0.390` | `0.253` (`55.7%`) | `0.445` (`35.5%`) | `0.989` / `0.948` |
+| `B2` Static GBDT (exact timing) | `base` | `0.137` / `0.130` | `0.129` / `0.113` | `0.121` / `0.111` | `0.145` (`77.3%`) | `0.136` (`79.6%`) | `0.980` / `1.026` |
+| `M2-S0` Teacher SFT (verbal) | `own` | `0.287` / `0.285` | `0.313` / `0.243` | `0.312` / `0.277` | `0.412` (`34.9%`) | `0.675` (`12.9%`) | `0.903` / `0.835` |
+| `M1-S0` Measured SFT (verbal) | `own` | `0.242` / `0.300` | `0.224` / `0.265` | `0.227` / `0.251` | `0.492` (`24.7%`) | `0.728` (`11.8%`) | `0.801` / `0.793` |
+| **`M1-Struct` (workload + exact timing)** | `own` | **`0.213` / `0.269`** | **`0.165` / `0.222`** | **`0.132` / `0.209`** | **`0.155` (`73.7%`)** | **`0.247` (`67.7%`)** | **`1.011` / `0.980`** |
 
-B2 1.14 · E2 1.19 · B1 1.21 · M3 1.24 · B4 1.33 · **M1 1.36** · M2 1.51 · E0 1.53 · E1 1.56.
+- **Eliminates the `1.5 tok/s` extrapolation collapse:** `M1-Struct` cuts `extrap-low` MdAE **3.17×** on `test` (`0.492` $\rightarrow$ **`0.155`**, `+49.0 pp` within 2×) and **2.95×** on unseen `CLASS` (`0.728` $\rightarrow$ **`0.247`**, `+55.9 pp` within 2×), restoring physical speed elasticity (`1.011` and `0.980`).
+- **Fixes OOD rank ordering & human-vs-machine counter-intuitive pairs:** Removing verbal quantization lifts `CLASS` Spearman $\rho$ **4.6×** (`0.080` $\rightarrow$ **`0.369`**) and lifts accuracy on task pairs where human priors invert machine runtime from `50.1%` (`M1-S0` verbal) and `39.5%` (`E1`) to **`65.4%`** (`81.7%` overall pairwise accuracy, beating frontier teacher `B4`'s `63.6%` / `80.0%`).
 
-**Tripwire.** Stop a run when it passes `k ×` its own estimate. On the 2,040 held-out runs (1,588 of which fail), M1 at `k = 2` stops 0% of runs that would have passed and saves 18.9% of the time spent on failed runs; at `k = 1.5` it falsely stops 3.5% and saves 24.9%. E1 falsely stops 71–73% of runs at every multiplier from 1 to 3, because many of its estimates are far too small. (Not a deployment claim; the simulation reuses the test trajectories.)
+![Speed conditioning and slow-hardware extrapolation across all 8 speed cards](figures/F3-speed-cards.png)
 
-![Scheduling and tripwires](figures/F4-scheduling-and-tripwires.png)
+*Figure 3. Median $|\log_{10}(\hat{t}/t)|$ (`MdAE`) across all 8 hardware speed cards (`1.5 tok/s` to `5,000 tok/s`) on held-out `test` (`n = 255`, left) and unseen `CLASS` OOD (`n = 93`, right). Verbal `M1-S0` breaks below the training speed range (`extrap-low`, `1.5 tok/s`), whereas workload decomposition + exact timing (`M1-Struct`) cuts error `3.2×` (`0.49` $\rightarrow$ `0.16` on `test`; `0.73` $\rightarrow$ `0.25` on `CLASS`).*
 
-*Figure 4. Left: scheduling simulation. Right: tripwire false-stop rate vs share of failed-run time saved.*
+#### 7.3.1 Explicit validation-selection failure (`M1-Struct + B2`) and `val`-to-OOD inversions
 
-### 7.6 Real deployment on a desktop CPU (X10)
+Static prompt/AST + `bge-small` gradient boosting (`B2`, which also feeds predicted `(O, A)` into the exact timing model) achieves `0.137` (`test`) and `0.130` (`test_ood`)—matching a privileged oracle given reference-solution length (`B2+`: `0.141` / `0.210`). Because `B2` is blind to conversational frames (`self` vs. `human`) and post-SFT model changes while `M1-Struct` has higher single-task variance, we tested a `val`-tuned log-linear ensemble $\hat{t}_w = \hat{t}_{\text{M1-Struct}}^{\,w} \cdot \hat{t}_{\text{B2}}^{\,1-w}$ over $w \in \{0.00, 0.05, \dots, 1.00\}$ (`hybrid_ensemble` in `results/extra-analyses.json`). **That `val` selection failed on held-out evaluation (Table 4):**
 
-We ran the tuned and base models as Q4_K_M GGUFs in llama.cpp (b12110) on an 8-thread desktop CPU: prefill ≈ 200 tok/s, decode ≈ 20 tok/s. The speed card in the prompt states those measured speeds. We ran 100 held-out FUNC/LIB/ALGO_FN tasks end to end in the agent loop (sandboxed test execution) and compared each model's estimate with the measured wall-clock.
+| Policy in `hybrid_ensemble` | Blend weight $w_{\text{M1-Struct}}$ | `val` (`n=114`, **`Target = base`**) MdAE (2×) | `test` (`n=255`, **`Target = own`**) MdAE (2×) | `test_ood` `CLASS` (`n=93`, **`Target = own`**) MdAE (2×) |
+|---|---:|---:|---:|---:|
+| Standalone `B2` (same target as split) | `0.00` | `0.132` (`85.1%`) | **`0.138` (`82.7%`)** | **`0.122` (`82.8%`)** |
+| Untuned equal geometric blend | `0.50` | `0.125` (`81.6%`) | `0.159` (`77.3%`) | `0.180` (`77.4%`) |
+| **`val`-selected blend (failed selection)** | **`0.80`** | **`0.116` (`80.7%`)** | `0.178` (`74.1%`) | `0.202` (`65.6%`) |
+| Standalone `M1-Struct` (task-record GM) | `1.00` | `0.123` (`79.8%`) | `0.197` (`70.6%`) | `0.259` (`59.1%`) |
 
-| | Base (Q4_K_M) | Tuned (M1, Q4_K_M) |
-|---|---|---|
-| Median abs. log10 error | 0.935 | **0.279** |
-| Within 2× | 3% | **52%** |
-| Parse rate | 99% | 100% |
+**Why `val` picked the wrong weight ($w = 0.80$).** Under the `$30` compute cap, post-SFT $K = 8$ trajectory re-measurement ran on `test` and `test_ood` but *not* on `val`. Consequently, `val` scored `M1-Struct` against **`base`** trajectories, where `M1-Struct` happened to reach `0.123` MdAE (edging `B2`'s `0.132`), so grid search placed `80%` weight on `M1-Struct` (`0.116`). On `test` and `test_ood`, where `M1-Struct` is evaluated against its **`own`** re-measured trajectories (`0.197` / `0.259` task-record geometric mean; `0.213` / `0.269` across phrasings) while `B2` still scores `0.138` / `0.122` against those same `own` targets, $w = 0.80$ (`0.178` / `0.202`) loses to both standalone `B2` and an untuned `50/50` blend (`0.159` / `0.180`). Two companion `val` inversions reinforce the same lesson: (a) in-distribution `val` ranks family lookup `B1` (`0.127`) ahead of `B2` (`0.132`), whereas on unseen `CLASS` OOD `B1` collapses (`0.336`) while `B2` generalizes (`0.130`); and (b) `val`-calibrated split-conformal intervals (`§7.4`) hold near-nominal coverage on exchangeable `test` (`75.8%`) but drop to `64.9%` on unseen `CLASS` OOD. **Takeaway:** post-hoc ensemble and calibration validation sets must share both the exact `own` re-measured target distribution and structural diversity of deployment.
 
-The first six tasks in the results file (not selected), base estimate / tuned estimate / measured wall-clock:
+![Workload decomposition + exact timing diagnostics and M3 curation forensic audit](figures/F7-disentanglement-and-forensics.png)
 
-| Task | Base | Tuned | Measured | Outcome |
-|---|---|---|---|---|
-| BigCodeBench/778 | 7 min | 23 s | 32.5 s | failed after 3 attempts |
-| HumanEval/95 | 7 min | 19 s | 6.5 s | passed on attempt 1 |
-| Mbpp/138 | 85 s | 8 s | 17.1 s | failed after 3 attempts |
-| BigCodeBench/273 | 7 min | 23 s | 116.1 s | failed after 3 attempts |
-| BigCodeBench/507 | 7 min | 23 s | 36.1 s | failed after 3 attempts |
-| HumanEval/116 | 7 min | 19 s | 7.0 s | passed on attempt 1 |
+*Figure 7. (a) Token-workload error vs. causal verbal arithmetic inconsistency and verbal vs. `M1-Struct` error at `96 tok/s` (`REF`) and `1.5 tok/s` (`extrap-low`) across `test` and unseen `CLASS` OOD. (b) Forensic audit of historical `M3` vs. `M1` SFT data volume (`+62.4%` `ALGO_IO` rows + `40` leaked `CLASS` rows).*
 
-The tuned model tracks the order of magnitude but, as the table shows, it stays near one value per family and misses long failing runs (BigCodeBench/273).
+### 7.4 Uncertainty & pass-rate calibration (`X1` & `X8`)
 
-Pass rate 0.34; median wall time 22.8 s per task. One estimate costs about 15 s on this CPU (45 s if three are sampled). Some rows ran while other local jobs shared the CPU, which adds contention noise to wall times.
+Table 5 reports fresh-trajectory 80% interval calibration (`X1`: `2,040` `test` runs, `744` `test_ood` runs) and first-attempt pass-probability calibration (`X8`), with explicit `Target source`:
 
-![Real CPU deployment](figures/F5-real-cpu-deployment.png)
+| Estimator | Target source | `X1` `test` 80% cov. (Winkler $\downarrow$) | `X1` `CLASS` OOD 80% cov. (Winkler $\downarrow$) | `X8` `test` pass ECE ($\downarrow$) / AUROC ($\uparrow$) | `X8` `CLASS` OOD pass ECE ($\downarrow$) / AUROC ($\uparrow$) |
+|---|:---:|---:|---:|---:|---:|
+| `E2` (5-shot base) | `base` | `29.3%` (`50.5`) | `12.8%` (`106.5`) | `0.208` / `0.758` | `0.041`* / **`0.464`** |
+| `B4` (`DeepSeek-V4-Pro`) | `base` | — | — | `0.462` / **`0.775`** | `0.590` / **`0.773`** |
+| `M2-S0` (teacher SFT) | `own` | `17.8%` (`62.9`) | `23.3%` (`87.3`) | `0.412` / `0.729` | `0.484` / `0.616` |
+| `M1-S0` (raw verbal SFT) | `own` | `17.7%` (`48.8`) | `15.5%` (`94.9`) | **`0.226`** / `0.583` | **`0.190`** / `0.594` |
+| `M3-S0` (raw measured SFT) | `own` | — | — | **`0.139`** / `0.678` | **`0.108`** / `0.530` |
+| **`M1b` (`M1-S0` + `val` CQR)** | `own` | **`72.8%` (`35.7`)** | `53.4%` (`67.2`) | — | — |
+| **`M1-Struct+CP` (`val` split-conformal)** | `own` | **`75.8%` (`32.0`)** | **`64.9%` (`47.4`)** | — | — |
 
-*Figure 5. CPU deployment: estimated vs measured wall-clock, base and tuned.*
+*\*On `CLASS` OOD, `E2` predicts `p = 0.10` on `87/93` tasks, matching the `9.9%` base rate by constant collapse while losing ranking discrimination (`AUROC = 0.464`, worse than random).*
 
-### 7.7 Cost comparison (ROI)
+- **Split-conformal calibration (`X1`):** Raw verbal SFT intervals imitate single-task 10th–90th percentile spreads and miss cross-task epistemic error (`17.7%` `test` coverage). Multiplicative split-conformal calibration on `val` (`n = 114`, level $\lceil 115 \times 0.80 \rceil / 115 = 0.807$, factor `1.752×` for `M1b`, `2.087×` for `M1-Struct+CP`) restores **`75.8%`** coverage on exchangeable `test` runs (Winkler `32.0` vs. `48.8`). On unseen `CLASS` OOD, covariate shift breaks exchangeability with `val`, so coverage lands below the nominal `80%` (`64.9%` vs. `15.5%` raw and `12.8%` `E2`) while still cutting OOD Winkler penalty in half (`94.9` $\rightarrow$ **`47.4`**).
+- **Pass-rate calibration (`X8`):** Frontier teacher `B4` assumes `Tiny Aya` passes `67.1%` on attempt 1 when it actually passes `20.9%` (`ECE = 0.462` / `0.590`), and `M2-S0` inherits that overconfidence (`ECE = 0.412` / `0.484`). Training on measured outcomes cuts calibration error more than **2×** (`M1-S0` `0.226` / `0.190`; `M3-S0` `0.139` / `0.108`).
 
-We measured our own batch estimate throughput on one HF Jobs L40S ($1.80/h): 6,216 estimate requests in 199 s (31.2 requests/s, 3,677 output tokens/s, mean 867 tokens in and 118 out, 99% mean GPU utilization). Compared at the price of a small closed model (OpenAI GPT-5-mini, $0.25 in / $2.00 out per million tokens, checked 2026-11-10 on developers.openai.com):
+![Conformal interval calibration X1 and pass-probability calibration X8](figures/F6-calibration-and-uncertainty.png)
 
-| Monthly estimates | Closed API | Self-hosted, saturated GPU |
-|---|---|---|
-| 10,000 | $4.52 | $0.16 |
-| 1,000,000 | $452 | $16 |
-| 10,000,000 | $4,522 | $160 |
+*Figure 6. (a) `X1` fresh-trajectory 80% interval coverage (`2,040` `test` runs, `744` `test_ood` runs) and mean interval width (`W`) before and after `val`-split conformal calibration (`M1b`, `M1-Struct+CP`). (b) `X8` reliability diagram and Expected Calibration Error (`ECE`) for stated first-attempt pass probabilities.*
 
-An always-on L40S ($1,314/month) breaks even with the API at about 2.9 million estimates per month. Caveats: the self-hosted number assumes full batching; the API price ignores hidden reasoning tokens; **we did not measure the closed model's accuracy on this task**, so this compares cost only. The CPU deployment has no per-call bill but takes about 15 s per estimate.
+### 7.5 Forensic audit of `M3` (raw vs. curated labels) & capability retention
 
-![Speed cards](figures/F3-speed-cards.png)
+Why did uncurated `M3-S0` (`0.205` on `base` targets, `0.210` on `own` targets) edge curated `M1-S0` (`0.242` on `own` targets) on `test`? Our post-hoc audit (`m3_curation_audit` in `results/extra-analyses.json`, Figure 7b) identified two concrete causes:
 
-*Figure 3. Estimates and truth across the eight speed cards (REF, three seen, two held-out, two extrapolation).*
+1. **Data-scarcity volume vs. filtering trade-off (`+894` valid non-`CLASS` rows):** Skipping S1 quality gates added `128` non-`CLASS` tasks (`88 ALGO_IO, 24 ALGO_FN, 11 LIB, 5 FUNC`), expanding `ALGO_IO` training volume by **`+62.4%`** (`1,598` vs. `984` rows). In an `869`-task data-scarce regime, strict flakiness/test-count filtering removed more tail-family coverage than it saved in label noise.
+2. **Historical `raw_extra` holdout leak (`40` `CLASS` rows) & target-source asymmetry:** Six rejected `ClassEval` tasks (`ClassEval_17, 44, 45, 48, 69, 93` = `40` of `7,011` SFT rows, `0.57%`) entered historical `M3` via `raw_extra` because holdout-family filtering originally skipped `raw_extra`, and `metrics.json` scored `M3-S0` against `base` targets (`0.205` / `0.239` vs. matched `own` targets `0.210` / `0.235`). Both pipeline filters and target-source tracking are remediated (`splits.py`, `pipeline.py`, `sft.py`, `targets.py`) and enforced by regression tests (`tests/test_leakage_and_structured.py`).
 
-### 7.8 Showcase: PROJ-8 tasks
+**Capability & frame retention.** Coding `pass@1` (`0.214` vs. `0.209` `base` on `test`; `0.128` vs. `0.099` on `CLASS`), output-token ratio (`0.102` median $|\log_{10}|$), `ARC-Challenge` (`0.422` / `0.456` vs. `0.425` / `0.458`), and human-frame answers (`424 s` median, `0.000` drift) are preserved. On `IFEval` (`200` prompts), strict prompt accuracy moved from `0.750` (`base`) to `0.700` (`M1-S0`, `SE ≈ 0.031` on 1 seed; `M2-S0`: `0.735`). Plan-frame (`0.669` MdAE, `93.7%` parse vs. `39.2%` `E1`) and generic-AI-frame (`0.593` vs. `1.687` `E3`) show partial zero-shot frame transfer.
 
-We wrote eight project-sized tasks ("PROJ-8": a todo CLI, a notes API, a snake game, an LRU cache, a CSV report, a markdown converter, a URL shortener, a bank ledger). They were never in train, validation or test, and each has strict hidden tests. This is a demonstration, not a hypothesis test. Numbers are in `results/proj8-showcase.json`.
+### 7.6 How the resulting model is meaningfully better in usage
 
-**Trajectories on the reference card (8 runs per task, up to 3 attempts).** Neither the base model nor M1 passes any task, even on the third attempt (first-pass and pass-within-3 are 0/64 for both). The tests demand exact messages and behaviors that a 3.35B model does not guess. The model does finish and return code every time, so what we can measure is time. The median trajectory time is 21 to 69 s for the base model and 18 to 49 s for M1. They are close on seven of eight tasks; the only large gap is the markdown converter (69 s base, 34 s M1). So tuning did not make the agent faster; the aim of M1 is to *predict* the time, not to cut it.
+Table 6 summarizes three end-to-end systems simulations (`results/simulations.json`, Figure 4) backed by our interactive 4-tab CPU workbench (`space/app.py`):
 
-**CPU deployment (Q4_K_M GGUF, llama.cpp, one machine card measured at start: S = 20 tok/s decode, P = 210 tok/s prefill).** For each task we asked the base model and M1 for an estimate of the agent's wall-clock time, then ran the full 3-attempt loop on the same CPU. All eight real runs took 99 to 271 s.
+| Estimator / Policy | Target source | `SJF` mean wait vs. oracle `test` (`q=50`, FIFO `1.685×`) | **`SJF` mean wait vs. oracle `CLASS` OOD (`q=30`, FIFO `1.377×`)** | `1.0×` tripwire false-abort rate (`test` passing runs, $\downarrow$) | `1.0×` tripwire failed-GPU time saved ($\uparrow$) | `15 s` Edge/DC SLA violations ($\downarrow$) / cost per `1k` runs |
+|---|:---:|---:|---:|---:|---:|---:|
+| `FIFO` / `Always-Edge` / `Always-DC` | `base` | `1.685×` (`FIFO`) | `1.377×` (`FIFO`) | `0.00%` (no cap) | `0.0%` | `31.2%` (`$0.98`) / `3.2%` (`$2.77` DC) |
+| `E1` Base + speed card | `base` | `1.562×` | `1.318×` | `73.01%` | `79.6%` | `10.6%` (`$2.24`) |
+| `E2` Base + 5-shot ICL | `base` | `1.193×` | `1.207×` | `42.70%` | `45.3%` | `13.3%` (`$2.08`) |
+| `B4` (`DeepSeek-V4-Pro`) | `base` | `1.333×` | `1.212×` | — | — | — |
+| `B2` Static text+AST GBDT | `base` | **`1.141×`** | `1.253×` | `20.80%` | `27.8%` | `15.1%` (`$1.87`) |
+| `M2-S0` Teacher SFT | `own` | `1.511×` | `1.243×` | `20.35%` | `27.3%` | `12.9%` (`$2.13`) |
+| `M1-S0` Raw verbal SFT | `own` | `1.360×` | `1.278×` | `13.94%` | `24.1%` | `17.4%` (`$1.91`) |
+| **`M1-Struct` / `M1-Struct+CP`** | `own` | `1.251×` (**`-30%`** excess vs `M1-S0`) | **`1.183×` (#1 non-privileged)** | **`1.33%` (`10.5×` safer)** | **`19.9%`** | **`6.3%` (`$2.04`, `-26.4%` vs DC)** |
 
-| | median abs. error | worst case |
-|---|---|---|
-| Base model, own estimate | 9.8x (log10 0.99) | 33x |
-| M1, own-time estimate | 1.28x (log10 0.108) | 1.8x |
-| M1, "a human would need" estimate | 89x | 137x |
+1. **Best OOD Shortest-Job-First (`SJF`) queue scheduling:** On unseen **`CLASS` OOD queues**, **`M1-Struct` (`1.183×` oracle) beats every non-privileged estimator**—including `E2` (`1.207×`), `B4` (`1.212×`), `M2-S0` (`1.243×`), **`B2` (`1.253×`, whose `CLASS` Spearman $\rho$ is `0.320` vs. `M1-Struct`'s `0.369`)**, and verbal `M1-S0` (`1.278×`).
+2. **Safe conformal timeout tripwires:** Raw upper bounds abort `13.9%–73.0%` of *passing* trajectories; **`M1-Struct+CP` cuts false aborts `10.5×` to `1.33%`** (`0.0%` at `1.5×`) while reclaiming **`19.9%`** of wasted failing GPU hours (`M1b`: `1.77%` false aborts, `21.3%` saved).
+3. **Multi-tier Edge/Datacenter SLA routing (`15 s` deadline):** Offloading jobs whose conformal upper bound fits `15 s` onto `$0.25/h` Edge GPUs (`56.1%` offloaded) and sending heavier jobs to `$1.80/h` Datacenter GPUs cuts cluster spend by **`26.4%`** vs. `Always-DC` while holding SLA violations to **`6.3%`** (`5.7%` for `M1b`).
 
-M1's estimates stay within a factor of 1.8 on all eight tasks. The base model overestimates by 3 to 33x, because it answers as a person would. The caveat is large: M1's answers sit in a narrow band (126 to 270 s, and 150 s for three tasks) while real times span 99 to 271 s. The tasks are similar to each other, so a near-constant guess works well here. We cannot say from eight tasks that M1 tracks differences between them. The estimates in the earlier tables (E4, B2, held-out cards) are the test of that.
+![Downstream SJF scheduling, conformal timeout tripwires, and multi-tier hardware SLA routing](figures/F4-scheduling-and-tripwires.png)
 
-### 7.9 Negative and surprising results (summary)
+*Figure 4. Downstream systems utility on real agent trajectories. (a) Mean queue completion time vs. oracle (`SJF`) on `test` and unseen `CLASS` OOD (`M1-Struct` leads on `CLASS` OOD). (b) Timeout tripwire Pareto frontier (`M1-Struct+CP` eliminates the false-abort cliff at `1.0×` upper bound). (c) Multi-tier Edge (`$0.25/h`) vs. Datacenter (`$1.80/h`) SLA routing under a `15 s` deadline.*
 
-- H1 as pre-registered did not hold for E1.
-- Curation did not help: M3 (raw labels) 0.205 is at least as good as M1 (0.242). The curation step removes tasks with unstable labels and near-duplicates; at this scale that cost more data than it bought in cleanliness.
-- Few-shot prompting is a strong, free baseline for in-distribution tasks.
-- A feature regressor is better than the tuned language model in-distribution.
-- Interval calibration, extrapolation to slower hardware, and OOD rank order are poor.
-- Single seed: no seed-to-seed variance was estimated. We cannot rule out that another seed would reverse the M1/M3 order or the M1/E2 tie.
+### 7.7 Real desktop CPU deployment (`X10` & `PROJ-8` showcase)
 
-### 7.10 Deviations from the pre-registration
+To test live end-to-end wall-clock accuracy outside counterfactual speed cards, we quantized base and `M1-S0` models to `Q4_K_M` GGUFs (`llama.cpp b12110`, 8-thread desktop CPU, measured `llama-bench` speed card $S = 20\text{ tok/s}$, $P = 200\text{ tok/s}$) and executed **100 held-out `test` tasks** (`X10`) plus **8 multi-feature mini-projects (`PROJ-8`)** inside the live bubblewrap sandbox (**Table 7**, Figure 5):
 
-All are listed with dates in `docs/PREREGISTRATION.md` §7. The ones that matter for reading the results: **seed cut** (only seed 0 of M1, M2 and M3; the $30 cap could not fund seeds 1 and 2); **G6 parity criterion** (see §5); **base answers start with the fixed text `Time estimate:`** so that the base model gets a fair chance to answer in a parseable form (this can only favor the base); a per-call latency fallback in the time formula; a 60-row (not 200-row) parser audit; IFEval cut to the first 200 prompts; a failed first lm-eval job ($1.47). No threshold, split or hypothesis was changed.
+| Live CPU Estimator (`Q4_K_M` GGUF @ `20 tok/s`) | Target source | `X10` (`n=100`) MdAE ($\downarrow$) | `X10` within 2× / 10× ($\uparrow$) | `X10` Spearman $\rho$ ($\uparrow$) | `PROJ-8` (`n=8`, `99–271 s`) median factor error |
+|---|:---:|---:|---:|---:|---:|
+| Base verbal (`Q4_K_M` + CPU speed card) | `own` (live CPU) | `0.937` | `3.0%` / `56.0%` | `0.582` | `9.8×` (`0.99` $\text{log}_{10}$) |
+| `M1-S0` verbal (`Q4_K_M` + CPU speed card) | `own` (live CPU) | `0.278` | `52.0%` / `96.0%` | `0.733` | **`1.28×` (`0.108` $\text{log}_{10}$)** |
+| **`M1-Struct` (workload + exact timing, local $L = 0$)** | `own` (live CPU) | **`0.224`** | **`63.0%` / `96.0%`** | **`0.740`** | Within `1.8×` worst-case |
 
-### 7.11 Exploratory questions we did not run
+Setting per-call remote overhead $L = 0$ in `M1-Struct`—reflecting local `llama.cpp` loopback rather than the `0.967 s` remote HF Jobs channel baked into verbal `M1-S0` labels—boosts live CPU within-2× accuracy by **`+11.0 pp` (`52%` $\rightarrow$ `63%`)** with zero retraining. On `PROJ-8`, `M1-S0` predicts `126–270 s` for `99–271 s` runs (`1.28×` median error vs. `9.8×` base self-estimates and `89×` human-frame estimates; caveat: `0/64` passes for this `3.35B` model and narrow inter-project spread).
 
-X2 (hidden-state probe), X4/M6/M9 (cross-model training, Aya Expanse 8B), X7 (self-fulfilling estimates), X8 (success prediction), X9, and variants M4, M5, M7, M8 (GRPO). We prefer to say this than to describe them as future work already underway.
+![Real desktop CPU deployment X10 wall-clock validation](figures/F5-real-cpu-deployment.png)
+
+*Figure 5. Real desktop CPU deployment (`X10`, `100` held-out tasks, `llama.cpp` `Q4_K_M` at `20 tok/s` decode, `Target source = own` live CPU wall-clock): Base (`3%` within 2×), `M1-S0` verbal (`52%`), and `M1-Struct` local $L=0$ (`63%` within 2×).*
+
+### 7.8 ROI comparison: self-hosted `3.35B` vs. closed-model APIs (Problem #2)
+
+On one HF Jobs `l40sx1` (`$1.80/h`), merged `M1-S0` served **`6,216` estimate requests in `199.0 s`** (`31.23 req/s`, `3,677 output tok/s`, `867` mean input / `118` output tokens, `99.4%` GPU utilization = **`$0.016` per `1,000` estimates**). Table 8 compares **cost and measured accuracy** (`results/roi.json`):
+
+| Estimator option | Target source | Measured `test_ood` `CLASS` / `test` MdAE (within 2×) | Cost @ `10k / mo` | Cost @ `1M / mo` | Cost @ `10M / mo` |
+|---|:---:|---|---:|---:|---:|
+| Closed frontier teacher API (`B4`: `DeepSeek-V4-Pro`, measured) | `base` | `0.294` (`52.7%`) / `0.244` (`65.1%`) | `~$17.00` | `~$1,700` | `~$17,000` |
+| Closed small API (`gpt-5-mini`, `$0.25/$2.00` per 1M tok, 2026-11-10)* | — | *Not measured (cost reference)* | `$4.52` | `$452` | `$4,522` |
+| **Self-hosted `M1-Struct` (`Tiny Aya 3.35B`, saturated L40S)** | `own` | **`0.269` (`58.1%`) / `0.213` (`71.8%`)** | **`$0.16`** (`0.09` GPU-h) | **`$16.01`** (`8.89` GPU-h) | **`$160.10`** (`88.9` GPU-h) |
+| **Static tabular regressor (`B2`: `bge-small` + GBDT on CPU)** | `base` | **`0.130` (`81.7%`) / `0.137` (`82.7%`)** | `~$0.00` (CPU ms) | `~$0.00` (CPU) | `<$5` (CPU) |
+
+*\*Saturated L40S costs exclude idle capacity; an always-on dedicated L40S (`$1,314/mo`) breaks even with `gpt-5-mini` at `2.91M` estimates/month (`~770k/mo` vs. `DeepSeek-V4-Pro`), whereas batched/serverless queues pay per active GPU-second.* Self-hosted **`M1-Struct` beats the frontier teacher `B4` on both `CLASS` OOD and `test` accuracy while costing ~100× less per batched estimate**.
+
+### 7.9 Summary of limitations, negative results, and deviations
+
+- **Single training seed (`S0`)** across `M1`, `M2`, and `M3` (`$26.7` spent under the `$30` cap); `0.02–0.04` $\text{log}_{10}$ gaps across SFT runs lack multi-seed error bars.
+- **Explicit `val`-selection failure (`§7.3.1` & `§7.4`):** Because `val` (`n = 114`) used `base` targets rather than post-SFT `own` targets, `val`-tuned `M1-Struct + B2` picked $w = 0.80$ (`0.116` on `val`) and underperformed standalone `B2` on `own` test targets (`0.178` / `0.202` vs. `0.138` / `0.122`), while `val`-calibrated split-conformal coverage dropped from `75.8%` (`test`) to `64.9%` (`CLASS` OOD) under covariate shift.
+- **Static `B2` beats standalone LMs on static prompt-to-time MdAE (`0.137` / `0.130`),** though `M1-Struct` beats `B2` on `CLASS` OOD `SJF` scheduling (`1.183×` vs. `1.253×`) and supports conversational `self`/`human` framing and post-update self-tracking.
+- **`H1` not met as pre-registered** (`E1` fails via `1.38`-decade variance rather than hour-scale units); **merged `bf16` parity (`G6`)** flipped near-tied digits on `6/50` `val` prompts; **`IFEval` (`200` prompts)** dipped `5.0 pp` (`0.750` $\rightarrow$ `0.700`, `SE ≈ 0.031`); **historical `M3`** benefited from `+62.4%` `ALGO_IO` volume plus `40` leaked `raw_extra` `CLASS` rows (remediated in code); unexecuted exploratory items (`X2`, `X4/M6/M9`, `X7`, `M4/M5/M7/M8` GRPO) remain open. Every note is dated in `docs/PREREGISTRATION.md` §7.
 
 ---
 
 ## 8. With more credits
 
-The $30 cap, not the design, set the scope. With the extra HF credits for shortlisted teams, in priority order:
+With the `$200` Demo Day compute allocation, in strict priority order:
 
-1. **Seeds 1 and 2** for M1, M2 and M3, to put an SD under every claim above (about $12 including re-measurement).
-2. **M9 / M6**: a 2×2 self/cross design with Aya Expanse 8B, to test whether the labels need to be the model's *own*.
-3. **More speed cards below the training range**, since extrapolation to slow hardware was the clearest failure.
-4. **A regression head or a hybrid:** since B2 beats the tuned model, feed B2's prediction (or the hidden-state probe, X2) into the prompt and have the LM explain and adjust.
-5. **RAFT/GRPO** with a log-error reward to fix interval calibration.
-6. **Hardware matrix** for real deployments beyond one CPU, and multi-file repository tasks.
+1. **Multi-seed replication (`S1`, `S2`), `val` `own`-target re-measurement, and clean `M3-clean`** (with our `CLASS` holdout fix active) to put multi-seed error bars on `H2–H5`, fix `val` ensemble selection on matched `own` targets, and separate pure data-volume gains from the `40` historical `CLASS` rows (`~$16`).
+2. **Breakdown-first SFT (`workload → exact timing → verbal summary`) & GRPO (`M8`):** Emit `(O, A, p_pass)` *before* the headline duration so autoregressive generation eliminates the `0.272` $\text{log}_{10}$ verbal division bottleneck natively (`~$18`).
+3. **2×2 Self-vs-Cross Model Matrix (`M6/M9` with `CohereLabs/aya-expanse-8b`):** Test whether `Tiny Aya` specifically requires *its own* trajectories vs. `Expanse 8B`'s trajectories when both are re-measured (`~$22`).
+4. **Hidden-state probe (`X2`/`B3`):** Test whether last-prompt-token residual activations of untuned `Tiny Aya` linearly encode log output tokens even while its verbal output says *"7 minutes"* (`~$4`).
 
 ---
 
 ## 9. Teammates
 
-Built by [@isHeSatoshi](https://huggingface.co/isHeSatoshi). *(Add co-members here before submission.)*
+Built by [@isHeSatoshi](https://huggingface.co/isHeSatoshi).
 
 ---
 
-## Appendix: reproduction
+## Appendix: CPU reproduction & interactive workbench
 
-`README.md` has the commands. In short: `uv sync && make figures` rebuilds the tables and figures from released data on CPU; `notebooks/reproduce_results.ipynb` checks the headline numbers against the released `metrics.json`. The full pipeline (`make tasks calibrate measure labels baselines sft-data train remeasure eval`) needs HF Jobs L40S time; the total spend for this study was $26.7 of a $30 cap ($24.9 on HF Jobs L40S, $1.7 on teacher-model API calls).
+```sh
+. ./env.sh
+uv sync --locked --extra demo
+make eval && make figures                  # recomputes metrics, post-hoc analyses, simulations & F1-F7
+uv run python scripts/run_notebook.py      # executes notebooks/reproduce_results.ipynb (exact 1e-9 check)
+make demo                                  # launches the 4-tab Gradio CPU & live GGUF workbench
+```
 
-**References.** Monperrus, M. and Stenqvist, O. on anthropocentric time bias in LLM coding agents; MetaTime and AgentTime as concurrent measurement studies (see `research/related_work.md` and `research/references.bib`). Tiny Aya: Cohere Labs. EvalPlus, BigCodeBench, ClassEval, LeetCodeDataset, CodeContests, TACO, IFEval, ARC.
-
-*Citation.* `Anthropochrony: Measuring and Correcting Human-Time Bias in LLM Self-Estimates`, isHeSatoshi, 2026.
+**References.** Monperrus & Stenqvist (anthropocentric time bias in coding agents); *MetaTime* and *AgentTime* (concurrent runtime-estimation benchmarks; see `research/related_work.md` & `research/references.bib`); Romano, Patterson & Candès (2019, Conformalized Quantile Regression); Cohere Labs (`Tiny Aya Global`); Lexsi Labs (`CuratorKIT`, `AlignTune`, `AuditKIT`).

@@ -4,7 +4,7 @@
 
 _Built for the Lexsi AI Safety & Alignment Hackathon, Track 1._
 
-[Write-up](paper/article.md) · [For judges](docs/JUDGES.md) · [Technical tables](docs/README-technical.md) · [Models](https://huggingface.co/collections/isHeSatoshi/anthropochrony-models-6af31e769e666b4001e8c5f2) · [Data](https://huggingface.co/collections/isHeSatoshi/anthropochrony-data-6af31e776d6f33265b0c33a8)
+[Write-up](paper/article.md) · [For judges](docs/JUDGES.md) · [Use it](docs/USAGE.md) · [Technical tables](docs/README-technical.md) · [Models](https://huggingface.co/collections/isHeSatoshi/anthropochrony-models-6af31e769e666b4001e8c5f2) · [Data](https://huggingface.co/collections/isHeSatoshi/anthropochrony-data-6af31e776d6f33265b0c33a8)
 
 ![Estimated vs measured time](paper/figures/F1-estimated-vs-measured.png)
 
@@ -49,6 +49,8 @@ Over the full test set, the untrained model is off by about 57 times and ours by
 
 We also put it on an ordinary CPU and gave it eight bigger jobs: a todo app, a URL shortener, a bank ledger, a snake game. They took 99 to 271 seconds. The untrained model predicted 7 minutes to 2.5 hours. The tuned one said 2 to 4.5 minutes. Neither version passed the hidden tests on those jobs, so this is about timing, not about the code being right.
 
+Then we timed 100 ordinary test tasks on that CPU, and the same 100 on a desktop graphics card (GPU) that ran them about 6 times faster. Before each run we asked how long it would take. The untrained model gave nearly the same answer on both machines, so it was off by about 8.6 times on the CPU and 47 times on the GPU. Ours with the formula was off by about 1.7 times on each. Its estimates shrank about 5.3 times between the two machines, and for 82 of the 100 tasks they caught that task's real speedup within 2x. The adapter on its own was as close on the GPU (1.75 times), but its estimates shrank only 3 times. It ran a little low on the CPU and a little high on the GPU, so its good GPU score came from where that machine happened to fall, not from following the speed.
+
 One honest comparison: a plain table of average times per kind of task (on the small model) is about as accurate as our adapter on familiar tasks. The adapter pulls ahead on a kind of task it never saw, and on slow hardware.
 
 ## Does it work on other models and other tasks?
@@ -85,11 +87,25 @@ The pattern from the small model repeats, including the token counts (off by 1.4
 
 What we have not tested: anything that is not Python coding, and a second seed.
 
+## Use it in your own agent
+
+The tuned model is a 2 GB file that runs with llama.cpp on an ordinary CPU or a desktop GPU. Start it, measure your machine's speed once, then ask before each task:
+
+```bash
+hf download isHeSatoshi/anthropochrony-tiny-aya-global-gguf m1-s0-q4_k_m.gguf --local-dir models
+llama-server -m models/m1-s0-q4_k_m.gguf --port 8082 -c 8192        # add -ngl 99 on a GPU
+uv run anthropochrony speedcard --llama-bench /path/to/llama-bench --gguf models/m1-s0-q4_k_m.gguf
+uv run anthropochrony estimate --task task.md --speed S,P --human   # S,P from the speedcard step
+```
+
+It prints one line for its own time, with an 80% range, and with `--human` a second line with its guess for a human developer. [`docs/USAGE.md`](docs/USAGE.md) covers the Python API (`SelfTimeEstimator`) and [`examples/agent_with_tripwire.py`](examples/agent_with_tripwire.py), which runs your agent with a timeout set from the estimate.
+
 ## Limits
 
 - One training run per model, so small gaps between our own variants mean little.
 - One variant (M3) was trained on data that included some hidden test tasks. We do not use it for any conclusion.
 - The formula idea came after we saw the first results, so it is not part of the plan we registered in advance. The same goes for the Aya Expanse 8B and brand-new-task tests.
+- On real machines with the 4-bit model, the 80% range was too narrow (it held 63 to 64 of 100 runs) and the estimates ran low, so the timeout tool waits 1.5 times the upper bound. In 20 to 29 of 100 tasks the 4-bit model answered the human-developer question with its own time; the tool then shows no human number.
 - Coding tasks only, and no live hosted demo yet. It runs on your machine.
 
 ## Try it

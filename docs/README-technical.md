@@ -4,9 +4,9 @@
 
 _Built for the Lexsi AI Safety & Alignment Hackathon, Track 1 (Fine-tuning and Data Curation), problems 8 and 2. Independent project. Monperrus and Stenqvist described anthropocentric time bias in LLMs; we did not discover the phenomenon._
 
-**[Write-up](paper/article.md)** · **[Judge guide](docs/JUDGES.md)** · **[Full tables and reproduction](docs/README-full.md)** · **[Models on Hugging Face](https://huggingface.co/collections/isHeSatoshi/anthropochrony-models-6af31e769e666b4001e8c5f2)** · **[Data on Hugging Face](https://huggingface.co/collections/isHeSatoshi/anthropochrony-data-6af31e776d6f33265b0c33a8)** · **[Run it on your CPU](#run-it)**
+**[Write-up](../paper/article.md)** · **[Judge guide](JUDGES.md)** · **[Full tables and reproduction](README-full.md)** · **[Use it in your agent](USAGE.md)** · **[Models on Hugging Face](https://huggingface.co/collections/isHeSatoshi/anthropochrony-models-6af31e769e666b4001e8c5f2)** · **[Data on Hugging Face](https://huggingface.co/collections/isHeSatoshi/anthropochrony-data-6af31e776d6f33265b0c33a8)** · **[Run it on your CPU](#run-it)**
 
-![Estimated vs measured completion time](paper/figures/F1-estimated-vs-measured.png)
+![Estimated vs measured completion time](../paper/figures/F1-estimated-vs-measured.png)
 
 Tell a coding agent (`CohereLabs/tiny-aya-global`, 3.35B) to write a small Python function and its decoding loop finishes in about eight seconds. Ask the same model how long that task will take and it says seven minutes, or two hours. It answers on a human developer's clock. Across 1,465 executable tasks, the base model overestimated its own runtime by 55x on held-out tasks (median 424 s vs ~8 s real). Adding a speed card with its decoding throughput barely helped because the model mostly ignored the number, leaving a 24x typical error and 0.4% of estimates within 2x of real time.
 
@@ -75,10 +75,14 @@ The per-family lookup table (`B1`) and static feature regressor (`B2`) beat the 
 
 | Hardware regime | Metric | Base (`E1`) | Tuned verbal (`M1`) | `M1-Struct` |
 |---|---|--:|--:|--:|
-| Slow hardware (`extrap-low`, 1.5 tok/s, `test`) | MdAE (within 2x) | 1.98 (1.2%) | 0.49 (24.7%) | **0.16 (73.7%)** |
-| Slow hardware (`extrap-low`, 1.5 tok/s, `CLASS` OOD) | MdAE (within 2x) | 1.38 (1.1%) | 0.73 (11.8%) | **0.25 (67.7%)** |
+| Slow hardware (`extrap-low`, 1.5 tok/s, `test`) | MdAE (within 2x) | 1.60 (23.1%) | 0.49 (24.7%) | **0.16 (73.7%)** |
+| Slow hardware (`extrap-low`, 1.5 tok/s, `CLASS` OOD) | MdAE (within 2x) | 0.58 (17.2%) | 0.73 (11.8%) | **0.25 (67.7%)** |
 | Speed elasticity across cards (`1.00` is exact) | Slope on `test` / `CLASS` | 0.12 / 0.13 | 0.80 / 0.79 | **1.01 / 0.98** |
 | Live desktop CPU (`X10`, `llama.cpp` 20 tok/s, n=100) | MdAE (within 2x) | 0.94 (3.0%) | 0.28 (52.0%) | **0.22 (63.0%)** |
+| Live consumer GPU (`X10`, same 100 tasks, RTX 4060 Ti, 100 tok/s) | MdAE (within 2x) | 1.67 (1.0%) | 0.24 (61.0%) | 0.24 (60.0%) |
+| CPU-to-GPU speedup, same 100 tasks (actual 5.95x) | Predicted speedup (within 2x) | 1.11x (1.0%) | 3.04x (44.0%) | **5.29x (82.0%)** |
+
+On the live `X10` rows the base model is asked without a speed card (`E0`). Sources: `results/extra-analyses.json` (`x10_cpu_deployment_struct`, `x10_gpu_deployment_struct`, `x10_hardware_tracking`).
 
 ## Where this goes
 
@@ -90,8 +94,11 @@ Ordering a 30-job queue on unseen `CLASS` tasks by shortest predicted duration (
 uv sync && make figures                  # regenerate tables and figures from released data on CPU
 uv run python scripts/fetch_release.py   # pull public Hub datasets and adapters
 make demo                                # launch the 4-tab local Gradio CPU workbench
+uv run anthropochrony estimate --task task.md --speed S,P --human   # ask a local llama-server
 ```
+
+[`docs/USAGE.md`](USAGE.md) shows how to serve the released GGUF, measure your speed card, and use the estimate as an agent timeout.
 
 ## Limits
 
-We trained one seed (`S0`) under the $30 hackathon compute cap, so small gaps between estimators are noisy. The uncurated ablation `M3` had held-out `CLASS` tasks leaked into its training pool (`40` SFT rows from `6` `ClassEval` tasks in `raw_extra`) and was not retrained, so we draw no conclusions from `M3`. `M1-Struct` was designed post-hoc after inspecting `M1`'s verbal arithmetic errors and was not pre-registered. Pre-registered hypothesis `H1` was not met as stated because adding a speed card alone stopped hour-scale units while leaving 1.38 log10 error. We do not host a live Hugging Face Space; the 4-tab Gradio workbench runs locally on CPU via `make demo`. All experiments test a single 3.35B subject model (`CohereLabs/tiny-aya-global`), and IFEval strict accuracy dipped 5.0 points after fine-tuning (`75.0%` to `70.0%`, first 200 prompts) while `pass@1` held steady (`-2.2` to `+3.0` pp 95% CI).
+We trained one seed (`S0`) per model under the hackathon compute cap ($30.2 spent in total), so small gaps between estimators are noisy. The uncurated ablation `M3` had held-out `CLASS` tasks leaked into its training pool (`40` SFT rows from `6` `ClassEval` tasks in `raw_extra`) and was not retrained, so we draw no conclusions from `M3`. `M1-Struct` was designed post-hoc after inspecting `M1`'s verbal arithmetic errors and was not pre-registered. Pre-registered hypothesis `H1` was not met as stated because adding a speed card alone stopped hour-scale units while leaving 1.38 log10 error. We do not host a live Hugging Face Space; the 4-tab Gradio workbench runs locally on CPU via `make demo`. All experiments test a single 3.35B subject model (`CohereLabs/tiny-aya-global`), and IFEval strict accuracy dipped 5.0 points after fine-tuning (`75.0%` to `70.0%`, first 200 prompts) while `pass@1` held steady (`-2.2` to `+3.0` pp 95% CI).

@@ -139,7 +139,7 @@ Every stage fails closed if prior gate evidence (`results/gates/`) or the frozen
 ## Sandbox, pins, and licenses
 
 - **Two isolated environments:** `stack` (Python `3.12`, `uv.lock`, `CuratorKIT 0.1.23`, `AlignTune 0.1.32`, `AuditKIT 1.1.6`, `transformers 5.21.1`) and `exec` (Python `3.10`, `src/anthropochrony/execenv/requirements.lock`) mounted read-only inside `bubblewrap` (`--unshare-net`, `--clearenv`, CPU/RAM/FD `rlimits`). Security isolation is verified by `pytest -m security`.
-- **Licenses:** Repository code is **[Apache-2.0](LICENSE)**. `CohereLabs/tiny-aya-global` and all derived adapters/GGUFs carry **CC-BY-NC-4.0** + the [Cohere Labs Acceptable Use Policy](https://docs.cohere.com/docs/c4ai-acceptable-use-policy) (non-commercial). `CuratorKIT` (LSAL v1.1), `AuditKIT` (LSAL v1.2), and `ClassEval` (CC BY-NC 4.0) are non-commercial; `AlignTune` is MIT. Third-party statements (`LeetCodeDataset`, `CodeContests`, `TACO`) are automatically redacted to task IDs + `rebuild_task` loaders (`src/anthropochrony/release.py`).
+- **Licenses:** Repository code is **[Apache-2.0](../LICENSE)**. `CohereLabs/tiny-aya-global` and all derived adapters/GGUFs carry **CC-BY-NC-4.0** + the [Cohere Labs Acceptable Use Policy](https://docs.cohere.com/docs/c4ai-acceptable-use-policy) (non-commercial). `CuratorKIT` (LSAL v1.1), `AuditKIT` (LSAL v1.2), and `ClassEval` (CC BY-NC 4.0) are non-commercial; `AlignTune` is MIT. Third-party statements (`LeetCodeDataset`, `CodeContests`, `TACO`) are automatically redacted to task IDs + `rebuild_task` loaders (`src/anthropochrony/release.py`).
 
 ## Repository layout
 

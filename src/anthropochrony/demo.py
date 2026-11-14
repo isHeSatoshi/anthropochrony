@@ -28,7 +28,7 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 class LlamaBackend:
-    def __init__(self, base_url, tuned_url, model_path, bench, threads=8):
+    def __init__(self, base_url, tuned_url, model_path, bench, threads=8, gpu_layers=0):
         for url in (base_url, tuned_url):
             parsed = urlparse(url)
             if (
@@ -44,6 +44,7 @@ class LlamaBackend:
                 raise ValueError("Demo backends must be local llama.cpp servers")
         self.base_url, self.tuned_url = base_url, tuned_url
         self.model_path, self.bench, self.threads = model_path, bench, threads
+        self.gpu_layers = int(gpu_layers)
 
     def calibrate(self):
         command = [
@@ -60,6 +61,9 @@ class LlamaBackend:
             "5",
             "-o",
             "json",
+            # GPU builds of llama-bench offload every layer unless told otherwise.
+            "-ngl",
+            str(self.gpu_layers),
         ]
         result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=300)
         rows = json.loads(result.stdout)

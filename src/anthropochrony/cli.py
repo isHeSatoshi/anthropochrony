@@ -1,10 +1,13 @@
 import argparse
 import json
+import math
+import subprocess
 from pathlib import Path
 
 import yaml
 
 from anthropochrony.artifacts import read_jsonl, write_json, write_jsonl, write_parquet
+from anthropochrony.families import FAMILIES
 from anthropochrony.gates import GateError, require_gate
 from anthropochrony.timemodel import SpeedCard
 
@@ -55,6 +58,58 @@ def labels_command(root, args):
     write_parquet(args.output, rows, inputs=[args.tasks, args.traces], config=speeds)
     write_jsonl(Path(args.output).with_suffix(".dropped.jsonl"), drops)
     print(f"Wrote {len(rows)} labels")
+
+
+def speed_pair(text):
+    try:
+        decode, prefill = (float(part) for part in text.split(","))
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("expected S,P such as 20,200") from error
+    if not (decode > 0 and prefill > 0 and math.isfinite(decode) and math.isfinite(prefill)):
+        raise argparse.ArgumentTypeError("S and P must be positive tokens per second")
+    return decode, prefill
+
+
+def bench_arguments(command, required):
+    command.add_argument("--llama-bench", required=required, help="Path to llama-bench")
+    command.add_argument("--gguf", required=required, help="GGUF file to benchmark")
+    command.add_argument("--threads", type=int, default=8)
+    command.add_argument("--gpu-layers", type=int, default=0, help="Layers to offload, as -ngl")
+
+
+def selftime_command(args):
+    from urllib.error import URLError
+
+    from anthropochrony.demo import ContextExhausted
+    from anthropochrony.selftime import SelfTimeEstimator
+
+    if args.speed is None and not (args.llama_bench and args.gguf):
+        raise ValueError("Give --speed S,P, or --llama-bench PATH and --gguf PATH to measure it")
+    task = args.task.read_text(encoding="utf-8") if args.task else args.text
+    estimator = SelfTimeEstimator.from_llama_server(
+        args.server,
+        speed=args.speed,
+        llama_bench=args.llama_bench,
+        gguf=args.gguf,
+        threads=args.threads,
+        gpu_layers=args.gpu_layers,
+    )
+    try:
+        estimate = estimator.estimate(task, family=args.family)
+        human = estimator.human_estimate(task) if args.human else None
+    except (URLError, ConnectionError, TimeoutError) as error:
+        raise SystemExit(f"Could not reach llama-server at {args.server}: {error}") from error
+    except subprocess.CalledProcessError as error:
+        raise SystemExit(f"llama-bench failed: {error.stderr or error}") from error
+    except ContextExhausted as error:
+        raise SystemExit(f"The task is too long for the model context: {error}") from error
+    if args.json:
+        payload = {"self": estimate.as_dict(), "human": human.as_dict() if human else None}
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        print(estimate.summary())
+        if human:
+            print(human.summary())
 
 
 def parser():
@@ -168,6 +223,28 @@ def parser():
     merge.add_argument("--base", type=Path, required=True)
     merge.add_argument("--adapter", type=Path, required=True)
     merge.add_argument("--output", type=Path, required=True)
+    self_estimate = commands.add_parser(
+        "estimate", help="Estimate how long Tiny Aya takes to solve a coding task on this machine"
+    )
+    source = self_estimate.add_mutually_exclusive_group(required=True)
+    source.add_argument("--task", type=Path, help="File with the task description")
+    source.add_argument("--text", help="Task description")
+    self_estimate.add_argument(
+        "--server",
+        default="http://127.0.0.1:8082",
+        help="Local llama-server serving the tuned GGUF (default: %(default)s)",
+    )
+    self_estimate.add_argument(
+        "--speed", type=speed_pair, metavar="S,P", help="Decode and prefill tokens/s"
+    )
+    bench_arguments(self_estimate, required=False)
+    self_estimate.add_argument("--family", choices=FAMILIES, help="Default: inferred from text")
+    self_estimate.add_argument("--human", action="store_true", help="Also ask for human time")
+    self_estimate.add_argument("--json", action="store_true")
+    speedcard = commands.add_parser(
+        "speedcard", help="Measure decode (S) and prefill (P) tokens/s with llama-bench"
+    )
+    bench_arguments(speedcard, required=True)
     return result
 
 
@@ -464,6 +541,18 @@ def main(argv=None):
             from anthropochrony.release import prepare_release
 
             prepare_release(root, approved=args.approve_public)
+        elif args.command == "estimate":
+            selftime_command(args)
+        elif args.command == "speedcard":
+            from anthropochrony.selftime import measure_speed_card
+
+            try:
+                card = measure_speed_card(
+                    args.llama_bench, args.gguf, threads=args.threads, gpu_layers=args.gpu_layers
+                )
+            except subprocess.CalledProcessError as error:
+                raise SystemExit(f"llama-bench failed: {error.stderr or error}") from error
+            print(json.dumps(card.as_dict(), indent=2))
     except (GateError, FileNotFoundError, ValueError, PermissionError) as error:
         raise SystemExit(f"Blocked: {error}") from error
 

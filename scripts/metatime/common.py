@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import statistics
 import sys
 import urllib.request
 import zipfile
@@ -64,6 +65,27 @@ def read_jsonl(path):
     if not path.exists():
         return []
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def load_pool(pool_path, labels_path):
+    """Pool prompts with their measured response lengths (median over the label runs)."""
+    labels = read_jsonl(labels_path)
+    description = {row["id"]: row["description"] for row in labels if row["kind"] == "description"}
+    runs = {}
+    for row in labels:
+        if row["kind"] == "label":
+            runs.setdefault(row["id"], []).append(row)
+    rows = []
+    for row in read_jsonl(pool_path):
+        if row["id"] not in runs:
+            continue
+        row["description"] = description.get(row["id"]) or row["instruction"][:200]
+        row["n_in"] = runs[row["id"]][0]["n_in"]
+        row["tokens"] = [run["n_out"] for run in runs[row["id"]]]
+        row["n_out"] = statistics.median(row["tokens"])
+        row["response"] = next((run["text"] for run in runs[row["id"]] if run.get("text")), None)
+        rows.append(row)
+    return rows
 
 
 # --- The self-time interface used for training and for our rows of the comparison. ---

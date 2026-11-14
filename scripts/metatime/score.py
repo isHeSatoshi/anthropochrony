@@ -15,10 +15,20 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-from common import fetch_suite, load_tasks, parse_answer, read_jsonl, task_view
+import yaml
+from common import (
+    ROOT,
+    fetch_suite,
+    load_pool,
+    load_tasks,
+    parse_answer,
+    read_jsonl,
+    task_view,
+)
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import RidgeCV
 
+from anthropochrony.baselines.features import embeddings
 from anthropochrony.eval import metatime
 
 PUBLISHED_TABLE_22 = {
@@ -77,6 +87,7 @@ def static_baselines(pool, tasks, card):
         ]
         * len(tasks)
     }
+    encoder = yaml.safe_load((ROOT / "configs/baselines.yaml").read_text())["embedding"]
     for view in ("description", "full"):
         vectorizer = TfidfVectorizer(ngram_range=(1, 2), sublinear_tf=True, min_df=2)
         features = vectorizer.fit_transform([task_view(row, view) for row in train])
@@ -85,7 +96,46 @@ def static_baselines(pool, tasks, card):
         out[f"text_regressor_{view}"] = [
             prompt_tokens / card["P"] + float(np.exp(value)) / card["S"] for value in predicted
         ]
+        # The project's B2 family: a frozen sentence encoder with a ridge on top.
+        rows = [
+            {"task_id": f"{view}:{row['id']}", "task_turn": task_view(row, view)}
+            for row in train + list(tasks)
+        ]
+        vectors = embeddings(rows, encoder, ROOT / "data/embeddings")
+        model = RidgeCV(alphas=np.logspace(-3, 1, 9)).fit(
+            np.stack([vectors[f"{view}:{row['id']}"] for row in train]), target
+        )
+        predicted = model.predict(np.stack([vectors[f"{view}:{task['id']}"] for task in tasks]))
+        out[f"embedding_regressor_{view}"] = [
+            prompt_tokens / card["P"] + float(np.exp(value)) / card["S"] for value in predicted
+        ]
     return out
+
+
+def sampled_reading(rows, variant, ids, read):
+    """Per task: the median of the sampled answers and their 10th-90th percentile range."""
+    samples = {
+        row["task"]: row["answers"]
+        for row in rows
+        if row["kind"] == "samples" and row["variant"] == variant
+    }
+    if not ids or not all(task in samples for task in ids):
+        return None
+    out = {"median": [], "low": [], "high": [], "draws": len(samples[ids[0]])}
+    for task in ids:
+        values = [value for value in map(read, samples[task]) if value]
+        for key, level in (("median", 50), ("low", 10), ("high", 90)):
+            out[key].append(float(np.percentile(values, level)) if values else None)
+    return out
+
+
+def range_coverage(reading, actual):
+    """Share of measured times inside the 10th-90th percentile range of the sampled answers."""
+    inside = [
+        low is not None and low <= value <= high
+        for low, high, value in zip(reading["low"], reading["high"], actual, strict=True)
+    ]
+    return sum(inside) / len(inside)
 
 
 def pool_validation(data, pool):
@@ -113,6 +163,18 @@ def pool_validation(data, pool):
                 scored[variant] = metatime.metrics(
                     [answers[row["id"]]["seconds"] for row in val], actual
                 )
+            reading = sampled_reading(
+                rows,
+                variant,
+                [row["id"] for row in val],
+                lambda text: parse_answer(text)["seconds"],
+            )
+            if reading:
+                scored[f"{variant}+sampled_median"] = {
+                    **metatime.metrics(reading["median"], actual),
+                    "draws": reading["draws"],
+                    "range_80_coverage": range_coverage(reading, actual),
+                }
         for name, estimate in static_baselines(pool, val, card).items():
             scored[f"static/{name}"] = metatime.metrics(estimate, actual)
         out["estimators"][path.stem.removeprefix("val-est-")] = scored
@@ -280,7 +342,8 @@ def main():
             if not all(task in answers for task in order):
                 continue
             stated, tokens = [], []
-            for task in order:
+            reading = sampled_reading(rows, variant, order, parse)
+            for index, task in enumerate(order):
                 answer = answers[task]
                 parts = parse_answer(answer)
                 stated.append(parse(answer))
@@ -302,6 +365,15 @@ def main():
                         "P": card["P"],
                         "scored_against": target,
                     }
+                    | (
+                        {
+                            "sampled_median_seconds": reading["median"][index],
+                            "sampled_p10_seconds": reading["low"][index],
+                            "sampled_p90_seconds": reading["high"][index],
+                        }
+                        if reading
+                        else {}
+                    )
                 )
             key = f"{name}/{variant}"
             out["systems"][key] = {
@@ -311,6 +383,14 @@ def main():
             }
             if any(value is not None for value in tokens):
                 out["systems"][key]["token_reading"] = system_row(tokens, actual, reference)
+            if reading:
+                out["systems"][f"{key}+sampled_median"] = {
+                    "scored_against": target,
+                    "stated_speed": {"S": card["S"], "P": card["P"]},
+                    "draws": reading["draws"],
+                    "range_80_coverage": range_coverage(reading, actual),
+                    "stated": system_row(reading["median"], actual, reference),
+                }
     (records / "estimates.jsonl").write_text(
         "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in estimate_rows)
     )
@@ -336,8 +416,6 @@ def main():
 
     labels = data / "pool-labels.jsonl"
     if labels.exists() and "base" in executors:
-        from train import load_pool
-
         pool = load_pool(data / "pool.jsonl", labels)
         card = executors["base"]["cards"][0]
         for name, estimate in static_baselines(pool, tasks, card).items():

@@ -19,7 +19,7 @@ from common import (
     QUESTIONS,
     TRAIN_PHRASINGS,
     answer_text,
-    read_jsonl,
+    load_pool,
     sample_card,
     stable_seed,
     system_prompt,
@@ -29,26 +29,6 @@ from peft import LoraConfig, get_peft_model
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 TARGETS = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
-
-
-def load_pool(pool_path, labels_path):
-    labels = read_jsonl(labels_path)
-    description = {row["id"]: row["description"] for row in labels if row["kind"] == "description"}
-    runs = {}
-    for row in labels:
-        if row["kind"] == "label":
-            runs.setdefault(row["id"], []).append(row)
-    rows = []
-    for row in read_jsonl(pool_path):
-        if row["id"] not in runs:
-            continue
-        row["description"] = description.get(row["id"]) or row["instruction"][:200]
-        row["n_in"] = runs[row["id"]][0]["n_in"]
-        row["tokens"] = [run["n_out"] for run in runs[row["id"]]]
-        row["n_out"] = statistics.median(row["tokens"])
-        row["response"] = next((run["text"] for run in runs[row["id"]] if run.get("text")), None)
-        rows.append(row)
-    return rows
 
 
 def build_examples(rows, cards_per_task, seed):

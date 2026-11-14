@@ -10,10 +10,9 @@ import json
 
 import numpy as np
 import torch
-from common import PRE_ESTIMATE, load_tasks, task_view
+from common import PRE_ESTIMATE, load_pool, load_tasks, task_view
 from engine import Engine
 from sklearn.linear_model import Ridge
-from train import load_pool
 
 LAYERS = [6, 12, 18, 24, 30, 36]
 

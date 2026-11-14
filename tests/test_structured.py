@@ -1,3 +1,4 @@
+import json
 import math
 
 import pytest
@@ -10,6 +11,8 @@ from anthropochrony.eval.structured import (
     fit_split_conformal,
     hybrid_ensemble_analysis,
     structured_duration,
+    x10_gpu_deployment_struct,
+    x10_hardware_tracking,
 )
 from anthropochrony.timemodel import PER_CALL_LATENCY_S, SpeedCard
 
@@ -172,3 +175,58 @@ def test_hybrid_ensemble_tunes_strictly_on_val():
     assert res["val_selected_w_m1_struct"] == pytest.approx(0.5)
     assert res["splits"]["test"]["val_selected_blend"]["mdae_log10"] < 1e-9
     assert math.isclose(res["splits"]["test"]["val_selected_blend"]["within2x"], 1.0)
+
+
+def _write_x10(root, name, card, rows):
+    folder = root / "data/x10"
+    folder.mkdir(parents=True, exist_ok=True)
+    stem = "cpu" if name == "cpu-deployment" else name
+    (folder / f"{stem}-speed-card.json").write_text(json.dumps(card.as_dict()))
+    (folder / f"{name}.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+
+
+def test_x10_hardware_tracking_pairs_tasks_and_scores_predicted_speedup(tmp_path):
+    priors = _priors()
+    tasks = [
+        {"task_id": "t1", "family": "FUNC", "uncached_task_tokens": 100},
+        {"task_id": "t2", "family": "FUNC", "uncached_task_tokens": 100},
+    ]
+    (tmp_path / "data/tasks").mkdir(parents=True)
+    (tmp_path / "data/tasks/tasks.jsonl").write_text("".join(json.dumps(t) + "\n" for t in tasks))
+    tuned = "About 20 s. Breakdown: ~300 output tokens across 1 attempt(s)."
+    cpu_card, gpu_card = SpeedCard("demo-llamacpp", 20, 200), SpeedCard("demo-llamacpp", 100, 7400)
+
+    def row(task_id, wall_s, base_raw="About 7 minutes."):
+        return {
+            "task_id": task_id,
+            "family": "FUNC",
+            "base_raw": base_raw,
+            "tuned_raw": tuned,
+            "wall_s": wall_s,
+        }
+
+    _write_x10(tmp_path, "cpu-deployment", cpu_card, [row("t1", 40.0), row("t2", 30.0)])
+    _write_x10(tmp_path, "gpu-deployment", gpu_card, [row("t1", 8.0, base_raw="no idea")])
+
+    gpu = x10_gpu_deployment_struct(tmp_path, priors)
+    assert gpu["speed_card"]["S"] == 100
+    assert gpu["m1_struct_local"]["n_tasks"] == 1
+
+    out = x10_hardware_tracking(tmp_path, priors)
+    assert out["n_paired_tasks"] == 1
+    assert out["actual_speedup_gm"] == pytest.approx(5.0)
+    expected = structured_duration(300, 1, 100, "FUNC", cpu_card, priors, latency_s=0.0) / (
+        structured_duration(300, 1, 100, "FUNC", gpu_card, priors, latency_s=0.0)
+    )
+    struct = out["m1_struct_local"]
+    assert struct["predicted_speedup_gm"] == pytest.approx(expected)
+    assert struct["speedup_mdae_log10"] == pytest.approx(abs(math.log10(expected / 5.0)))
+    # The verbal answer does not change with the card, so it predicts no speedup.
+    assert out["m1_verbal"]["predicted_speedup_gm"] == pytest.approx(1.0)
+    # An unparseable answer on either machine counts as a miss.
+    assert out["base_verbal"]["n_parsed_pairs"] == 0
+    assert out["base_verbal"]["speedup_within2x"] == 0.0
+
+
+def test_x10_hardware_tracking_needs_both_runs(tmp_path):
+    assert x10_hardware_tracking(tmp_path, _priors()) is None

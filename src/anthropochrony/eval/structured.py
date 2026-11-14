@@ -809,28 +809,25 @@ def token_and_arithmetic_audit(
     return out
 
 
-def x10_cpu_deployment_struct(root: Path, priors: WorkloadPriors) -> dict | None:
-    """Evaluate `M1-Struct` (`latency_s = 0.0`, local llama.cpp) on real desktop CPU (`X10`)."""
-    root = Path(root)
-    cpu_path = root / "data/x10/cpu-deployment.jsonl"
-    card_path = root / "data/x10/cpu-speed-card.json"
+X10_ESTIMATORS = ("base_verbal", "m1_verbal", "m1_struct_local")
+
+
+def x10_predictions(
+    root: Path, priors: WorkloadPriors, rows_rel: str, card_rel: str
+) -> tuple[dict, list[dict]] | None:
+    """Per-task wall-clock and point estimates for one real `X10` deployment."""
+    rows_path = root / rows_rel
+    card_path = root / card_rel
     tasks_path = root / "data/tasks/tasks.jsonl"
-    if not (cpu_path.exists() and card_path.exists() and tasks_path.exists()):
+    if not (rows_path.exists() and card_path.exists() and tasks_path.exists()):
         return None
 
     card_info = json.loads(card_path.read_text(encoding="utf-8"))
-    cpu_card = SpeedCard(card_info["id"], float(card_info["S"]), float(card_info["P"]))
+    card = SpeedCard(card_info["id"], float(card_info["S"]), float(card_info["P"]))
     tasks = {t["task_id"]: t for t in read_jsonl(tasks_path)}
-    cpu_rows = list(read_jsonl(cpu_path))
-
-    base_errs, m1_errs, st_errs = [], [], []
-    base_preds, m1_preds, st_preds, actuals = [], [], [], []
-    for r in cpu_rows:
-        actual = float(r["wall_s"])
-        b_est = parse(r["base_raw"])
+    out = []
+    for r in read_jsonl(rows_path):
         m_est = parse(r["tuned_raw"])
-        b_pt = b_est.point_s
-        m_pt = m_est.point_s
         meta = tasks.get(r["task_id"], {})
         # Local llama.cpp runs on localhost without remote HF RPC latency (L=0.0)
         st_pt = structured_duration(
@@ -838,37 +835,163 @@ def x10_cpu_deployment_struct(root: Path, priors: WorkloadPriors) -> dict | None
             m_est.attempts,
             float(meta.get("uncached_task_tokens", 120.0)),
             r["family"],
-            cpu_card,
+            card,
             priors,
             latency_s=0.0,
         )
-        st_pt = st_pt if st_pt is not None else m_pt
-        base_errs.append(abs(log_error(b_pt, actual)))
-        m1_errs.append(abs(log_error(m_pt, actual)))
-        st_errs.append(abs(log_error(st_pt, actual)))
-        actuals.append(actual)
-        base_preds.append(b_pt or 1e9)
-        m1_preds.append(m_pt or 1e9)
-        st_preds.append(st_pt or 1e9)
+        out.append(
+            {
+                "task_id": r["task_id"],
+                "actual": float(r["wall_s"]),
+                "base_verbal": parse(r["base_raw"]).point_s,
+                "m1_verbal": m_est.point_s,
+                "m1_struct_local": st_pt if st_pt is not None else m_est.point_s,
+            }
+        )
+    return card_info, out
+
+
+def _x10_deployment_struct(
+    root: Path, priors: WorkloadPriors, rows_rel: str, card_rel: str
+) -> dict | None:
+    loaded = x10_predictions(Path(root), priors, rows_rel, card_rel)
+    if loaded is None:
+        return None
+    card_info, preds = loaded
+    actuals = [p["actual"] for p in preds]
 
     from scipy.stats import spearmanr
 
-    def _pack(errs, preds):
-        arr = np.asarray(errs, dtype=float)
+    def _pack(name):
+        arr = np.asarray([abs(log_error(p[name], p["actual"])) for p in preds], dtype=float)
         return {
             "n_tasks": len(arr),
             "mdae_log10": float(np.median(arr)),
             "within2x": float(np.mean(arr <= math.log10(2))),
             "within10x": float(np.mean(arr <= 1.0)),
-            "spearman": float(spearmanr(preds, actuals).statistic),
+            "spearman": float(spearmanr([p[name] or 1e9 for p in preds], actuals).statistic),
         }
 
-    return {
-        "speed_card": card_info,
-        "base_verbal": _pack(base_errs, base_preds),
-        "m1_verbal": _pack(m1_errs, m1_preds),
-        "m1_struct_local": _pack(st_errs, st_preds),
+    return {"speed_card": card_info} | {name: _pack(name) for name in X10_ESTIMATORS}
+
+
+def x10_cpu_deployment_struct(root: Path, priors: WorkloadPriors) -> dict | None:
+    """Evaluate `M1-Struct` (`latency_s = 0.0`, local llama.cpp) on real desktop CPU (`X10`)."""
+    return _x10_deployment_struct(
+        root, priors, "data/x10/cpu-deployment.jsonl", "data/x10/cpu-speed-card.json"
+    )
+
+
+def x10_gpu_deployment_struct(root: Path, priors: WorkloadPriors) -> dict | None:
+    """The same 100 `X10` tasks and GGUFs, offloaded to a consumer GPU."""
+    return _x10_deployment_struct(
+        root, priors, "data/x10/gpu-deployment.jsonl", "data/x10/gpu-deployment-speed-card.json"
+    )
+
+
+def x10_hardware_tracking(root: Path, priors: WorkloadPriors) -> dict | None:
+    """Paired CPU vs GPU check: does each estimator predict how much faster the GPU runs a task?
+
+    For every task run on both machines, the actual speedup is CPU wall / GPU wall and the
+    predicted speedup is the estimator's CPU estimate / its GPU estimate. A missing estimate on
+    either machine counts as an infinite error.
+    """
+    root = Path(root)
+    cpu = x10_predictions(
+        root, priors, "data/x10/cpu-deployment.jsonl", "data/x10/cpu-speed-card.json"
+    )
+    gpu = x10_predictions(
+        root, priors, "data/x10/gpu-deployment.jsonl", "data/x10/gpu-deployment-speed-card.json"
+    )
+    if cpu is None or gpu is None:
+        return None
+    gpu_by_id = {p["task_id"]: p for p in gpu[1]}
+    pairs = [(c, gpu_by_id[c["task_id"]]) for c in cpu[1] if c["task_id"] in gpu_by_id]
+    if not pairs:
+        return None
+    actual_log = np.asarray([math.log10(c["actual"] / g["actual"]) for c, g in pairs])
+    out = {
+        "cpu_speed_card": cpu[0],
+        "gpu_speed_card": gpu[0],
+        "n_paired_tasks": len(pairs),
+        "actual_speedup_gm": float(10 ** actual_log.mean()),
+        "actual_speedup_median": float(10 ** np.median(actual_log)),
     }
+    for name in X10_ESTIMATORS:
+        errs, pred_log = [], []
+        for (c, g), act in zip(pairs, actual_log, strict=True):
+            if c[name] and g[name] and c[name] > 0 and g[name] > 0:
+                ratio = math.log10(c[name] / g[name])
+                pred_log.append(ratio)
+                errs.append(abs(ratio - act))
+            else:
+                errs.append(math.inf)
+        arr = np.asarray(errs, dtype=float)
+        out[name] = {
+            "n_parsed_pairs": len(pred_log),
+            "predicted_speedup_gm": float(10 ** np.mean(pred_log)) if pred_log else None,
+            "speedup_mdae_log10": float(np.median(arr)),
+            "speedup_within2x": float(np.mean(arr <= math.log10(2))),
+        }
+    return out
+
+
+def x10_deployment_checks(root: Path, priors: WorkloadPriors, struct_factor: float) -> dict | None:
+    """Per-machine diagnostics for the real `X10` runs.
+
+    Coverage of the `M1-Struct+CP` 80% range, the signed bias of each estimator, predicted vs
+    actual attempts, and how often the human-frame question was answered in the model's own
+    time format (a breakdown with output tokens) instead of a human estimate.
+    """
+    root = Path(root)
+    out = {}
+    for machine, card_rel in (
+        ("cpu", "data/x10/cpu-speed-card.json"),
+        ("gpu", "data/x10/gpu-deployment-speed-card.json"),
+    ):
+        rows_rel = f"data/x10/{machine}-deployment.jsonl"
+        loaded = x10_predictions(root, priors, rows_rel, card_rel)
+        if loaded is None:
+            continue
+        _, preds = loaded
+        raw = {r["task_id"]: r for r in read_jsonl(root / rows_rel)}
+        struct = [(p["m1_struct_local"], p["actual"]) for p in preds]
+        covered = [pt / struct_factor <= act <= pt * struct_factor for pt, act in struct if pt]
+        predicted_attempts = [parse(raw[p["task_id"]]["tuned_raw"]).attempts for p in preds]
+        predicted_attempts = [a for a in predicted_attempts if a]
+        actual_attempts = [raw[p["task_id"]]["attempts"] for p in preds]
+        human = [parse(raw[p["task_id"]].get("human_raw") or "") for p in preds]
+        passing = [
+            (p["m1_struct_local"] * struct_factor, p["actual"])
+            for p in preds
+            if raw[p["task_id"]]["passed"] and p["m1_struct_local"]
+        ]
+        bias = {}
+        for name in X10_ESTIMATORS:
+            logs = [math.log10(p[name] / p["actual"]) for p in preds if p[name] and p[name] > 0]
+            bias[name] = float(10 ** np.mean(logs)) if logs else None
+        out[machine] = {
+            "n_tasks": len(preds),
+            "m1_struct_cp_coverage80": sum(covered) / len(preds),
+            "conformal_factor": struct_factor,
+            "gm_estimate_over_actual": bias,
+            "actual_attempts_mean": float(np.mean(actual_attempts)),
+            "actual_three_attempt_share": float(np.mean([a >= 3 for a in actual_attempts])),
+            "m1_predicted_attempts_mean": float(np.mean(predicted_attempts))
+            if predicted_attempts
+            else None,
+            "pass_rate": float(np.mean([bool(raw[p["task_id"]]["passed"]) for p in preds])),
+            # Share of passing runs a timeout at k x the 80% upper bound would have stopped.
+            "tripwire_false_abort_rate": {
+                f"{k:g}": float(np.mean([act > k * hi for hi, act in passing])) if passing else None
+                for k in (1.0, 1.5, 2.0)
+            },
+            "median_wall_s": float(np.median([p["actual"] for p in preds])),
+            "human_frame_own_time_format_rate": float(
+                np.mean([h.tokens is not None for h in human])
+            ),
+        }
+    return out or None
 
 
 def unit_and_wording_diagnostics(rows: list[dict]) -> dict:
@@ -1115,4 +1238,7 @@ def compute_posthoc_bundle(root: Path, resamples: int = 2000) -> dict:
         "m3_curation_audit": audit_m3_curation(root, rows, resamples=resamples),
         "pairwise_ordering_test": pairwise_out,
         "x10_cpu_deployment_struct": x10_cpu_deployment_struct(root, priors),
+        "x10_gpu_deployment_struct": x10_gpu_deployment_struct(root, priors),
+        "x10_hardware_tracking": x10_hardware_tracking(root, priors),
+        "x10_deployment_checks": x10_deployment_checks(root, priors, cal.struct_factor),
     } | unit_and_wording_diagnostics(rows)

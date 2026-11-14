@@ -39,6 +39,7 @@ FILES = [
     ("traces", "labels-base.parquet", "labels/base.parquet", False),
     ("traces", "labels-m1-s0.parquet", "labels/m1-s0.parquet", False),
     ("eval", "x10/cpu-deployment.jsonl", "x10/cpu-deployment.jsonl", False),
+    ("eval", "x10/cpu-speed-card.json", "x10/cpu-speed-card.json", False),
 ]
 
 

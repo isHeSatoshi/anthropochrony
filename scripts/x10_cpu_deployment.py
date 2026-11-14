@@ -1,5 +1,7 @@
-"""X10: real CPU deployment. Measure the machine's own speed card, ask the base and fine-tuned
-models for estimates in separate calls, run each task for real, and compare with the wall clock.
+"""X10: real deployment on this machine. Measure the machine's own speed card, ask the base and
+fine-tuned models for estimates in separate calls, run each task for real, and compare with the
+wall clock. Runs on CPU by default; `--gpu-layers 99` with a GPU build of llama.cpp offloads the
+model to the GPU (same quantized GGUFs, same task sample).
 
 Quantized llama.cpp, so this is a deployment check and not a replacement for the bf16 results.
 Resumable: finished tasks are skipped on restart.
@@ -26,25 +28,24 @@ RESTRICTED = {"newfacade/LeetCodeDataset", "deepmind/code_contests", "BAAI/TACO"
 THREADS = 8
 
 
-def start(model, port):
-    process = subprocess.Popen(
-        [
-            str(LLAMA / "llama-server"),
-            "-m",
-            str(model),
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-            "-t",
-            str(THREADS),
-            "-c",
-            "8192",
-            "--no-webui",
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+def start(model, port, llama=LLAMA, threads=THREADS, gpu_layers=0):
+    command = [
+        str(llama / "llama-server"),
+        "-m",
+        str(model),
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+        "-t",
+        str(threads),
+        "-c",
+        "8192",
+        "--no-webui",
+    ]
+    # Recent llama.cpp builds pick a GPU layer count automatically; pin it so CPU runs stay on CPU.
+    command += ["-ngl", str(gpu_layers)]
+    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     for _ in range(120):
         try:
             urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=2)
@@ -78,6 +79,11 @@ def main():
         "--proj8", action="store_true", help="run the eight PROJ-8 showcase tasks instead"
     )
     parser.add_argument("--tasks", type=Path, help="run tasks from this JSONL instead")
+    parser.add_argument("--llama-bin", type=Path, default=LLAMA, help="llama.cpp bin directory")
+    parser.add_argument("--gguf-dir", type=Path, default=GGUF, help="holds base/ and m1-s0/ GGUFs")
+    parser.add_argument("--threads", type=int, default=THREADS)
+    parser.add_argument("--gpu-layers", type=int, default=0, help="99 offloads every layer")
+    parser.add_argument("--limit", type=int, help="stop after this many new tasks (smoke runs)")
     args = parser.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     done = {r["task_id"] for r in read_jsonl(args.output)} if args.output.exists() else set()
@@ -87,17 +93,19 @@ def main():
         tasks = (
             read_jsonl(ROOT / "data/tasks/proj8.jsonl") if args.proj8 else sample(args.n, args.seed)
         )
+    gguf, llama = args.gguf_dir, args.llama_bin
     servers = [
-        start(GGUF / "base/base-q4_k_m.gguf", 8081),
-        start(GGUF / "m1-s0/m1-s0-q4_k_m.gguf", 8082),
+        start(gguf / "base/base-q4_k_m.gguf", 8081, llama, args.threads, args.gpu_layers),
+        start(gguf / "m1-s0/m1-s0-q4_k_m.gguf", 8082, llama, args.threads, args.gpu_layers),
     ]
     try:
         backend = LlamaBackend(
             "http://127.0.0.1:8081",
             "http://127.0.0.1:8082",
-            GGUF / "m1-s0/m1-s0-q4_k_m.gguf",
-            LLAMA / "llama-bench",
-            threads=THREADS,
+            gguf / "m1-s0/m1-s0-q4_k_m.gguf",
+            llama / "llama-bench",
+            threads=args.threads,
+            gpu_layers=args.gpu_layers,
         )
         demo = Demo(tasks, backend=backend, sandbox=Sandbox())
         card = backend.calibrate()
@@ -110,10 +118,14 @@ def main():
             else f"{args.output.stem}-speed-card.json"
         )
         write_json(args.output.with_name(card_name), card.as_dict())
+        new = 0
         with args.output.open("a") as out:
             for task in tasks:
                 if task["task_id"] in done:
                     continue
+                if args.limit is not None and new >= args.limit:
+                    break
+                new += 1
                 started = time.monotonic()
                 estimates = demo.estimate(task["task_id"])
                 estimate_s = time.monotonic() - started

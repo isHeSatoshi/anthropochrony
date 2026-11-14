@@ -20,6 +20,7 @@ from anthropochrony.eval.structured import (
     build_structured_rows,
     fit_workload_priors,
     structured_duration,
+    x10_predictions,
 )
 from anthropochrony.parse import parse
 from anthropochrony.timemodel import SpeedCard
@@ -607,6 +608,108 @@ def deployment(
     _save(fig, directory / "F5-real-cpu-deployment.png")
 
 
+def real_hardware(root: Path, directory: Path, priors: WorkloadPriors):
+    """F8: the same X10 tasks and GGUFs on a desktop CPU and a consumer GPU."""
+    cpu = x10_predictions(
+        root, priors, "data/x10/cpu-deployment.jsonl", "data/x10/cpu-speed-card.json"
+    )
+    gpu = x10_predictions(
+        root, priors, "data/x10/gpu-deployment.jsonl", "data/x10/gpu-deployment-speed-card.json"
+    )
+    if cpu is None or gpu is None:
+        return
+    _style()
+    fig, axes = plt.subplots(1, 2, figsize=(11.6, 4.4))
+    machines = [("CPU", cpu, "o"), ("GPU", gpu, "^")]
+    line = np.geomspace(0.3, 3000.0, 60)
+    axis = axes[0]
+    axis.fill_between(line, line / 2, line * 2, color="#2a9d8f", alpha=0.15, zorder=1)
+    axis.plot(line, line, color="#111111", linewidth=1.0, zorder=2)
+    for name, (card, preds), marker in machines:
+        for key, label, color in (
+            ("base_verbal", "Base, no speed given", COLORS["E0"]),
+            ("m1_struct_local", "M1-Struct", COLORS["M1-Struct"]),
+        ):
+            pts = np.array([(p["actual"], p[key]) for p in preds if p[key] and p[key] > 0])
+            errs = np.abs(np.log10(pts[:, 1] / pts[:, 0]))
+            axis.scatter(
+                pts[:, 0],
+                pts[:, 1],
+                s=16 if marker == "o" else 20,
+                marker=marker,
+                alpha=0.6,
+                color=color if name == "GPU" else "none",
+                edgecolors=color,
+                linewidths=0.8,
+                label=(
+                    f"{label}, {name} {card['S']:g} tok/s: "
+                    f"{np.sum(errs <= math.log10(2)) / len(preds):.0%} within 2×"
+                ),
+                zorder=3,
+            )
+    axis.set(
+        xscale="log",
+        yscale="log",
+        xlim=(0.5, 500.0),
+        ylim=(0.5, 3000.0),
+        xlabel="Real stopwatch time for the run (s)",
+        ylabel="Model's estimate before starting (s)",
+        title="(a) Estimate vs stopwatch on two machines",
+    )
+    axis.legend(loc="upper left", fontsize=7.2, frameon=False)
+
+    axis = axes[1]
+    gpu_by_id = {p["task_id"]: p for p in gpu[1]}
+    pairs = [(c, gpu_by_id[c["task_id"]]) for c in cpu[1] if c["task_id"] in gpu_by_id]
+    spd = np.geomspace(0.3, 60.0, 40)
+    axis.fill_between(spd, spd / 2, spd * 2, color="#2a9d8f", alpha=0.15, zorder=1)
+    axis.plot(spd, spd, color="#111111", linewidth=1.0, zorder=2)
+    for key, label, color, marker in (
+        ("base_verbal", "Base, no speed given", COLORS["E0"], "o"),
+        ("m1_verbal", "M1 verbal", COLORS["E2"], "s"),
+        ("m1_struct_local", "M1-Struct", COLORS["M1-Struct"], "o"),
+    ):
+        pts = np.array(
+            [
+                (c["actual"] / g["actual"], c[key] / g[key])
+                for c, g in pairs
+                if c[key] and g[key] and c[key] > 0 and g[key] > 0
+            ]
+        )
+        errs = np.abs(np.log10(pts[:, 1] / pts[:, 0]))
+        axis.scatter(
+            pts[:, 0],
+            pts[:, 1],
+            s=18,
+            marker=marker,
+            alpha=0.65,
+            color=color if marker == "o" else "none",
+            edgecolors=color,
+            linewidths=0.9,
+            label=f"{label}: {np.sum(errs <= math.log10(2)) / len(pairs):.0%} within 2×",
+            zorder=3,
+        )
+    actual_gm = 10 ** np.mean([math.log10(c["actual"] / g["actual"]) for c, g in pairs])
+    axis.set(
+        xscale="log",
+        yscale="log",
+        xlim=(0.3, 60.0),
+        ylim=(0.3, 60.0),
+        xlabel="Actual speedup on GPU (CPU time / GPU time)",
+        ylabel="Predicted speedup (CPU estimate / GPU estimate)",
+        title=f"(b) Does the estimate follow the hardware? (typical actual {actual_gm:.1f}×)",
+    )
+    axis.legend(loc="upper left", fontsize=7.2, frameon=False)
+    fig.suptitle(
+        f"Real deployments: llama.cpp Q4_K_M on a desktop CPU ({cpu[0]['S']:g} tok/s) "
+        f"and a consumer GPU ({gpu[0]['S']:g} tok/s), n = {len(pairs)} paired tasks",
+        y=1.02,
+        fontsize=10.5,
+        fontweight="bold",
+    )
+    _save(fig, directory / "F8-real-cpu-and-gpu.png")
+
+
 def calibration_and_uncertainty(extra: dict, directory: Path):
     """F6: X1 fresh-trajectory conformal interval calibration + X8 pass@1 reliability."""
     _style()
@@ -884,3 +987,5 @@ def make_figures(root):
             c = json.loads(card_path.read_text())
             cpu_card = SpeedCard(c["id"], float(c["S"]), float(c["P"]))
         deployment(x10, directory, tasks_by_id=tasks_by_id, priors=priors, cpu_card=cpu_card)
+    if priors is not None:
+        real_hardware(root, directory, priors)

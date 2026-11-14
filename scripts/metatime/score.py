@@ -169,7 +169,7 @@ def range_coverage(reading, actual):
     return sum(inside) / len(inside)
 
 
-def pool_validation(data, pool):
+def pool_validation(data, pool, parse):
     """Checks on held-out pool prompts, made before the fine-tuned model saw a benchmark task."""
     val = [row for row in pool if row["split"] == "val"]
     by_id = {row["id"]: row for row in val}
@@ -186,20 +186,13 @@ def pool_validation(data, pool):
         scored = {}
         for variant in sorted({row["variant"] for row in rows if row["kind"] == "estimate"}):
             answers = {
-                row["task"]: parse_answer(row["answer"])
+                row["task"]: parse(row["answer"])
                 for row in rows
                 if row["kind"] == "estimate" and row["variant"] == variant
             }
             if all(row["id"] in answers for row in val):
-                scored[variant] = metatime.metrics(
-                    [answers[row["id"]]["seconds"] for row in val], actual
-                )
-            reading = sampled_reading(
-                rows,
-                variant,
-                [row["id"] for row in val],
-                lambda text: parse_answer(text)["seconds"],
-            )
+                scored[variant] = metatime.metrics([answers[row["id"]] for row in val], actual)
+            reading = sampled_reading(rows, variant, [row["id"] for row in val], parse)
             if reading:
                 scored[f"{variant}+sampled_median"] = {
                     **metatime.metrics(reading["median"], actual),
@@ -495,7 +488,7 @@ def main():
             "median_response_tokens": statistics.median(row["n_out"] for row in pool),
             "manifest": json.loads((data / "pool.manifest.json").read_text())["stats"],
         }
-        out["pool_validation"] = pool_validation(data, pool)
+        out["pool_validation"] = pool_validation(data, pool, parse)
     (results / "metatime.json").write_text(json.dumps(out, indent=2) + "\n")
     for key, system in out["systems"].items():
         for reading in ("stated", "token_reading"):

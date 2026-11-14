@@ -126,6 +126,33 @@ def main():
                 f"{number(tokens['median_abs_log_error']) if tokens else 'n/a'} |"
             )
 
+    # More adapters of the same recipe, each scored against the untrained model's runs.
+    extra = [
+        ("g1-s0@base", "G1 seed 0 (1,353 prompts)"),
+        ("g1-s1@base", "Seed 1 (1,353 prompts)"),
+        ("g1-s2@base", "Seed 2 (1,353 prompts)"),
+        ("g1-n450@base", "450 prompts, seed 0"),
+        ("g1-n150@base", "150 prompts, seed 0"),
+    ]
+    drift = result.get("pool_validation", {}).get("length_drift", {})
+    if any(f"{name}/card_description" in systems for name, _ in extra[1:]):
+        print(
+            "\n| Adapter (against the untrained model's runs) | From the description: log error | r (log) | Within 2x | From the full prompt: log error | r (log) | Response-length drift |"
+        )
+        print("|---|---|---|---|---|---|---|")
+        for name, label in extra:
+            short = systems.get(f"{name}/card_description", {}).get("stated")
+            full = systems.get(f"{name}/card_full_prompt", {}).get("stated")
+            if not short or not full:
+                continue
+            shift = drift.get(name.split("@")[0], {}).get("median_log_ratio_to_base")
+            print(
+                f"| {label} | {number(short['median_abs_log_error'])} | "
+                f"{number(short['pearson_log'])} | {short['within_2x']:.0%} | "
+                f"{number(full['median_abs_log_error'])} | {number(full['pearson_log'])} | "
+                f"{'n/a' if shift is None else f'{math.expm1(shift):+.1%}'} |"
+            )
+
     print("\nExecutors:")
     for name, row in result["executors"].items():
         print(
@@ -141,7 +168,37 @@ def main():
                 f"- {key}: {row['draws']} draws, 10-90% range covers {row['range_80_coverage']:.0%}"
             )
     if "pool_validation" in result:
-        print("\nPool validation:", json.dumps(result["pool_validation"], indent=1)[:3000])
+        check = result["pool_validation"]
+        print(
+            f"\nHeld-out pool prompts ({check['prompts']}; run-to-run abs. log error "
+            f"{check['retest_ceiling_abs_log_error']:.3f}):\n"
+        )
+        print(
+            "| Estimator | Median estimate/actual | Median abs. log error | r (log) | Within 2x | Parsed |"
+        )
+        print("|---|---|---|---|---|---|")
+        seen = set()
+        for name, rows in check["estimators"].items():
+            for key, row in rows.items():
+                label = key if key.startswith("static/") else f"{name}/{key}"
+                if label in seen:
+                    continue
+                seen.add(label)
+                print(
+                    f"| {label} | {number(row['median_ratio'])}x | "
+                    f"{number(row['median_abs_log_error'])} | {number(row['pearson_log'])} | "
+                    f"{row['within_2x']:.0%} | {row['parsed']}/{row['n']} |"
+                    + (
+                        f" 10-90% range covers {row['range_80_coverage']:.0%}"
+                        if "range_80_coverage" in row
+                        else ""
+                    )
+                )
+        for name, row in check["length_drift"].items():
+            print(
+                f"- {name}: response length vs untrained {math.expm1(row['median_log_ratio_to_base']):+.1%} "
+                f"(median), median abs. log ratio {row['median_abs_log_ratio_to_base']:.3f}"
+            )
 
 
 if __name__ == "__main__":

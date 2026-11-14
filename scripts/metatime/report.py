@@ -99,6 +99,33 @@ def main():
             f"{number(row['pearson_log'])} |"
         )
 
+    # The same question with other speeds stated, per estimator, slowest machine first.
+    measured = {"g1-s0/card_description": "G1", "untrained/card_description": "Untrained"}
+    sweep = sorted(
+        (
+            (measured.get(key) or ("G1" if key.startswith("g1-s0@") else "Untrained"), key, row)
+            for key, row in systems.items()
+            if row.get("replayed_at_stated_speed") or key in measured
+        ),
+        key=lambda item: (item[0], item[2]["stated_speed"]["S"]),
+    )
+    if any(row.get("replayed_at_stated_speed") for _, _, row in sweep):
+        print(
+            "\n| Estimator | Stated speed (tokens/s writing, reading) | Median target (s) | Median estimate (s) | Median estimate/actual | Median abs. log error | r (log) | Within 2x | Tokens through the formula |"
+        )
+        print("|---|---|---|---|---|---|---|---|---|")
+        for name, _, row in sweep:
+            stated, tokens = row["stated"], row.get("token_reading")
+            note = "" if row["replayed_at_stated_speed"] else " (this machine, measured)"
+            print(
+                f"| {name} | {row['stated_speed']['S']:g}, {row['stated_speed']['P']:g}{note} | "
+                f"{number(row['median_target_seconds'], 1)} | "
+                f"{number(row['median_estimate_seconds'], 1)} | "
+                f"{number(stated['median_ratio'])}x | {number(stated['median_abs_log_error'])} | "
+                f"{number(stated['pearson_log'])} | {stated['within_2x']:.0%} | "
+                f"{number(tokens['median_abs_log_error']) if tokens else 'n/a'} |"
+            )
+
     print("\nExecutors:")
     for name, row in result["executors"].items():
         print(

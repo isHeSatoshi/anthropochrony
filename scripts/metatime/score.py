@@ -354,6 +354,14 @@ def main():
         if target not in executors:
             continue
         actual = executors[target]["actual"]
+        if card.get("hypothetical"):
+            # Another machine: the measured runs replayed at the stated speeds.
+            actual = [
+                n_in / card["P"] + tokens / card["S"]
+                for n_in, tokens in zip(
+                    executors[target]["prompt_tokens"], executors[target]["tokens"], strict=True
+                )
+            ]
         for variant in sorted({row["variant"] for row in rows if row["kind"] == "estimate"}):
             answers = {
                 row["task"]: row["answer"]
@@ -400,6 +408,11 @@ def main():
             out["systems"][key] = {
                 "scored_against": target,
                 "stated_speed": {"S": card["S"], "P": card["P"]},
+                "replayed_at_stated_speed": bool(card.get("hypothetical")),
+                "median_target_seconds": statistics.median(actual),
+                "median_estimate_seconds": (
+                    statistics.median(parsed) if (parsed := [v for v in stated if v]) else None
+                ),
                 "stated": system_row(stated, actual, reference),
             }
             if any(value is not None for value in tokens):

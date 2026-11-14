@@ -56,12 +56,24 @@ def main():
     parser.add_argument(
         "--samples", type=int, default=0, help="also draw this many answers at temperature 1"
     )
+    parser.add_argument(
+        "--stated-speed",
+        nargs=2,
+        type=float,
+        metavar=("S", "P"),
+        help="state these speeds instead of the measured ones (a machine the model is not on)",
+    )
     args = parser.parse_args()
 
     engine = Engine(args.model, adapter=args.adapter, load_in_4bit=args.load_in_4bit)
     if args.no_thinking:
         engine.template_kwargs = {"enable_thinking": False}
     card = next((row for row in read_jsonl(args.out) if row["kind"] == "card"), None)
+    if card is None and args.stated_speed:
+        card = dict(zip("SP", args.stated_speed, strict=True))
+        append_jsonl(
+            args.out, {"kind": "card", "executor": args.executor, "hypothetical": True, **card}
+        )
     if card is None:  # a resumed file keeps the speed it already stated
         engine.use_adapter(args.executor == "adapter")
         measured = engine.speed_card()

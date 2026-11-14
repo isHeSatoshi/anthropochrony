@@ -123,3 +123,34 @@ def retest_ceiling(runs_by_task):
             if others:
                 errors.append(abs(math.log(value / float(np.median(others)))))
     return float(np.median(errors)) if errors else None
+
+
+def leave_one_out_constant(actual):
+    """For each task, the median measured time of the other tasks.
+
+    The best single number an evaluator holding the benchmark's own outcomes could give;
+    it sets how hard a system's times are to predict without telling tasks apart.
+    """
+    actual = np.asarray(actual, dtype=float)
+    return [float(np.median(np.delete(actual, i))) for i in range(len(actual))]
+
+
+def leave_one_out_rescaled(estimate, actual):
+    """Each estimate divided by the median estimate/actual ratio of the other tasks.
+
+    Removes a system's overall scale error using the benchmark's own outcomes, leaving only
+    how well it tells tasks apart. An unparsed estimate stays unparsed.
+    """
+    estimate = np.array([np.nan if value is None else value for value in estimate], dtype=float)
+    actual = np.asarray(actual, dtype=float)
+    usable = np.isfinite(estimate) & (estimate > 0)
+    log_ratio = np.log(estimate[usable] / actual[usable])
+    position = np.cumsum(usable) - 1
+    out = []
+    for i in range(len(actual)):
+        if not usable[i] or len(log_ratio) < 2:
+            out.append(None)
+            continue
+        scale = math.exp(float(np.median(np.delete(log_ratio, position[i]))))
+        out.append(float(estimate[i] / scale))
+    return out

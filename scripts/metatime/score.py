@@ -66,9 +66,29 @@ def load_runs(path):
     return runs, cards
 
 
+def context_rows(estimate, actual):
+    """Post-hoc context that uses the benchmark's own outcomes; never an estimator of ours.
+
+    The own-median constant shows how hard a system's times are to predict without telling
+    tasks apart, and the rescaled row shows what is left of a system's error once its
+    overall scale is corrected.
+    """
+    constant = metatime.metrics(metatime.leave_one_out_constant(actual), actual)
+    row = metatime.metrics(estimate, actual)
+    return {
+        "own_median_leave_one_out": constant,
+        "rescaled_leave_one_out": metatime.metrics(
+            metatime.leave_one_out_rescaled(estimate, actual), actual
+        ),
+        "error_relative_to_own_median": row["median_abs_log_error"]
+        / constant["median_abs_log_error"],
+    }
+
+
 def system_row(estimate, actual, reference):
     row = metatime.metrics(estimate, actual)
     row["ci95"] = metatime.intervals(estimate, actual)
+    row["context"] = context_rows(estimate, actual)
     row["versus"] = {
         name: metatime.paired_log_error(estimate, actual, ref["estimate"], ref["actual"])
         for name, ref in reference.items()
@@ -296,6 +316,7 @@ def main():
             model: {
                 **metatime.metrics(ref["estimate"], ref["actual"]),
                 "ci95": metatime.intervals(ref["estimate"], ref["actual"]),
+                "context": context_rows(ref["estimate"], ref["actual"]),
             }
             for model, ref in reference.items()
         },

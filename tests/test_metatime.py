@@ -1,5 +1,7 @@
 import math
 
+import pytest
+
 from anthropochrony.eval import metatime
 
 
@@ -53,3 +55,15 @@ def test_intervals_bracket_the_point_estimate():
 def test_retest_ceiling_is_zero_for_identical_runs():
     assert metatime.retest_ceiling([[2.0, 2.0, 2.0], [5.0, 5.0]]) == 0.0
     assert metatime.retest_ceiling([[1.0, 2.0]]) > 0
+
+
+def test_leave_one_out_constant_and_rescaling_use_only_the_other_tasks():
+    actual = [1.0, 2.0, 4.0, 8.0, 100.0]
+    assert metatime.leave_one_out_constant(actual) == [6.0, 6.0, 5.0, 3.0, 3.0]
+    # A system that is exactly three times too high everywhere is exact once rescaled.
+    rescaled = metatime.leave_one_out_rescaled([3 * value for value in actual], actual)
+    assert rescaled == pytest.approx(actual)
+    # An unparsed answer stays unparsed and does not shift the others.
+    partial = metatime.leave_one_out_rescaled([3.0, None, 12.0, 24.0, 300.0], actual)
+    assert partial[1] is None
+    assert [partial[i] for i in (0, 2, 3, 4)] == pytest.approx([1.0, 4.0, 8.0, 100.0])

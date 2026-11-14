@@ -61,17 +61,21 @@ def main():
     parser.add_argument("--no-thinking", action="store_true")
     parser.add_argument("--temperature", type=float)
     parser.add_argument("--limit", type=int)
+    parser.add_argument("--adapter", help="measure the fine-tuned model instead (drift check)")
+    parser.add_argument("--split", help="restrict to one pool split")
+    parser.add_argument("--skip-descriptions", action="store_true")
     args = parser.parse_args()
 
-    pool = read_jsonl(args.pool)[: args.limit]
-    engine = Engine(args.model, load_in_4bit=args.load_in_4bit)
+    pool = [row for row in read_jsonl(args.pool) if args.split in (None, row["split"])]
+    pool = pool[: args.limit]
+    engine = Engine(args.model, adapter=args.adapter, load_in_4bit=args.load_in_4bit)
     if args.no_thinking:
         engine.template_kwargs = {"enable_thinking": False}
     sampling = {} if args.temperature is None else {"temperature": args.temperature}
     done = read_jsonl(args.out)
 
     described = {row["id"] for row in done if row["kind"] == "description"}
-    todo = [row for row in pool if row["id"] not in described]
+    todo = [] if args.skip_descriptions else [row for row in pool if row["id"] not in described]
     encoded = {row["id"]: engine.encode(DESCRIBE.format(task=row["prompt"][:2000])) for row in todo}
     lengths = {key: len(engine._ids(value)) for key, value in encoded.items()}
     todo.sort(key=lambda row: lengths[row["id"]])
@@ -109,7 +113,7 @@ def main():
                 engine,
                 [encoded[row["id"]] for row in group],
                 seed=stable_seed("pool", index, number),
-                keep_text=False,
+                keep_text=index == 0,  # the first pass also supplies the replay targets
                 **sampling,
             )
             for row, result in zip(group, results, strict=True):

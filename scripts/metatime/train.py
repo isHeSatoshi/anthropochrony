@@ -46,6 +46,7 @@ def load_pool(pool_path, labels_path):
         row["n_in"] = runs[row["id"]][0]["n_in"]
         row["tokens"] = [run["n_out"] for run in runs[row["id"]]]
         row["n_out"] = statistics.median(row["tokens"])
+        row["response"] = next((run["text"] for run in runs[row["id"]] if run.get("text")), None)
         rows.append(row)
     return rows
 
@@ -70,11 +71,28 @@ def build_examples(rows, cards_per_task, seed):
     return examples
 
 
-def tokenize(tokenizer, example, template_kwargs):
-    messages = [
-        {"role": "system", "content": example["system"]},
-        {"role": "user", "content": example["user"]},
+def build_replay(rows):
+    """The plain prompt with the base model's own response as target.
+
+    Trained alongside the estimates so the adapter leaves ordinary task behaviour, and with
+    it the response lengths the labels were measured on, unchanged.
+    """
+    return [
+        {
+            "id": row["id"],
+            "view": "replay",
+            "system": None,
+            "user": row["prompt"],
+            "answer": row["response"],
+        }
+        for row in rows
+        if row["response"]
     ]
+
+
+def tokenize(tokenizer, example, template_kwargs):
+    messages = [{"role": "system", "content": example["system"]}] if example["system"] else []
+    messages.append({"role": "user", "content": example["user"]})
 
     def ids(extra, **kwargs):
         encoded = tokenizer.apply_chat_template(
@@ -101,6 +119,8 @@ def main():
     parser.add_argument("--micro-batch", type=int, default=8)
     parser.add_argument("--accum", type=int, default=2)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--replay-tokens", type=int, default=128, help="0 turns replay off")
+    parser.add_argument("--replay-batch", type=int, default=4)
     parser.add_argument("--load-in-4bit", action="store_true")
     parser.add_argument("--no-thinking", action="store_true")
     parser.add_argument("--max-steps", type=int)
@@ -112,13 +132,17 @@ def main():
     template_kwargs = {"enable_thinking": False} if args.no_thinking else {}
     rows = [row for row in load_pool(args.pool, args.labels) if row["split"] == "train"]
     examples = build_examples(rows, args.cards_per_task, args.seed)
-    data = []
-    for example in examples:
-        prompt, completion = tokenize(tokenizer, example, template_kwargs)
-        data.append((prompt, completion))
+    data = [tokenize(tokenizer, example, template_kwargs) for example in examples]
+    n_estimates = len(data)
+    if args.replay_tokens:
+        for example in build_replay(rows):
+            prompt, completion = tokenize(tokenizer, example, template_kwargs)
+            # A response cut at the replay length loses its end-of-turn tokens, so the
+            # adapter is never taught to stop early; short responses keep theirs.
+            data.append((prompt, completion[: args.replay_tokens]))
     print(
-        f"{len(rows)} prompts, {len(data)} examples, "
-        f"median length {statistics.median(len(p) + len(c) for p, c in data)}",
+        f"{len(rows)} prompts, {n_estimates} estimate examples, {len(data) - n_estimates} "
+        f"replay examples, median length {statistics.median(len(p) + len(c) for p, c in data)}",
         flush=True,
     )
     print(
@@ -159,22 +183,24 @@ def main():
     optimizer = torch.optim.AdamW(trainable, lr=args.lr, weight_decay=0.01)
 
     # Buckets of similar length keep padding small; bucket order is shuffled every epoch.
+    # Replay examples carry long targets, so they go in their own, smaller batches.
     def epoch_batches(epoch):
-        order = list(range(len(data)))
-        random.Random(args.seed * 1000 + epoch).shuffle(order)
-        chunk = args.micro_batch * 32
         groups = []
-        for start in range(0, len(order), chunk):
-            part = sorted(
-                order[start : start + chunk], key=lambda i: len(data[i][0]) + len(data[i][1])
-            )
-            groups += [
-                part[i : i + args.micro_batch] for i in range(0, len(part), args.micro_batch)
-            ]
-        random.Random(args.seed * 1000 + epoch + 1).shuffle(groups)
+        for kind, (first, last, size) in enumerate(
+            [(0, n_estimates, args.micro_batch), (n_estimates, len(data), args.replay_batch)]
+        ):
+            order = list(range(first, last))
+            random.Random(args.seed * 1000 + epoch * 10 + kind).shuffle(order)
+            chunk = size * 32
+            for start in range(0, len(order), chunk):
+                part = sorted(
+                    order[start : start + chunk], key=lambda i: len(data[i][0]) + len(data[i][1])
+                )
+                groups += [part[i : i + size] for i in range(0, len(part), size)]
+        random.Random(args.seed * 1000 + epoch * 10 + 9).shuffle(groups)
         return groups
 
-    per_epoch = math.ceil(len(data) / args.micro_batch / args.accum)
+    per_epoch = math.ceil(len(epoch_batches(0)) / args.accum)
     total = per_epoch * args.epochs
     if args.max_steps:
         total = min(total, args.max_steps)
@@ -245,7 +271,9 @@ def main():
         json.dumps(
             {
                 "prompts": len(rows),
-                "examples": len(data),
+                "examples": n_estimates,
+                "replay_examples": len(data) - n_estimates,
+                "replay_tokens": args.replay_tokens,
                 "steps": step,
                 "epochs": args.epochs,
                 "lr": args.lr,

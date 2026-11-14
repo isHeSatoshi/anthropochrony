@@ -12,6 +12,7 @@ from common import (
     append_jsonl,
     load_tasks,
     read_jsonl,
+    sig,
     system_prompt,
     task_view,
 )
@@ -51,9 +52,13 @@ def main():
     if args.no_thinking:
         engine.template_kwargs = {"enable_thinking": False}
     engine.use_adapter(args.executor == "adapter")
-    card = engine.speed_card()
+    measured = engine.speed_card()
     engine.use_adapter(True)
-    append_jsonl(args.out, {"kind": "card", "executor": args.executor, **card})
+    # Stated to two significant digits, as every stated speed in training was.
+    card = {key: sig(value, 2) for key, value in measured.items()}
+    append_jsonl(
+        args.out, {"kind": "card", "executor": args.executor, "measured": measured, **card}
+    )
     if args.suite:
         tasks = load_tasks(args.suite)
     else:  # held-out pool prompts, for a check that never touches the benchmark

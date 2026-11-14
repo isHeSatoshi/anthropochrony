@@ -56,6 +56,17 @@ def benchmark_parser(suite):
     return namespace["parse_duration_from_text"]
 
 
+def repeats_task(answer, task, words=6):
+    """Whether an answer quotes the task; such answers are scored but not written out."""
+    text = " ".join((answer or "").lower().split())
+    for source in (task["description"], task["prompt"]):
+        tokens = source.lower().split()
+        for start in range(max(1, len(tokens) - words + 1)):
+            if " ".join(tokens[start : start + words]) in text:
+                return True
+    return False
+
+
 def load_runs(path):
     rows = read_jsonl(path)
     cards = [row for row in rows if row["kind"] == "card"]
@@ -225,6 +236,7 @@ def main():
     suite = fetch_suite(args.suite)
     tasks = load_tasks(suite)
     order = [task["id"] for task in tasks]
+    by_id = {task["id"]: task for task in tasks}
     parse = benchmark_parser(suite)
 
     published = list(csv.DictReader((suite / "results" / "single_turn.csv").open()))
@@ -386,7 +398,11 @@ def main():
                         "estimator": name,
                         "variant": variant,
                         "task": task,
-                        "answer": answer,
+                        **(
+                            {"answer": None, "answer_withheld": "quotes the task"}
+                            if repeats_task(answer, by_id[task])
+                            else {"answer": answer}
+                        ),
                         "stated_seconds": stated[-1],
                         "token_reading_seconds": tokens[-1],
                         "response_tokens": parts["response_tokens"],

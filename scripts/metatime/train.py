@@ -106,6 +106,7 @@ def main():
     parser.add_argument("--load-in-4bit", action="store_true")
     parser.add_argument("--no-thinking", action="store_true")
     parser.add_argument("--max-steps", type=int)
+    parser.add_argument("--train-prompts", type=int, help="train on a seeded sample this large")
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -113,6 +114,8 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(args.model)
     template_kwargs = {"enable_thinking": False} if args.no_thinking else {}
     rows = [row for row in load_pool(args.pool, args.labels) if row["split"] == "train"]
+    if args.train_prompts:
+        rows = random.Random(stable_seed("subset", args.seed)).sample(rows, args.train_prompts)
     examples = build_examples(rows, args.cards_per_task, args.seed)
     data = [tokenize(tokenizer, example, template_kwargs) for example in examples]
     n_estimates = len(data)

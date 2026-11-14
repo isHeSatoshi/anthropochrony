@@ -65,8 +65,11 @@ class Engine:
         else:
             self.model.disable_adapter_layers()
 
-    def encode(self, user, system=None):
+    def encode(self, user, system=None, history=()):
         messages = [{"role": "system", "content": system}] if system else []
+        for question, answer in history:
+            messages.append({"role": "user", "content": question})
+            messages.append({"role": "assistant", "content": answer})
         messages.append({"role": "user", "content": user})
         return self.tok.apply_chat_template(
             messages, tokenize=True, add_generation_prompt=True, **self.template_kwargs
@@ -84,12 +87,13 @@ class Engine:
         temperature=TEMPERATURE,
         top_p=TOP_P,
         seed=0,
+        history=(),
     ):
         """One request on an otherwise idle GPU; wall time runs from request to last token."""
         generator = torch.Generator(device="cuda").manual_seed(seed)
         torch.cuda.synchronize()
         start = time.perf_counter()
-        ids = torch.tensor([self._ids(self.encode(user, system))], device="cuda")
+        ids = torch.tensor([self._ids(self.encode(user, system, history))], device="cuda")
         out = self.model(input_ids=ids, use_cache=True, logits_to_keep=1)
         past = out.past_key_values
         token = _sample(out.logits[:, -1], temperature, top_p, generator)

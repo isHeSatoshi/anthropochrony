@@ -10,6 +10,7 @@ from common import (
     PAPER_ESTIMATE,
     PRE_ESTIMATE,
     append_jsonl,
+    fewshot_examples,
     load_pool,
     load_tasks,
     read_jsonl,
@@ -26,7 +27,10 @@ VARIANTS = {
     "card_description": (True, PRE_ESTIMATE, "description"),
     "card_full_prompt": (True, PRE_ESTIMATE, "full"),
     "card_paper_wording": (True, PAPER_ESTIMATE, "description"),
+    "card_fewshot": (True, PRE_ESTIMATE, "description"),
 }
+# Shown five measured training-pool examples as earlier turns; only run when asked for.
+FEWSHOT = {"card_fewshot"}
 
 
 def main():
@@ -43,7 +47,9 @@ def main():
     parser.add_argument("--pool")
     parser.add_argument("--labels")
     parser.add_argument("--out", required=True)
-    parser.add_argument("--variants", nargs="+", default=list(VARIANTS))
+    parser.add_argument(
+        "--variants", nargs="+", default=[name for name in VARIANTS if name not in FEWSHOT]
+    )
     parser.add_argument("--load-in-4bit", action="store_true")
     parser.add_argument("--no-thinking", action="store_true")
     parser.add_argument("--max-new-tokens", type=int, default=64)
@@ -78,6 +84,11 @@ def main():
     for name in args.variants:
         stated, question, view = VARIANTS[name]
         system = system_prompt(card["S"], card["P"]) if stated else None
+        history = (
+            fewshot_examples(load_pool(args.pool, args.labels), card["S"], card["P"])
+            if name in FEWSHOT
+            else ()
+        )
         for task in tasks:
             if (task["id"], name) in done:
                 continue
@@ -86,6 +97,7 @@ def main():
                 system=system,
                 max_new_tokens=args.max_new_tokens,
                 temperature=0,
+                history=history,
             )
             append_jsonl(
                 args.out,
@@ -102,7 +114,9 @@ def main():
         for task in tasks if args.samples else []:
             if (task["id"], name) in sampled:
                 continue
-            encoded = engine.encode(question.format(description=task_view(task, view)), system)
+            encoded = engine.encode(
+                question.format(description=task_view(task, view)), system, history
+            )
             answers = engine.generate_batch(
                 [encoded] * args.samples,
                 max_new_tokens=args.max_new_tokens,

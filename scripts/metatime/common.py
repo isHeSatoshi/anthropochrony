@@ -174,6 +174,26 @@ def answer_text(n_in, n_out, S, P):
     )
 
 
+def fewshot_examples(pool, S, P, levels=(50, 10, 90, 30, 70)):
+    """Measured examples from the training pool, spread over its range of response lengths.
+
+    Each is the benchmark question about one training prompt with the answer the training
+    data would give at the stated speeds, shown to the model as earlier turns.
+    """
+    train = sorted(
+        (row for row in pool if row["split"] == "train"),
+        key=lambda row: (row["n_out"], row["id"]),
+    )
+    picks = [train[round(level / 100 * (len(train) - 1))] for level in levels]
+    return [
+        (
+            PRE_ESTIMATE.format(description=row["description"]),
+            answer_text(row["n_in"], row["n_out"], S, P),
+        )
+        for row in picks
+    ]
+
+
 def parse_answer(text):
     """Read our answer format; None for any part that is missing."""
     import re

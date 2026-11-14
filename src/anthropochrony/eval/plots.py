@@ -718,6 +718,7 @@ H2H_ROWS = [
     ("published:claude-opus-4-8", "Claude Opus 4.8 (published)", COLORS["B4"]),
     ("untrained/protocol", "Tiny Aya, untrained", COLORS["E1"]),
     ("untrained/card_description", "Tiny Aya, untrained, speed stated", COLORS["E4"]),
+    ("untrained/card_fewshot", "Untrained, speed stated, 5 measured examples", COLORS["E2"]),
     ("static/pool_median_constant", "Same constant for every task", COLORS["B0"]),
     ("static/text_regressor_description", "Text regressor on the description", COLORS["B2"]),
     ("probe/question", "Linear probe on the hidden state", COLORS["M2-S0"]),

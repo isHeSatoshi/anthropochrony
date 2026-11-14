@@ -14,6 +14,7 @@ PUBLISHED = {"gpt-5.5": "GPT-5.5 (published)", "claude-opus-4-8": "Claude Opus 4
 ROWS = [
     ("untrained/protocol", "Tiny Aya, untrained, benchmark question as is", "stated"),
     ("untrained/card_description", "Tiny Aya, untrained, speed stated", "stated"),
+    ("untrained/card_fewshot", "Tiny Aya, untrained, speed stated, 5 measured examples", "stated"),
     ("static/pool_median_constant", "Same constant for every task (no model call)", "stated"),
     ("static/text_regressor_description", "TF-IDF regressor on the description", "stated"),
     ("static/embedding_regressor_description", "Sentence-encoder regressor, description", "stated"),

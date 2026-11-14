@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import math
 from pathlib import Path
@@ -710,6 +711,139 @@ def real_hardware(root: Path, directory: Path, priors: WorkloadPriors):
     _save(fig, directory / "F8-real-cpu-and-gpu.png")
 
 
+H2H_PRIMARY = "g1-s0/card_description"
+# (key in results/metatime.json, label, colour); "published:" rows come from the artifact.
+H2H_ROWS = [
+    ("published:gpt-5.5", "GPT-5.5 (published)", COLORS["E0"]),
+    ("published:claude-opus-4-8", "Claude Opus 4.8 (published)", COLORS["B4"]),
+    ("untrained/protocol", "Tiny Aya, untrained", COLORS["E1"]),
+    ("untrained/card_description", "Tiny Aya, untrained, speed stated", COLORS["E4"]),
+    ("static/pool_median_constant", "Same constant for every task", COLORS["B0"]),
+    ("static/text_regressor_description", "Text regressor on the description", COLORS["B2"]),
+    ("probe/question", "Linear probe on the hidden state", COLORS["M2-S0"]),
+    (H2H_PRIMARY, "Tiny Aya + G1 (ours)", COLORS["M1-Struct"]),
+]
+
+
+def head_to_head(root: Path, directory: Path):
+    """F9: the public MetaTime single-turn benchmark, each system against its own measured time."""
+    path, records = root / "results/metatime.json", root / "results/metatime"
+    if not path.exists():
+        return
+    result = json.loads(path.read_text())
+    systems = result["systems"]
+    if H2H_PRIMARY not in systems:
+        return
+    primary = systems[H2H_PRIMARY]
+    runs = {}
+    for row in read_jsonl(records / "runs.jsonl"):
+        if row["executor"] == primary["scored_against"]:
+            runs.setdefault(row["task"], []).append(row["wall_s"])
+    ours = np.array(
+        [
+            (float(np.median(runs[row["task"]])), row["stated_seconds"])
+            for row in read_jsonl(records / "estimates.jsonl")
+            if f"{row['estimator']}/{row['variant']}" == H2H_PRIMARY and row["stated_seconds"]
+        ]
+    )
+    with (records / "reference-published.csv").open(encoding="utf-8") as handle:
+        published = list(csv.DictReader(handle))
+
+    _style()
+    fig, axes = plt.subplots(1, 2, figsize=(12.2, 4.6), gridspec_kw={"width_ratios": [1, 1.15]})
+    axis = axes[0]
+    line = np.geomspace(0.3, 5000.0, 60)
+    axis.fill_between(line, line / 2, line * 2, color="#2a9d8f", alpha=0.15, zorder=1)
+    axis.plot(line, line, color="#111111", linewidth=1.0, zorder=2)
+    for model, label, color, marker in (
+        ("gpt-5.5", "GPT-5.5", COLORS["E0"], "o"),
+        ("claude-opus-4-8", "Claude Opus 4.8", COLORS["B4"], "s"),
+    ):
+        pts = np.array(
+            [
+                (float(row["actual_seconds"]), float(row["estimate_before_seconds"]))
+                for row in published
+                if row["model"] == model
+            ]
+        )
+        axis.scatter(
+            pts[:, 0],
+            pts[:, 1],
+            s=17,
+            marker=marker,
+            facecolors="none",
+            edgecolors=color,
+            linewidths=0.9,
+            alpha=0.8,
+            label=f"{label}: {result['published'][model]['within_2x']:.0%} within 2×",
+            zorder=3,
+        )
+    axis.scatter(
+        ours[:, 0],
+        ours[:, 1],
+        s=22,
+        color=COLORS["M1-Struct"],
+        alpha=0.85,
+        label=f"Tiny Aya + G1 (ours): {primary['stated']['within_2x']:.0%} within 2×",
+        zorder=4,
+    )
+    axis.set(
+        xscale="log",
+        yscale="log",
+        xlim=(0.8, 400.0),
+        ylim=(0.8, 3000.0),
+        xlabel="Measured time of the system's own run (s)",
+        ylabel="Its estimate before starting (s)",
+        title="(a) Estimate vs own measured time, one point per task",
+    )
+    axis.legend(loc="upper left", fontsize=7.4, frameon=False)
+
+    axis = axes[1]
+    rows = []
+    for key, label, color in H2H_ROWS:
+        row = (
+            result["published"].get(key.split(":")[1])
+            if key.startswith("published:")
+            else systems.get(key, {}).get("stated")
+        )
+        if row:
+            rows.append((label, color, row))
+    limit = 2.6
+    for position, (_, color, row) in zip(range(len(rows) - 1, -1, -1), rows, strict=True):
+        value = row["median_abs_log_error"]
+        axis.barh(position, min(value, limit), color=color, height=0.62, zorder=3)
+        if math.isfinite(value) and "median_abs_log_error" in row.get("ci95", {}):
+            low, high = row["ci95"]["median_abs_log_error"]
+            axis.plot([low, min(high, limit)], [position] * 2, color="#111111", lw=1.1, zorder=4)
+        correlation = row["pearson_log"]
+        note = f"{value:.2f}" if math.isfinite(value) else "most answers unusable"
+        if correlation is not None:
+            note += f"   r = {correlation:.2f}"
+        axis.text(min(value, limit) + 0.04, position, note, va="center", fontsize=7.6, zorder=5)
+    noise = result["executors"][primary["scored_against"]]["retest_ceiling_abs_log_error"]
+    axis.axvline(math.log(2), color="#2a9d8f", lw=1.0, ls="--", zorder=2)
+    axis.text(math.log(2) + 0.02, len(rows) - 0.45, "factor of 2", fontsize=7, color="#1b7f79")
+    axis.axvline(noise, color="#555555", lw=0.9, ls=":", zorder=2)
+    axis.text(noise + 0.02, -0.75, "run-to-run noise", fontsize=7, color="#555555")
+    axis.set(
+        yticks=range(len(rows) - 1, -1, -1),
+        yticklabels=[label for label, _, _ in rows],
+        xlim=(0, limit + 0.75),
+        ylim=(-0.95, len(rows) - 0.2),
+        xlabel="Median absolute log error (0 is exact; lower is better), with 95% interval",
+        title="(b) Size of the typical miss, and r on log durations",
+    )
+    axis.grid(axis="y", visible=False)
+    fig.suptitle(
+        "MetaTime single-turn benchmark (68 tasks): how well each system predicts its own time "
+        "before starting",
+        y=1.02,
+        fontsize=10.5,
+        fontweight="bold",
+    )
+    _save(fig, directory / "F9-metatime-head-to-head.png")
+
+
 def calibration_and_uncertainty(extra: dict, directory: Path):
     """F6: X1 fresh-trajectory conformal interval calibration + X8 pass@1 reliability."""
     _style()
@@ -989,3 +1123,4 @@ def make_figures(root):
         deployment(x10, directory, tasks_by_id=tasks_by_id, priors=priors, cpu_card=cpu_card)
     if priors is not None:
         real_hardware(root, directory, priors)
+    head_to_head(root, directory)

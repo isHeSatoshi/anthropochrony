@@ -8,6 +8,7 @@ without any benchmark task text.
 import argparse
 import csv
 import json
+import math
 import re
 import statistics
 from pathlib import Path
@@ -87,6 +88,49 @@ def static_baselines(pool, tasks, card):
     return out
 
 
+def pool_validation(data, pool):
+    """Checks on held-out pool prompts, made before the fine-tuned model saw a benchmark task."""
+    val = [row for row in pool if row["split"] == "val"]
+    by_id = {row["id"]: row for row in val}
+    out = {
+        "prompts": len(val),
+        "retest_ceiling_abs_log_error": metatime.retest_ceiling([row["tokens"] for row in val]),
+        "estimators": {},
+        "length_drift": {},
+    }
+    for path in sorted(data.glob("val-est-*.jsonl")):
+        rows = read_jsonl(path)
+        card = next(row for row in rows if row["kind"] == "card")
+        actual = [row["n_in"] / card["P"] + row["n_out"] / card["S"] for row in val]
+        scored = {}
+        for variant in sorted({row["variant"] for row in rows if row["kind"] == "estimate"}):
+            answers = {
+                row["task"]: parse_answer(row["answer"])
+                for row in rows
+                if row["kind"] == "estimate" and row["variant"] == variant
+            }
+            if all(row["id"] in answers for row in val):
+                scored[variant] = metatime.metrics(
+                    [answers[row["id"]]["seconds"] for row in val], actual
+                )
+        for name, estimate in static_baselines(pool, val, card).items():
+            scored[f"static/{name}"] = metatime.metrics(estimate, actual)
+        out["estimators"][path.stem.removeprefix("val-est-")] = scored
+    # Does the adapter change how long the model's ordinary responses are?
+    for path in sorted(data.glob("val-lengths-*.jsonl")):
+        ratios = [
+            math.log(max(1, row["n_out"]) / max(1.0, by_id[row["id"]]["n_out"]))
+            for row in read_jsonl(path)
+            if row["kind"] == "label" and row["id"] in by_id
+        ]
+        out["length_drift"][path.stem.removeprefix("val-lengths-")] = {
+            "prompts": len(ratios),
+            "median_log_ratio_to_base": statistics.median(ratios),
+            "median_abs_log_ratio_to_base": statistics.median(abs(value) for value in ratios),
+        }
+    return out
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--suite", required=True)
@@ -122,6 +166,26 @@ def main():
                     row["estimate_before_seconds"],
                 ]
             )
+
+    def published_metrics(name, column):
+        rows = list(csv.DictReader((suite / "results" / name).open()))
+        out = {}
+        for model in sorted({row["model"] for row in rows}):
+            scored = [row for row in rows if row["model"] == model and row[column]]
+            out[model] = metatime.metrics(
+                [float(row[column]) for row in scored],
+                [float(row["actual_seconds"]) for row in scored],
+            )
+        return out
+
+    # Other published settings, for context only; none is the declared comparison.
+    published_context = {
+        "single_turn_after_completing": published_metrics(
+            "single_turn.csv", "estimate_after_seconds"
+        ),
+        "short_agentic_before": published_metrics("short_agentic.csv", "estimate_before_seconds"),
+        "long_horizon_before": published_metrics("long_horizon.csv", "estimate_before_seconds"),
+    }
 
     executors, run_rows = {}, []
     for path in sorted(data.glob("time-*.jsonl")):
@@ -173,6 +237,7 @@ def main():
             }
             for model, ref in reference.items()
         },
+        "published_context": published_context,
         "published_trained": PUBLISHED_TABLE_22,
         "executors": {},
         "systems": {},
@@ -302,6 +367,7 @@ def main():
             "median_response_tokens": statistics.median(row["n_out"] for row in pool),
             "manifest": json.loads((data / "pool.manifest.json").read_text())["stats"],
         }
+        out["pool_validation"] = pool_validation(data, pool)
     (results / "metatime.json").write_text(json.dumps(out, indent=2) + "\n")
     for key, system in out["systems"].items():
         for reading in ("stated", "token_reading"):

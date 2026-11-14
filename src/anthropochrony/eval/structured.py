@@ -936,6 +936,32 @@ def x10_hardware_tracking(root: Path, priors: WorkloadPriors) -> dict | None:
     return out
 
 
+def x10_benchmark_metrics(root: Path, priors: WorkloadPriors) -> dict | None:
+    """The real `X10` runs scored with the metrics of the MetaTime benchmark.
+
+    Median estimate/actual ratio, median absolute natural-log error, share within 2x, Pearson r
+    on log durations, rank agreement and mean absolute error in seconds, so these multi-attempt
+    coding runs can be read next to published numbers for frontier models on other tasks.
+    """
+    from anthropochrony.eval import metatime
+
+    out = {}
+    for machine, card_rel in (
+        ("cpu", "data/x10/cpu-speed-card.json"),
+        ("gpu", "data/x10/gpu-deployment-speed-card.json"),
+    ):
+        loaded = x10_predictions(
+            Path(root), priors, f"data/x10/{machine}-deployment.jsonl", card_rel
+        )
+        if loaded is None:
+            continue
+        actual = [p["actual"] for p in loaded[1]]
+        out[machine] = {
+            name: metatime.metrics([p[name] for p in loaded[1]], actual) for name in X10_ESTIMATORS
+        }
+    return out or None
+
+
 def x10_deployment_checks(root: Path, priors: WorkloadPriors, struct_factor: float) -> dict | None:
     """Per-machine diagnostics for the real `X10` runs.
 
@@ -1241,4 +1267,5 @@ def compute_posthoc_bundle(root: Path, resamples: int = 2000) -> dict:
         "x10_gpu_deployment_struct": x10_gpu_deployment_struct(root, priors),
         "x10_hardware_tracking": x10_hardware_tracking(root, priors),
         "x10_deployment_checks": x10_deployment_checks(root, priors, cal.struct_factor),
+        "x10_benchmark_metrics": x10_benchmark_metrics(root, priors),
     } | unit_and_wording_diagnostics(rows)

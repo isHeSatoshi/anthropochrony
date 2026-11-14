@@ -2946,6 +2946,84 @@
       "human_frame_own_time_format_rate": 0.2
     }
   },
+  "x10_benchmark_metrics": {
+    "cpu": {
+      "base_verbal": {
+        "n": 100,
+        "parsed": 99,
+        "median_ratio": 8.641893846526242,
+        "median_abs_log_error": 2.156618225114526,
+        "within_2x": 0.03,
+        "pearson_log": 0.37037959608312016,
+        "pearson_raw": -0.03270973836960915,
+        "spearman": 0.5948812781257656,
+        "ordering_accuracy": 0.6757369614512472,
+        "mae_s": 9236.489707202176
+      },
+      "m1_verbal": {
+        "n": 100,
+        "parsed": 100,
+        "median_ratio": 0.8722396647365578,
+        "median_abs_log_error": 0.6404401725765796,
+        "within_2x": 0.52,
+        "pearson_log": 0.6578425512466849,
+        "pearson_raw": 0.24861057462367805,
+        "spearman": 0.7331532053779424,
+        "ordering_accuracy": 0.7692929292929293,
+        "mae_s": 29.94477020884061
+      },
+      "m1_struct_local": {
+        "n": 100,
+        "parsed": 100,
+        "median_ratio": 0.7284869314710427,
+        "median_abs_log_error": 0.5164038366996511,
+        "within_2x": 0.63,
+        "pearson_log": 0.6752440873619344,
+        "pearson_raw": 0.25881436511471645,
+        "spearman": 0.7397259454647384,
+        "ordering_accuracy": 0.7722222222222223,
+        "mae_s": 19.1176881292786
+      }
+    },
+    "gpu": {
+      "base_verbal": {
+        "n": 100,
+        "parsed": 99,
+        "median_ratio": 47.28774536262545,
+        "median_abs_log_error": 3.8561731096933505,
+        "within_2x": 0.01,
+        "pearson_log": 0.5478154801185456,
+        "pearson_raw": 0.28531346105482713,
+        "spearman": 0.6046516423438204,
+        "ordering_accuracy": 0.6856318284889713,
+        "mae_s": 236.79134667558412
+      },
+      "m1_verbal": {
+        "n": 100,
+        "parsed": 100,
+        "median_ratio": 1.6454796908872982,
+        "median_abs_log_error": 0.5571941464672594,
+        "within_2x": 0.61,
+        "pearson_log": 0.7105343039802913,
+        "pearson_raw": 0.3359242691972836,
+        "spearman": 0.7658940155505678,
+        "ordering_accuracy": 0.787979797979798,
+        "mae_s": 4.777419802949982
+      },
+      "m1_struct_local": {
+        "n": 100,
+        "parsed": 100,
+        "median_ratio": 0.814274503818615,
+        "median_abs_log_error": 0.5469621704674714,
+        "within_2x": 0.6,
+        "pearson_log": 0.697207691644101,
+        "pearson_raw": 0.30607029062437924,
+        "spearman": 0.7530603428126214,
+        "ordering_accuracy": 0.7848484848484848,
+        "mae_s": 3.3606742356695376
+      }
+    }
+  },
   "calendar_unit_sensitivity": {
     "E0": {
       "working_day_mdae_log10": 1.7598203753687292,

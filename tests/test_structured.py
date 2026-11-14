@@ -11,6 +11,7 @@ from anthropochrony.eval.structured import (
     fit_split_conformal,
     hybrid_ensemble_analysis,
     structured_duration,
+    x10_benchmark_metrics,
     x10_gpu_deployment_struct,
     x10_hardware_tracking,
 )
@@ -230,3 +231,31 @@ def test_x10_hardware_tracking_pairs_tasks_and_scores_predicted_speedup(tmp_path
 
 def test_x10_hardware_tracking_needs_both_runs(tmp_path):
     assert x10_hardware_tracking(tmp_path, _priors()) is None
+
+
+def test_x10_benchmark_metrics_use_natural_log_and_count_unparsed_as_misses(tmp_path):
+    (tmp_path / "data/tasks").mkdir(parents=True)
+    tasks = [{"task_id": f"t{i}", "family": "FUNC", "uncached_task_tokens": 100} for i in range(3)]
+    (tmp_path / "data/tasks/tasks.jsonl").write_text("".join(json.dumps(t) + "\n" for t in tasks))
+    rows = [
+        {
+            "task_id": f"t{i}",
+            "family": "FUNC",
+            "base_raw": "no idea" if i == 0 else "About 80 seconds.",
+            "tuned_raw": f"About {seconds} s.",
+            "wall_s": wall_s,
+        }
+        for i, (seconds, wall_s) in enumerate([(20, 10.0), (20, 20.0), (20, 40.0)])
+    ]
+    _write_x10(tmp_path, "cpu-deployment", SpeedCard("demo-llamacpp", 20, 200), rows)
+
+    out = x10_benchmark_metrics(tmp_path, _priors())
+    assert set(out) == {"cpu"}
+    tuned = out["cpu"]["m1_verbal"]
+    assert tuned["median_ratio"] == pytest.approx(1.0)
+    assert tuned["median_abs_log_error"] == pytest.approx(math.log(2))
+    assert tuned["within_2x"] == pytest.approx(1.0)
+    base = out["cpu"]["base_verbal"]
+    assert base["parsed"] == 2
+    assert base["within_2x"] == pytest.approx(1 / 3)
+    assert base["median_abs_log_error"] == pytest.approx(math.log(4))

@@ -121,6 +121,8 @@ def main():
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--replay-tokens", type=int, default=128, help="0 turns replay off")
     parser.add_argument("--replay-batch", type=int, default=4)
+    parser.add_argument("--token-budget", type=int, default=1000, help="rows x tokens per pass")
+    parser.add_argument("--worst-case", action="store_true", help="run the largest batches only")
     parser.add_argument("--load-in-4bit", action="store_true")
     parser.add_argument("--no-thinking", action="store_true")
     parser.add_argument("--max-steps", type=int)
@@ -142,7 +144,8 @@ def main():
             data.append((prompt, completion[: args.replay_tokens]))
     print(
         f"{len(rows)} prompts, {n_estimates} estimate examples, {len(data) - n_estimates} "
-        f"replay examples, median length {statistics.median(len(p) + len(c) for p, c in data)}",
+        f"replay examples, median length {statistics.median(len(p) + len(c) for p, c in data)}, "
+        f"longest {max(len(p) + len(c) for p, c in data)}",
         flush=True,
     )
     print(
@@ -183,7 +186,11 @@ def main():
     optimizer = torch.optim.AdamW(trainable, lr=args.lr, weight_decay=0.01)
 
     # Buckets of similar length keep padding small; bucket order is shuffled every epoch.
-    # Replay examples carry long targets, so they go in their own, smaller batches.
+    def length(i):
+        return len(data[i][0]) + len(data[i][1])
+
+    # Micro-batches of similar length, bounded in rows x tokens so activations fit in GPU
+    # memory. Replay examples carry long targets, so they go in their own, smaller batches.
     def epoch_batches(epoch):
         groups = []
         for kind, (first, last, size) in enumerate(
@@ -193,15 +200,42 @@ def main():
             random.Random(args.seed * 1000 + epoch * 10 + kind).shuffle(order)
             chunk = size * 32
             for start in range(0, len(order), chunk):
-                part = sorted(
-                    order[start : start + chunk], key=lambda i: len(data[i][0]) + len(data[i][1])
-                )
-                groups += [part[i : i + size] for i in range(0, len(part), size)]
+                group = []
+                for i in sorted(order[start : start + chunk], key=length):
+                    if group and (
+                        len(group) >= size or (len(group) + 1) * length(i) > args.token_budget
+                    ):
+                        groups.append(group)
+                        group = []
+                    group.append(i)
+                groups.append(group)
         random.Random(args.seed * 1000 + epoch * 10 + 9).shuffle(groups)
         return groups
 
-    per_epoch = math.ceil(len(epoch_batches(0)) / args.accum)
-    total = per_epoch * args.epochs
+    # One optimizer step per `accum` micro-batches of estimates, whatever their row count.
+    def epoch_steps(epoch):
+        steps, window, rows = [], [], 0
+        for group in epoch_batches(epoch):
+            window.append(group)
+            rows += len(group)
+            if rows >= args.micro_batch * args.accum:
+                steps.append(window)
+                window, rows = [], 0
+        if window:
+            steps.append(window)
+        return steps
+
+    def positions(group):
+        return len(group) * max(length(i) for i in group)
+
+    if args.worst_case:  # memory check: the largest micro-batches of each kind
+        heavy = sorted(epoch_batches(0), key=positions, reverse=True)
+        fitting = [group for group in heavy if positions(group) <= args.token_budget]
+        replay = [group for group in fitting if group[0] >= n_estimates]
+        schedule = [[[group] for group in heavy[:2] + fitting[:2] + replay[:2]]]
+    else:
+        schedule = [epoch_steps(epoch) for epoch in range(args.epochs)]
+    total = sum(len(steps) for steps in schedule)
     if args.max_steps:
         total = min(total, args.max_steps)
     warmup = max(1, round(0.05 * total))
@@ -211,17 +245,27 @@ def main():
             return (step + 1) / warmup
         return 0.5 * (1 + math.cos(math.pi * (step - warmup) / max(1, total - warmup)))
 
+    state = {"checkpointing": False}
+
+    # Activations of a pass over the budget do not fit, so those few long examples trade
+    # speed for memory; everything else runs without checkpointing, about twice as fast.
+    def checkpointing(enabled):
+        if enabled != state["checkpointing"]:
+            if enabled:
+                model.gradient_checkpointing_enable({"use_reentrant": False})
+            else:
+                model.gradient_checkpointing_disable()
+            state["checkpointing"] = enabled
+
     pad = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else 0
     log, step, started = [], 0, time.monotonic()
     model.train()
-    for epoch in range(args.epochs):
-        groups = epoch_batches(epoch)
-        for start in range(0, len(groups), args.accum):
+    for epoch, steps in enumerate(schedule):
+        for window in steps:
             if step >= total:
                 break
             for group in optimizer.param_groups:
                 group["lr"] = args.lr * scale(step)
-            window = groups[start : start + args.accum]
             tokens = sum(len(data[i][1]) for group in window for i in group)
             loss_sum = 0.0
             for group in window:
@@ -239,6 +283,7 @@ def main():
                         completion, device="cuda"
                     )
                 keep = torch.arange(width - answer - 1, width - 1, device="cuda")
+                checkpointing(len(group) * width > args.token_budget)
                 with torch.autocast("cuda", dtype=torch.bfloat16):
                     logits = model(input_ids=ids, attention_mask=mask, logits_to_keep=keep).logits
                 loss = torch.nn.functional.cross_entropy(
@@ -259,9 +304,13 @@ def main():
                 "loss": loss_sum / tokens,
                 "lr": optimizer.param_groups[0]["lr"],
                 "elapsed_s": time.monotonic() - started,
+                "rows": sum(len(group) for group in window),
+                "positions": sum(positions(group) for group in window),
+                "peak_gb": round(torch.cuda.max_memory_allocated() / 1e9, 2),
             }
+            torch.cuda.reset_peak_memory_stats()
             log.append(entry)
-            if step % 10 == 0 or step == 1:
+            if step % 10 == 0 or step <= 5:
                 print(json.dumps(entry), flush=True)
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)

@@ -219,19 +219,24 @@ def main():
     drift = result.get("pool_validation", {}).get("length_drift", {})
     if any(f"{name}/card_description" in systems for name, _ in extra[1:]):
         print(
-            "\n| Adapter (against the untrained model's runs) | From the description: log error | r (log) | Within 2x | From the full prompt: log error | r (log) | Response-length drift |"
+            "\n| Adapter (against the untrained model's runs) | Stated time: log error | r (log) | Within 2x | Stated tokens through the formula: log error | r (log) | Stated time agrees with its own token counts (within 10%) | Full prompt, stated time: log error | Full prompt, tokens through the formula | Response-length drift |"
         )
-        print("|---|---|---|---|---|---|---|")
+        print("|---|---|---|---|---|---|---|---|---|---|")
         for name, label in extra:
-            short = systems.get(f"{name}/card_description", {}).get("stated")
-            full = systems.get(f"{name}/card_full_prompt", {}).get("stated")
-            if not short or not full:
+            short = systems.get(f"{name}/card_description", {})
+            full = systems.get(f"{name}/card_full_prompt", {})
+            if not all("token_reading" in system for system in (short, full)):
                 continue
             shift = drift.get(name.split("@")[0], {}).get("median_log_ratio_to_base")
+            stated, tokens = short["stated"], short["token_reading"]
+            agree = short["stated_time_matches_stated_tokens"]
             print(
-                f"| {label} | {number(short['median_abs_log_error'])} | "
-                f"{number(short['pearson_log'])} | {short['within_2x']:.0%} | "
-                f"{number(full['median_abs_log_error'])} | {number(full['pearson_log'])} | "
+                f"| {label} | {number(stated['median_abs_log_error'])} | "
+                f"{number(stated['pearson_log'])} | {stated['within_2x']:.0%} | "
+                f"{number(tokens['median_abs_log_error'])} | {number(tokens['pearson_log'])} | "
+                f"{agree['within_10_percent']}/{agree['answers']} | "
+                f"{number(full['stated']['median_abs_log_error'])} | "
+                f"{number(full['token_reading']['median_abs_log_error'])} | "
                 f"{'n/a' if shift is None else f'{math.expm1(shift):+.1%}'} |"
             )
 
@@ -246,6 +251,33 @@ def main():
             f"{row['measured_length_through_formula']['median_abs_log_error']:.3f}, speed cards "
             f"{[(round(c['S'], 1), round(c['P'])) for c in row['speed_cards']]}"
         )
+    ranged = [
+        (key, label, systems[key])
+        for key, label in (
+            ("g1-s0/card_description", "G1, benchmark question (primary), its own runs"),
+            ("g1-s0/card_full_prompt", "G1, shown the full prompt, its own runs"),
+            ("g1-s0@base/card_description", "G1, benchmark question, the untrained model's runs"),
+            (
+                "g1-s0@base/card_full_prompt",
+                "G1, shown the full prompt, the untrained model's runs",
+            ),
+        )
+        if "conformal_80" in systems.get(key, {})
+    ]
+    if ranged:
+        print(
+            "\n| Range calibrated on held-out pool prompts (80% target) | Calibration prompts | q (log units) | Range: stated time divided and multiplied by | Benchmark measured times inside | 10-90% range of 16 samples covers |"
+        )
+        print("|---|---|---|---|---|---|")
+        for key, label, system in ranged:
+            row = system["conformal_80"]
+            sampled = systems.get(f"{key}+sampled_median", {}).get("range_80_coverage")
+            print(
+                f"| {label} | {row['calibration_n']} | {number(row['q'])} | "
+                f"{number(row['factor'])}x | {row['coverage']:.0%} | "
+                f"{'n/a' if sampled is None else f'{sampled:.0%}'} |"
+            )
+
     print("\nSampled answers:")
     for key, row in systems.items():
         if "range_80_coverage" in row:

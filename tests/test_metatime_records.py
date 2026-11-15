@@ -76,3 +76,23 @@ def test_records_carry_no_benchmark_task_text():
         }
     for row in _rows("runs.jsonl"):
         assert "text" not in row and "prompt" not in row
+
+
+def test_pool_calibrated_range_coverage_recomputes_from_the_committed_records():
+    result = json.loads(RESULT.read_text())
+    runs = {}
+    for row in _rows("runs.jsonl"):
+        runs.setdefault((row["executor"], row["task"]), []).append(row["wall_s"])
+    estimates = {}
+    for row in _rows("estimates.jsonl"):
+        estimates.setdefault(f"{row['estimator']}/{row['variant']}", []).append(row)
+    ranged = {key: row for key, row in result["systems"].items() if "conformal_80" in row}
+    assert "g1-s0/card_description" in ranged
+    for key, system in ranged.items():
+        rows, calibration = estimates[key], system["conformal_80"]
+        assert calibration["rank"] == 137 and calibration["calibration_n"] == 170
+        actual = [statistics.median(runs[(system["scored_against"], row["task"])]) for row in rows]
+        got = metatime.share_inside(
+            [row["stated_seconds"] for row in rows], actual, calibration["factor"]
+        )
+        assert got == pytest.approx(calibration["coverage"]), key

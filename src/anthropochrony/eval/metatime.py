@@ -154,3 +154,31 @@ def leave_one_out_rescaled(estimate, actual):
         scale = math.exp(float(np.median(np.delete(log_ratio, position[i]))))
         out.append(float(estimate[i] / scale))
     return out
+
+
+def conformal_range(estimate, actual, coverage=0.8):
+    """Split-conformal multiplicative range from calibration pairs.
+
+    The score is the absolute log ratio of estimate to target; `q` is its
+    ceil((n + 1) x coverage)-th smallest value, so a new exchangeable target falls inside
+    estimate / e^q .. estimate x e^q with probability at least `coverage`. An unparsed
+    estimate counts as an infinite score.
+    """
+    scores = sorted(
+        abs(math.log(e / a)) if e is not None and e > 0 else math.inf
+        for e, a in zip(estimate, actual, strict=True)
+    )
+    rank = math.ceil((len(scores) + 1) * coverage)
+    if rank > len(scores) or not math.isfinite(scores[rank - 1]):
+        return None
+    q = scores[rank - 1]
+    return {"calibration_n": len(scores), "rank": rank, "q": q, "factor": math.exp(q)}
+
+
+def share_inside(estimate, actual, factor):
+    """Share of targets within estimate / factor .. estimate x factor; unparsed counts as outside."""
+    inside = [
+        e is not None and e > 0 and e / factor <= a <= e * factor
+        for e, a in zip(estimate, actual, strict=True)
+    ]
+    return sum(inside) / len(inside)

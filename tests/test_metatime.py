@@ -67,3 +67,16 @@ def test_leave_one_out_constant_and_rescaling_use_only_the_other_tasks():
     partial = metatime.leave_one_out_rescaled([3.0, None, 12.0, 24.0, 300.0], actual)
     assert partial[1] is None
     assert [partial[i] for i in (0, 2, 3, 4)] == pytest.approx([1.0, 4.0, 8.0, 100.0])
+
+
+def test_conformal_range_uses_the_finite_sample_rank():
+    # Nine calibration scores ln(1.1) .. ln(1.9): rank ceil(10 x 0.8) = 8 picks ln(1.8).
+    actual = [10.0] * 9
+    estimate = [10.0 * (1 + k / 10) for k in range(1, 10)]
+    estimate[0] = 10.0 / 1.1  # the score is symmetric in the direction of the miss
+    row = metatime.conformal_range(estimate, actual)
+    assert row["calibration_n"] == 9 and row["rank"] == 8
+    assert row["factor"] == pytest.approx(1.8)
+    assert metatime.conformal_range([10.0] * 3, [10.0] * 3) is None  # rank 4 of 3
+    assert metatime.conformal_range([None] * 3 + estimate, [10.0] * 3 + actual) is None
+    assert metatime.share_inside([10.0, 10.0, None, 10.0], [18.0, 19.0, 10.0, 5.6], 1.8) == 0.5

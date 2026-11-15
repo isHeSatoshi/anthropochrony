@@ -263,7 +263,7 @@ At the slowest speed `G1`'s stated time loses its ranking (r = 0.31) while the t
 it states, put through the formula, keeps its accuracy (0.31). This is the same division
 weakness the main study found, and the same remedy.
 
-### Uncertainty from sampling
+### A range around each estimate
 
 Asking 16 times and taking the 10th to 90th percentile of the answers gives a range that is
 too narrow:
@@ -277,6 +277,52 @@ Sampled answers:
 For the primary question the range covers 50% of measured times where a calibrated one
 would cover 80%. The median of the 16 answers ranks tasks slightly better (r = 0.83) but
 runs lower (0.64x), so its error is higher than the single answer's.
+
+After seeing that, we added one more range. Its rule was written into the preregistration
+log and pushed before it was computed (entry of 2026-11-15), but after the benchmark
+estimates existed, so it is post-hoc. The rule is split-conformal calibration on the 170
+held-out pool prompts: take `G1`'s absolute log error on each of them, find the 137th
+smallest (the 80% level for 170 prompts), and call it `q`. Every benchmark estimate then
+gets the range from the stated time divided by `e^q` to the stated time multiplied by
+`e^q`. No benchmark outcome enters the rule.
+
+| Range calibrated on held-out pool prompts (80% target) | Calibration prompts | q (log units) | Range: stated time divided and multiplied by | Benchmark measured times inside | 10-90% range of 16 samples covers |
+|---|---|---|---|---|---|
+| G1, benchmark question (primary), its own runs | 170 | 0.92 | 2.52x | 93% | 50% |
+| G1, shown the full prompt, its own runs | 170 | 0.63 | 1.88x | 85% | 57% |
+| G1, benchmark question, the untrained model's runs | 170 | 0.92 | 2.52x | 93% | n/a |
+| G1, shown the full prompt, the untrained model's runs | 170 | 0.63 | 1.88x | 82% | n/a |
+
+From the description, the range is the stated time divided and multiplied by 2.52, and 93%
+of the benchmark's measured times are inside it. That is more than the 80% aimed for, so on
+this suite the range is wider than it needs to be. From the full prompt the factor is 1.88
+and 85% are inside (82% against the untrained model's runs). For scale, the edge of this
+range (2.52x from the stated time) is closer than the typical miss of the frontier models'
+point estimates (3.47x and 2.87x). The guarantee behind split-conformal ranges assumes the
+benchmark tasks resemble the calibration prompts, which they do not exactly, so the 93% and
+85% are observations on 68 tasks, not guarantees.
+
+### More seeds and smaller training sets
+
+The amendment of 2026-11-14 also declared, to run if time allowed, two more seeds of the
+same recipe and adapters trained on 450 and 150 of the 1,353 training prompts. Each is
+scored against the untrained model's runs, because timing every adapter's own runs would
+not fit in the time left. The first row is the primary adapter scored the same way.
+
+| Adapter (against the untrained model's runs) | Stated time: log error | r (log) | Within 2x | Stated tokens through the formula: log error | r (log) | Stated time agrees with its own token counts (within 10%) | Full prompt, stated time: log error | Full prompt, tokens through the formula | Response-length drift |
+|---|---|---|---|---|---|---|---|---|---|
+| G1 seed 0 (1,353 prompts) | 0.37 | 0.80 | 79% | 0.38 | 0.80 | 68/68 | 0.33 | 0.33 | +0.5% |
+| 150 prompts, seed 0 | 2.95 | -0.06 | 3% | 0.64 | 0.45 | 0/68 | 4.25 | 0.67 | -1.6% |
+
+With 150 training prompts the adapter answers in the right format, but none of its 68
+stated times agrees with its own token counts. For example it states about 220 response
+tokens and 0.256 seconds at 35 tokens a second, where the formula gives 6.4 seconds. Its
+stated time is therefore useless (2.95), while the token count it states, put through the
+formula, scores 0.64 with a correlation of 0.45. The model learns roughly how much it will
+write from little data and learns the division later. This is the division weakness of
+section 7.3 of the write-up again, and the reason the main study's structured
+variant computes the time outside the model. Seeds 1 and 2 and the 450-prompt adapter were
+still training when this page was last updated.
 
 ### The timed runs
 
@@ -300,19 +346,22 @@ Held-out pool prompts (170; run-to-run abs. log error 0.107):
 
 | Estimator | Median estimate/actual | Median abs. log error | r (log) | Within 2x | Parsed | 10-90% range of the samples covers |
 |---|---|---|---|---|---|---|
+| g1-n150/card_description | 0.08x | 2.53 | 0.11 | 7% | 170/170 |  |
+| g1-n150/card_full_prompt | 0.03x | 3.51 | 0.20 | 5% | 170/170 |  |
+| static/pool_median_constant | 0.94x | 0.56 | n/a | 56% | 170/170 |  |
+| static/text_regressor_description | 0.80x | 0.57 | 0.32 | 61% | 170/170 |  |
+| static/embedding_regressor_description | 0.83x | 0.48 | 0.45 | 66% | 170/170 |  |
+| static/text_regressor_full | 0.90x | 0.36 | 0.52 | 73% | 170/170 |  |
+| static/embedding_regressor_full | 0.87x | 0.49 | 0.53 | 67% | 170/170 |  |
 | g1-s0/card_description | 0.98x | 0.38 | 0.42 | 69% | 170/170 |  |
 | g1-s0/card_description+sampled_median | 0.88x | 0.43 | 0.49 | 71% | 170/170 | 62% |
 | g1-s0/card_full_prompt | 0.88x | 0.32 | 0.68 | 82% | 170/170 |  |
 | g1-s0/card_full_prompt+sampled_median | 0.88x | 0.32 | 0.77 | 84% | 170/170 | 62% |
-| static/pool_median_constant | 0.94x | 0.56 | n/a | 56% | 170/170 |  |
-| static/text_regressor_description | 0.81x | 0.56 | 0.32 | 61% | 170/170 |  |
-| static/embedding_regressor_description | 0.83x | 0.48 | 0.45 | 66% | 170/170 |  |
-| static/text_regressor_full | 0.90x | 0.35 | 0.53 | 73% | 170/170 |  |
-| static/embedding_regressor_full | 0.87x | 0.48 | 0.53 | 68% | 170/170 |  |
 | untrained/card_description | 11.33x | 2.44 | 0.11 | 1% | 170/170 |  |
 | untrained/card_fewshot | 0.43x | 1.16 | 0.22 | 36% | 170/170 |  |
 
 Response length on the held-out pool prompts, against the untrained model:
+- g1-n150: response length vs untrained -1.6% (median), median abs. log ratio 0.143
 - g1-s0: response length vs untrained +0.5% (median), median abs. log ratio 0.145
 
 Row names are estimator/question: `card_description` is the benchmark question with the
@@ -354,7 +403,9 @@ models and machines differ, so the seconds are not comparable (our runs have a m
   machine. The gain over that number is in ranking and in not needing the outcomes.
 - **The adapter adds little over a probe** when both see the full prompt.
 - **Estimates run short**, at a median of 0.74x of the measured time.
-- **The sampled range is too narrow** (50% coverage for a nominal 80%).
+- **The sampled range is too narrow** (50% coverage for a nominal 80%). The range
+  calibrated on held-out training prompts, added afterwards, covers 93% but is wide: a
+  factor of 2.52 each way.
 - **In-prompt examples did not work** for the untrained model.
 - **One training seed** in the rows above.
 - **68 tasks, one model, one GPU, single-turn only.** The benchmark's agentic and

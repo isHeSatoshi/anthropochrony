@@ -207,7 +207,9 @@ def pool_validation(data, pool, parse):
                 if row["kind"] == "estimate" and row["variant"] == variant
             }
             if all(row["id"] in answers for row in val):
-                scored[variant] = metatime.metrics([answers[row["id"]] for row in val], actual)
+                stated = [answers[row["id"]] for row in val]
+                scored[variant] = metatime.metrics(stated, actual)
+                scored[variant]["conformal_80"] = metatime.conformal_range(stated, actual)
             reading = sampled_reading(rows, variant, [row["id"] for row in val], parse)
             if reading:
                 scored[f"{variant}+sampled_median"] = {
@@ -368,7 +370,7 @@ def main():
             "measured_length_through_formula": metatime.metrics(formula, executor["actual"]),
         }
 
-    estimate_rows, stated_by_key = [], {}
+    estimate_rows, stated_by_key, actual_by_key = [], {}, {}
     for path in sorted(data.glob("est-*.jsonl")):
         name = path.stem.removeprefix("est-")
         rows = read_jsonl(path)
@@ -433,6 +435,7 @@ def main():
                 )
             key = f"{name}/{variant}"
             stated_by_key[key] = stated
+            actual_by_key[key] = actual
             out["systems"][key] = {
                 "scored_against": target,
                 "stated_speed": {"S": card["S"], "P": card["P"]},
@@ -445,6 +448,17 @@ def main():
             }
             if any(value is not None for value in tokens):
                 out["systems"][key]["token_reading"] = system_row(tokens, actual, reference)
+                # Does the stated time equal the answer's own token counts at the stated speed?
+                gaps = [
+                    abs(math.log(time / count))
+                    for time, count in zip(stated, tokens, strict=True)
+                    if time and count
+                ]
+                out["systems"][key]["stated_time_matches_stated_tokens"] = {
+                    "answers": len(gaps),
+                    "within_10_percent": sum(gap < math.log(1.1) for gap in gaps),
+                    "median_abs_log_gap": statistics.median(gaps) if gaps else None,
+                }
             if reading:
                 out["systems"][f"{key}+sampled_median"] = {
                     "scored_against": target,
@@ -524,6 +538,22 @@ def main():
             "manifest": json.loads((data / "pool.manifest.json").read_text())["stats"],
         }
         out["pool_validation"] = pool_validation(data, pool, parse)
+        # A range calibrated on held-out pool prompts only, then checked on the benchmark.
+        for key, stated in stated_by_key.items():
+            name, variant = key.split("/")
+            calibration = (
+                out["pool_validation"]["estimators"]
+                .get(name.split("@")[0], {})
+                .get(variant, {})
+                .get("conformal_80")
+            )
+            if calibration and not out["systems"][key]["replayed_at_stated_speed"]:
+                out["systems"][key]["conformal_80"] = {
+                    **calibration,
+                    "coverage": metatime.share_inside(
+                        stated, actual_by_key[key], calibration["factor"]
+                    ),
+                }
     (results / "metatime.json").write_text(json.dumps(out, indent=2) + "\n")
     for key, system in out["systems"].items():
         for reading in ("stated", "token_reading"):

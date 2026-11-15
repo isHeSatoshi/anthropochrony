@@ -13,7 +13,10 @@ closer on 62 and 61 of the 68 tasks. It is not better at ranking tasks than Clau
 (correlation 0.78 against 0.81), and it needs the machine's speed stated in the prompt. A
 second adapter, trained for this one machine and asked with no speed at all, exactly as the
 frontier models were, scores 0.42 (76% within 2x), or 0.40 (82% within 2x) against its own
-timed runs. The section "What this does not show" lists every caveat we know of.
+timed runs. Two more training seeds of the first adapter score 0.43 and 0.50, so the primary
+seed is the best of three; each of the three is closer than both frontier models, with
+paired intervals that exclude zero. The section "What this does not show" lists every
+caveat we know of.
 
 ![Head-to-head on MetaTime](../paper/figures/F9-metatime-head-to-head.png)
 
@@ -398,16 +401,25 @@ not fit in the time left. The first row is the primary adapter scored the same w
 |---|---|---|---|---|---|---|---|---|---|
 | G1 seed 0 (1,353 prompts) | 0.37 | 0.80 | 79% | 0.38 | 0.80 | 68/68 | 0.33 | 0.33 | +0.5% |
 | Seed 1 (1,353 prompts) | 0.43 | 0.76 | 71% | 0.43 | 0.76 | 68/68 | 0.39 | 0.39 | +0.0% |
+| Seed 2 (1,353 prompts) | 0.50 | 0.78 | 75% | 0.50 | 0.77 | 67/68 | 0.38 | 0.38 | +1.7% |
 | 450 prompts, seed 0 | 0.41 | 0.64 | 78% | 0.42 | 0.64 | 68/68 | 0.34 | 0.32 | +0.0% |
 | 150 prompts, seed 0 | 2.95 | -0.06 | 3% | 0.64 | 0.45 | 0/68 | 4.25 | 0.67 | -1.6% |
 
-**A second seed is a little worse and still far ahead.** Seed 1 scores 0.43 (r = 0.76, 71%
-within 2x) where seed 0 scores 0.37 on the same runs. Its error is lower than GPT-5.5's by
-0.82 (paired 95% interval 0.60 to 1.02) and Claude Opus 4.8's by 0.63 (0.44 to 0.74). On
-the held-out pool prompts it scores 0.49 from the description, against 0.38 for seed 0. So
-the gap between two seeds is about 0.05 on the benchmark, and differences of that size
-between our own rows should not be read as real. Seed 2 was still training when this page
-was last updated.
+**Three seeds: 0.37, 0.43 and 0.50.** Seed 0 is the primary adapter. It was fixed before
+any result, and it turned out to be the best of the three. Against the same runs, seeds 1
+and 2 score 0.43 and 0.50 (71% and 75% within 2x), so the average over seeds is 0.43, and
+that is the fairer number for what the recipe gives. Ranking is steady across seeds (r =
+0.80, 0.76, 0.78) and so is the error from the full prompt (0.33, 0.39, 0.38). The seeds
+differ mostly in scale: their median estimate/actual ratios are 0.78x, 0.69x and 0.63x, so
+the weaker seeds run shorter. On the held-out pool prompts they score 0.38, 0.49 and 0.42
+from the description, which is a different order, so that check would not have told us
+which seed to prefer.
+
+Every seed is still far closer than the frontier models. The weakest, seed 2, has an error
+lower than GPT-5.5's by 0.74 (paired 95% interval 0.59 to 0.95) and lower than Claude Opus
+4.8's by 0.55 (0.38 to 0.68), and is closer on 61 and 58 of the 68 tasks. For seed 1 the
+differences are 0.82 (0.60 to 1.02) and 0.63 (0.44 to 0.74). Differences of about 0.1
+between our own rows should not be read as real.
 
 **450 prompts are nearly enough.** With a third of the training pool the error is 0.41
 against 0.37, and 78% of estimates are within 2x. Ranking is weaker (r = 0.64 against
@@ -467,6 +479,8 @@ Held-out pool prompts (170; run-to-run abs. log error 0.107):
 | g1-n450/card_full_prompt | 1.00x | 0.35 | 0.63 | 76% | 170/170 |  |
 | g1-s1/card_description | 0.99x | 0.49 | 0.41 | 66% | 170/170 |  |
 | g1-s1/card_full_prompt | 0.93x | 0.31 | 0.69 | 84% | 170/170 |  |
+| g1-s2/card_description | 1.04x | 0.42 | 0.44 | 71% | 170/170 |  |
+| g1-s2/card_full_prompt | 0.84x | 0.36 | 0.70 | 73% | 170/170 |  |
 | untrained/card_description | 11.33x | 2.44 | 0.11 | 1% | 170/170 |  |
 | untrained/card_fewshot | 0.43x | 1.16 | 0.22 | 36% | 170/170 |  |
 
@@ -476,6 +490,7 @@ Response length on the held-out pool prompts, against the untrained model:
 - g1-n450: response length vs untrained +0.0% (median), median abs. log ratio 0.134
 - g1-s0: response length vs untrained +0.5% (median), median abs. log ratio 0.145
 - g1-s1: response length vs untrained +0.0% (median), median abs. log ratio 0.157
+- g1-s2: response length vs untrained +1.7% (median), median abs. log ratio 0.150
 
 Row names are estimator/question: `card_description` is the benchmark question with the
 description and the stated speed, `card_full_prompt` shows the whole prompt, `+sampled_median`
@@ -524,8 +539,10 @@ models and machines differ, so the seconds are not comparable (our runs have a m
   calibrated on held-out training prompts, added afterwards, covers 93% but is wide: a
   factor of 2.52 each way.
 - **In-prompt examples did not work** for the untrained model.
-- **One training seed** in the main rows. A second seed of the same recipe scores 0.43
-  where the first scores 0.37 (see "More seeds and smaller training sets").
+- **The primary seed is the best of three.** Against the same runs, seeds 0, 1 and 2 of
+  `G1` score 0.37, 0.43 and 0.50, an average of 0.43. The primary row uses seed 0, which
+  was fixed before any result, and it came out on the favourable side. `G1-fixed` and the
+  smaller training sets have one seed each.
 - **68 tasks, one model, one GPU, single-turn only.** The benchmark's agentic and
   long-horizon suites were not run.
 - **The frontier rows are the artifact's published numbers.** We did not rerun those models.
@@ -570,7 +587,7 @@ python $X/probe.py --model $M --suite $SUITE --pool $D/pool.jsonl --labels $D/po
 python $X/train.py --model $M --pool $D/pool.jsonl --labels $D/pool-labels.jsonl --output adapters/g1-fixed --fixed-speed 34 5700
 python $X/estimate.py --model $M --adapter adapters/g1-fixed --executor base --suite $SUITE --out "$D/est-g1-fixed@base.jsonl" --variants protocol plain_full_prompt
 python $X/time_runs.py --model $M --adapter adapters/g1-fixed --merge --suite $SUITE --out $D/time-g1-fixed.jsonl --runs 3
-# more seeds and smaller training sets: add --seed 1 or --train-prompts 450 to train.py, then
+# more seeds and smaller training sets: add --seed 1 (or 2) or --train-prompts 450 (or 150) to train.py, then
 python $X/estimate.py --model $M --adapter adapters/g1-s1 --executor base --suite $SUITE --out "$D/est-g1-s1@base.jsonl" --variants card_description card_full_prompt
 ```
 

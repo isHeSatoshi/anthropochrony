@@ -62,7 +62,7 @@ All fine-tuned numbers come from **one training seed (`S0`)** across **93 unseen
 
 ### Public benchmark head-to-head
 
-On the 68 single-turn tasks of the MetaTime benchmark, with the benchmark's own question, parser and metrics and rules committed before the first run, a separate adapter trained the same way on public prompts (`G1`) has a median absolute natural-log error of `0.38` against its own measured time. The published self-estimates of GPT-5.5 and Claude Opus 4.8 score `1.24` and `1.06` against theirs. `G1` is told its machine's speed; a second adapter trained for one machine and asked with no speed, as the frontier models were, scores `0.42`. [`docs/METATIME.md`](METATIME.md) has the protocol, every control row, and the list of what this comparison does not show.
+On the 68 single-turn tasks of the MetaTime benchmark, with the benchmark's own question, parser and metrics and rules committed before the first run, a separate adapter trained the same way on public prompts (`G1`) has a median absolute natural-log error of `0.38` against its own measured time. The published self-estimates of GPT-5.5 and Claude Opus 4.8 score `1.24` and `1.06` against theirs. `G1` is told its machine's speed; a second adapter trained for one machine and asked with no speed, as the frontier models were, scores `0.42` (`0.40` against its own timed runs). [`docs/METATIME.md`](METATIME.md) has the protocol, every control row, and the list of what this comparison does not show.
 
 ## Limitations & negative results (read before using any number above)
 

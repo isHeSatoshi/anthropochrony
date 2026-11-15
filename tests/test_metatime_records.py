@@ -21,6 +21,19 @@ def _rows(name):
     return [json.loads(line) for line in (RECORDS / name).read_text().splitlines() if line]
 
 
+def _estimates():
+    """Answers by system key. An adapter asked with no stated speed gives one set of answers,
+    recorded once under `<name>@base` and also scored against the adapter's own runs."""
+    estimates = {}
+    for row in _rows("estimates.jsonl"):
+        estimates.setdefault(f"{row['estimator']}/{row['variant']}", []).append(row)
+    for key in list(estimates):
+        name, _, variant = key.partition("/")
+        if name.endswith("@base"):
+            estimates.setdefault(f"{name.removesuffix('@base')}/{variant}", estimates[key])
+    return estimates
+
+
 def test_published_rows_recompute_from_the_committed_reference():
     result = json.loads(RESULT.read_text())
     with (RECORDS / "reference-published.csv").open(encoding="utf-8") as handle:
@@ -42,11 +55,13 @@ def test_our_rows_recompute_from_the_committed_records():
     runs = {}
     for row in _rows("runs.jsonl"):
         runs.setdefault((row["executor"], row["task"]), []).append(row["wall_s"])
-    estimates = {}
-    for row in _rows("estimates.jsonl"):
-        estimates.setdefault(f"{row['estimator']}/{row['variant']}", []).append(row)
-    measured = [key for key in estimates if not result["systems"][key]["replayed_at_stated_speed"]]
-    assert measured
+    estimates = _estimates()
+    measured = [
+        key
+        for key in estimates
+        if key in result["systems"] and not result["systems"][key]["replayed_at_stated_speed"]
+    ]
+    assert "g1-s0/card_description" in measured and "g1-fixed/protocol" in measured
     for key in measured:
         system, rows = result["systems"][key], estimates[key]
         assert len(rows) == 68
@@ -83,9 +98,7 @@ def test_pool_calibrated_range_coverage_recomputes_from_the_committed_records():
     runs = {}
     for row in _rows("runs.jsonl"):
         runs.setdefault((row["executor"], row["task"]), []).append(row["wall_s"])
-    estimates = {}
-    for row in _rows("estimates.jsonl"):
-        estimates.setdefault(f"{row['estimator']}/{row['variant']}", []).append(row)
+    estimates = _estimates()
     ranged = {key: row for key, row in result["systems"].items() if "conformal_80" in row}
     assert "g1-s0/card_description" in ranged
     for key, system in ranged.items():

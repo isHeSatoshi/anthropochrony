@@ -1,9 +1,9 @@
 """Anthropochrony demo: a small model that knows how long its own answers take.
 
-Two llama.cpp servers run on this Space's CPU: the untrained Tiny Aya Global and the same
-model with the G1 adapter merged in (both 4-bit GGUF). The app measures this machine's
-speed, asks both models how long a task will take, then runs the task on the untrained
-model and times it, the same setup as the benchmark head-to-head. The second tab shows the
+Two llama.cpp servers run on this machine's CPU: the untrained Tiny Aya Global and the same
+model with the G1-kit adapter (built with CuratorKIT and AlignTune) merged in, both 4-bit
+GGUF. The app measures the G1-kit model's speed, asks both models how long a task will take,
+then runs the task on the G1-kit model and times it, as in the benchmark head-to-head. The second tab shows the
 benchmark results from the repository's committed records.
 
 GGUF quantization and the CPU change the numbers; the benchmark results are for bf16 on a
@@ -23,8 +23,8 @@ import gradio as gr
 
 HERE = Path(__file__).resolve().parent
 LLAMA = Path(os.environ.get("LLAMA_DIR", "/opt/llama"))
-GGUF_REPO = "isHeSatoshi/anthropochrony-tiny-aya-global-g1-gguf"
-MODELS = {"base": ("base-q4_k_m.gguf", 8091), "g1": ("g1-s0-q4_k_m.gguf", 8092)}
+GGUF_REPO = "isHeSatoshi/anthropochrony-tiny-aya-global-g1-kit-gguf"
+MODELS = {"base": ("base-q4_k_m.gguf", 8091), "g1": ("g1-kit-q4_k_m.gguf", 8092)}
 THREADS = int(os.environ.get("THREADS", os.cpu_count() or 2))
 MAX_RUN_TOKENS = int(os.environ.get("MAX_RUN_TOKENS", 768))
 REPO = "https://github.com/isHeSatoshi/anthropochrony"
@@ -127,18 +127,18 @@ def plain(value):
 
 
 def measure_speed():
-    """Decode and prompt speed of the untrained model on this machine (median of 3)."""
+    """Decode and prompt speed of the G1-kit model on this machine (median of 3)."""
     decode, prefill = [], []
     filler = "The quick brown fox jumps over the lazy dog. " * 60
     for _ in range(3):
         _, reply, _ = chat(
-            "base",
+            "g1",
             [{"role": "user", "content": "Count from 1 to 200, one number per line."}],
             128,
         )
         decode.append(reply["timings"]["predicted_per_second"])
         _, reply, _ = chat(
-            "base",
+            "g1",
             [{"role": "user", "content": filler + f"\nReply with the single word OK. ({_})"}],
             4,
         )
@@ -188,9 +188,9 @@ def estimate(task, S, P):
 def run_task(task, estimates):
     if not task.strip():
         raise gr.Error("Type a task first.")
-    # The benchmark runs: the untrained model, its card's sampling settings.
+    # As in the benchmark's timed runs: G1-kit does the task, with the model card's sampling.
     text, reply, wall = chat(
-        "base", [{"role": "user", "content": task.strip()}], MAX_RUN_TOKENS, 0.1, 0.95
+        "g1", [{"role": "user", "content": task.strip()}], MAX_RUN_TOKENS, 0.1, 0.95
     )
     tokens = reply["timings"]["predicted_n"]
     capped = reply["choices"][0].get("finish_reason") == "length"
@@ -199,7 +199,7 @@ def run_task(task, estimates):
         lines.append(
             f"The answer hit this demo's {MAX_RUN_TOKENS}-token cap, so the real time is longer."
         )
-    for label, key in (("Untrained Tiny Aya", "untrained"), ("Tiny Aya + G1", "g1")):
+    for label, key in (("Untrained Tiny Aya", "untrained"), ("Tiny Aya + G1-kit", "g1")):
         guess = (estimates or {}).get(key)
         if guess:
             lines.append(
@@ -257,8 +257,8 @@ def build():
         with gr.Tab("Try it on this Space"):
             gr.Markdown(
                 "1. Measure this machine's speed. 2. Ask the untrained model and the model with "
-                "our G1 adapter how long a task will take. 3. Run the task on the untrained model "
-                "and time it (that is whose time both were asked about, as on the benchmark).\n\n"
+                "our G1-kit adapter how long a task will take. 3. Run the task on the G1-kit model "
+                "and time it (its answers are as long as the untrained model's).\n\n"
                 "*Runs on a shared CPU with 4-bit models, so it is slow and noisy, and the numbers "
                 "are an illustration. The benchmark numbers (next tab) are bf16 on a GPU.*"
             )
@@ -273,7 +273,7 @@ def build():
             ask = gr.Button("2. Ask both models how long it will take", variant="primary")
             with gr.Row():
                 base_answer = gr.Textbox(label="Untrained Tiny Aya says")
-                g1_answer = gr.Textbox(label="Tiny Aya + G1 says")
+                g1_answer = gr.Textbox(label="Tiny Aya + G1-kit says")
             guesses = gr.State({})
             note = gr.Markdown()
             ask.click(
@@ -283,7 +283,7 @@ def build():
             )
             go = gr.Button("3. Run the task and time it")
             verdict = gr.Markdown()
-            response = gr.Textbox(label="The untrained model's response", lines=10)
+            response = gr.Textbox(label="The G1-kit model's response", lines=10)
             go.click(run_task, inputs=[task, guesses], outputs=[response, verdict])
         with gr.Tab("Benchmark results"):
             gr.Markdown(
@@ -314,21 +314,22 @@ def build():
             category = gr.Dropdown(categories, value="all", label="Category")
             table = gr.Dataframe(
                 task_rows(tasks, "all"),
-                headers=["Task", "Category", "GPT-5.5", "Claude Opus 4.8", "Tiny Aya + G1"],
+                headers=["Task", "Category", "GPT-5.5", "Claude Opus 4.8", "Tiny Aya + G1-kit"],
                 interactive=False,
             )
             category.change(lambda c: task_rows(tasks, c), inputs=category, outputs=table)
         with gr.Tab("About"):
             gr.Markdown(
-                "The G1 adapter was trained on how long the untrained model's own answers were "
-                "to 1,353 public prompts (Dolly-15k, CodeAlpaca-20k, no_robots, GSM8K and 100 "
-                "coding tasks), each shown with a stated machine speed. It answers with the "
+                "The G1-kit adapter was trained with AlignTune on how long the untrained model's "
+                "own answers were to the 1,342 public prompts that passed CuratorKIT (Dolly-15k, "
+                "CodeAlpaca-20k, no_robots, GSM8K and 100 coding tasks), each shown with a stated "
+                "machine speed. It answers with the "
                 "work first and the time second, for example `Prompt: about 380 tokens. "
                 "Response: about 300 tokens. Time: 9.2 seconds`.\n\n"
                 "- Models: https://huggingface.co/isHeSatoshi\n"
                 f"- Code, rules declared before the first run, and the write-up: {REPO}\n"
                 "- Base model: CohereLabs/tiny-aya-global (CC-BY-NC-4.0). This demo and the "
-                "adapters are non-commercial."
+                "adapter are non-commercial."
             )
     return demo
 

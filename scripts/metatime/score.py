@@ -32,6 +32,14 @@ from sklearn.linear_model import RidgeCV
 
 # Questions asked without a stated speed (see VARIANTS in estimate.py).
 UNSTATED = {"protocol", "plain_full_prompt"}
+# The untrained model and the adapter built by the CuratorKIT -> AlignTune pipeline.
+SUBMITTED = ("untrained", "base", "g1-kit")
+
+
+def submitted(name, kept=SUBMITTED):
+    """Whether an estimate, run or check file belongs to a scored system (`name@speed` too)."""
+    return name.split("@")[0] in kept
+
 
 PUBLISHED_TABLE_22 = {
     "source": "MetaTime Appendix C, Table 22 (Qwen3-8B, 68 held-out single-turn tasks, before generating)",
@@ -187,7 +195,7 @@ def range_coverage(reading, actual):
     return sum(inside) / len(inside)
 
 
-def pool_validation(data, pool, parse):
+def pool_validation(data, pool, parse, kept=SUBMITTED):
     """Checks on held-out pool prompts, made before the fine-tuned model saw a benchmark task."""
     val = [row for row in pool if row["split"] == "val"]
     by_id = {row["id"]: row for row in val}
@@ -198,6 +206,8 @@ def pool_validation(data, pool, parse):
         "length_drift": {},
     }
     for path in sorted(data.glob("val-est-*.jsonl")):
+        if not submitted(path.stem.removeprefix("val-est-"), kept):
+            continue
         rows = read_jsonl(path)
         card = next(row for row in rows if row["kind"] == "card")
         actual = [row["n_in"] / card["P"] + row["n_out"] / card["S"] for row in val]
@@ -224,6 +234,8 @@ def pool_validation(data, pool, parse):
         out["estimators"][path.stem.removeprefix("val-est-")] = scored
     # Does the adapter change how long the model's ordinary responses are?
     for path in sorted(data.glob("val-lengths-*.jsonl")):
+        if not submitted(path.stem.removeprefix("val-lengths-"), kept):
+            continue
         ratios = [
             math.log(max(1, row["n_out"]) / max(1.0, by_id[row["id"]]["n_out"]))
             for row in read_jsonl(path)
@@ -242,7 +254,14 @@ def main():
     parser.add_argument("--suite", required=True)
     parser.add_argument("--data", default="data/metatime")
     parser.add_argument("--results", default="results")
+    parser.add_argument(
+        "--systems",
+        nargs="+",
+        default=list(SUBMITTED),
+        help="estimators and executors to score, by file name (default: untrained and G1-kit)",
+    )
     args = parser.parse_args()
+    kept = tuple(args.systems)
     data, results = Path(args.data), Path(args.results)
     records = results / "metatime"
     records.mkdir(parents=True, exist_ok=True)
@@ -298,6 +317,8 @@ def main():
     executors, run_rows = {}, []
     for path in sorted(data.glob("time-*.jsonl")):
         name = path.stem.removeprefix("time-")
+        if not submitted(name, kept):
+            continue
         runs, cards = load_runs(path)
         if not all(task in runs for task in order):
             continue
@@ -375,6 +396,8 @@ def main():
     estimate_rows, stated_by_key, actual_by_key = [], {}, {}
     for path in sorted(data.glob("est-*.jsonl")):
         name = path.stem.removeprefix("est-")
+        if not submitted(name, kept):
+            continue
         rows = read_jsonl(path)
         card = next(row for row in rows if row["kind"] == "card")
         target = "base" if card["executor"] == "base" else name.split("@")[0]
@@ -553,7 +576,7 @@ def main():
             "median_response_tokens": statistics.median(row["n_out"] for row in pool),
             "manifest": json.loads((data / "pool.manifest.json").read_text())["stats"],
         }
-        out["pool_validation"] = pool_validation(data, pool, parse)
+        out["pool_validation"] = pool_validation(data, pool, parse, kept)
         # A range calibrated on held-out pool prompts only, then checked on the benchmark.
         for key, stated in stated_by_key.items():
             name, variant = key.split("/")

@@ -7,17 +7,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(__file__).resolve().parent / "data"
-PRIMARY = "g1-s0/card_description"
+PRIMARY = "g1-kit/card_description"
 ROWS = {
     "GPT-5.5 (published)": ("published", "gpt-5.5"),
     "Claude Opus 4.8 (published)": ("published", "claude-opus-4-8"),
     "Tiny Aya, untrained, told its speed": ("systems", "untrained/card_description"),
-    "Tiny Aya + G1 adapter, told its speed": ("systems", PRIMARY),
-    "Tiny Aya + G1-fixed, told nothing": ("systems", "g1-fixed@base/protocol"),
-    "Tiny Aya + G1-kit (CuratorKIT -> AlignTune), told its speed": (
-        "systems",
-        "g1-kit@base/card_description",
-    ),
+    "Tiny Aya + G1-kit (CuratorKIT -> AlignTune), told its speed": ("systems", PRIMARY),
 }
 
 
@@ -48,10 +43,10 @@ def main():
         name = "gpt55" if row["model"] == "gpt-5.5" else "opus48"
         task[f"{name}_estimate_s"] = float(row["estimate_before_seconds"])
         task[f"{name}_actual_s"] = float(row["actual_seconds"])
-    runs = {}
+    runs, executor = {}, results["systems"][PRIMARY]["scored_against"]
     for line in (records / "runs.jsonl").open():
         run = json.loads(line)
-        if run["executor"] == "base":
+        if run["executor"] == executor:
             runs.setdefault(run["task"], []).append(run["wall_s"])
     for line in (records / "estimates.jsonl").open():
         row = json.loads(line)

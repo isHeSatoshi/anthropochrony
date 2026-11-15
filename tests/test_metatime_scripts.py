@@ -93,7 +93,7 @@ def test_report_prints_the_declared_rows_from_the_results_file(capsys, monkeypat
     report.main()
     printed = capsys.readouterr().out
     result = json.loads(RESULT.read_text())
-    primary = result["systems"]["g1-s0/card_description"]["stated"]
-    assert f"| **Tiny Aya + G1 (primary)** | {primary['median_ratio']:.2f}x |" in printed
+    primary = result["systems"]["g1-kit/card_description"]["stated"]
+    assert f"| **Tiny Aya + G1-kit (primary)** | {primary['median_ratio']:.2f}x |" in printed
     assert "| GPT-5.5 (published) |" in printed and "| Claude Opus 4.8 (published) |" in printed
-    assert "| **Tiny Aya + G1 (primary)** vs Claude Opus 4.8 |" in printed
+    assert "| **Tiny Aya + G1-kit (primary)** vs Claude Opus 4.8 |" in printed

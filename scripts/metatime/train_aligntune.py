@@ -1,6 +1,6 @@
 """AlignTune stage: LoRA fine-tuning of the self-time adapter on the CuratorKIT-passed pool.
 
-The examples are the ones `train.py` builds for `G1` (same questions, stated speeds, task
+The examples are the ones `train.py` builds (same questions, stated speeds, task
 views, phrasings and answer format, drawn with the same seeds per prompt), restricted to
 the prompts that passed `curate.py`. The replay examples, which keep the adapter's ordinary
 answers unchanged, use the model's complete measured response, ending with its own

@@ -19,7 +19,7 @@ def test_head_to_head_figure_is_drawn_from_committed_records(tmp_path):
     frontier = [value * 3 for value in actual]
     (records / "runs.jsonl").write_text(
         "".join(
-            json.dumps({"executor": "g1-s0", "task": task, "run": run, "wall_s": seconds}) + "\n"
+            json.dumps({"executor": "g1-kit", "task": task, "run": run, "wall_s": seconds}) + "\n"
             for task, seconds in zip(tasks, actual, strict=True)
             for run in range(2)
         )
@@ -28,7 +28,7 @@ def test_head_to_head_figure_is_drawn_from_committed_records(tmp_path):
         "".join(
             json.dumps(
                 {
-                    "estimator": "g1-s0",
+                    "estimator": "g1-kit",
                     "variant": "card_description",
                     "task": task,
                     "stated_seconds": seconds,
@@ -47,9 +47,12 @@ def test_head_to_head_figure_is_drawn_from_committed_records(tmp_path):
     (records / "reference-published.csv").write_text("\n".join(lines) + "\n")
     result = {
         "published": {model: _system(frontier, actual) for model in ("gpt-5.5", "claude-opus-4-8")},
-        "executors": {"g1-s0": {"retest_ceiling_abs_log_error": 0.05}},
+        "executors": {"g1-kit": {"retest_ceiling_abs_log_error": 0.05}},
         "systems": {
-            "g1-s0/card_description": {"scored_against": "g1-s0", "stated": _system(ours, actual)},
+            "g1-kit/card_description": {
+                "scored_against": "g1-kit",
+                "stated": _system(ours, actual),
+            },
             # An estimator whose answers mostly cannot be read still gets a row.
             "untrained/protocol": {
                 "scored_against": "base",

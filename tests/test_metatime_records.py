@@ -61,7 +61,7 @@ def test_our_rows_recompute_from_the_committed_records():
         for key in estimates
         if key in result["systems"] and not result["systems"][key]["replayed_at_stated_speed"]
     ]
-    assert "g1-s0/card_description" in measured and "g1-fixed/protocol" in measured
+    assert "g1-kit/card_description" in measured and "g1-kit@base/card_description" in measured
     for key in measured:
         system, rows = result["systems"][key], estimates[key]
         assert len(rows) == 68
@@ -100,7 +100,7 @@ def test_pool_calibrated_range_coverage_recomputes_from_the_committed_records():
         runs.setdefault((row["executor"], row["task"]), []).append(row["wall_s"])
     estimates = _estimates()
     ranged = {key: row for key, row in result["systems"].items() if "conformal_80" in row}
-    assert "g1-s0/card_description" in ranged
+    assert "g1-kit/card_description" in ranged
     for key, system in ranged.items():
         rows, calibration = estimates[key], system["conformal_80"]
         assert calibration["rank"] == 137 and calibration["calibration_n"] == 170
@@ -123,7 +123,7 @@ def test_auditkit_report_matches_the_committed_records():
     estimates = _estimates()
     for arm, key in (
         ("untrained", "untrained/card_description"),
-        ("g1-kit", "g1-kit/card_description"),
+        ("g1-kit", "g1-kit@base/card_description"),
     ):
         stated = {row["task"]: row["stated_seconds"] for row in estimates[key]}
         per_task = {row["task"]: row for row in audit[arm]["per_task"]}

@@ -17,7 +17,7 @@ import numpy as np
 from common import ROOT, read_jsonl
 
 NAME = "F9-metatime-head-to-head.png"
-PRIMARY = "g1-s0/card_description"
+PRIMARY = "g1-kit/card_description"
 GREY, PINK, TEAL, DARK_TEAL = "#9e9e9e", "#c2185b", "#2a9d8f", "#0b5d56"
 # (key in results/metatime.json, label, colour); "published:" rows come from the artifact.
 ROWS = [
@@ -29,9 +29,8 @@ ROWS = [
     ("static/pool_median_constant", "One constant (no model)", "#8d6e63"),
     ("static/text_regressor_description", "Text regressor (no model)", "#37474f"),
     ("probe/question", "Probe on hidden state", "#7b5ea7"),
-    ("g1-s0/protocol", "G1, no speed stated", "#2f6db5"),
-    ("g1-fixed@base/protocol", "G1-fixed, no speed stated (ours)", TEAL),
-    (PRIMARY, "Tiny Aya + G1, speed stated (ours)", DARK_TEAL),
+    ("g1-kit/protocol", "G1-kit, no speed stated", "#2f6db5"),
+    (PRIMARY, "Tiny Aya + G1-kit, speed stated (ours)", DARK_TEAL),
 ]
 
 
@@ -114,7 +113,7 @@ def head_to_head(root: Path, directory: Path):
         s=22,
         color=DARK_TEAL,
         alpha=0.85,
-        label=f"Tiny Aya + G1 (ours): {primary['stated']['within_2x']:.0%} within 2×",
+        label=f"Tiny Aya + G1-kit (ours): {primary['stated']['within_2x']:.0%} within 2×",
         zorder=4,
     )
     axis.set(

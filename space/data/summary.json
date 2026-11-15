@@ -36,39 +36,15 @@
     "pearson_log": 0.411
   },
   {
-    "system": "Tiny Aya + G1 adapter, told its speed",
-    "typical_factor_off": 1.46,
-    "median_abs_log_error": 0.377,
-    "ci95": [
-      0.32,
-      0.45
-    ],
-    "within_2x": 0.794,
-    "median_estimate_over_actual": 0.742,
-    "pearson_log": 0.783
-  },
-  {
-    "system": "Tiny Aya + G1-fixed, told nothing",
-    "typical_factor_off": 1.52,
-    "median_abs_log_error": 0.419,
-    "ci95": [
-      0.37,
-      0.468
-    ],
-    "within_2x": 0.765,
-    "median_estimate_over_actual": 0.741,
-    "pearson_log": 0.766
-  },
-  {
     "system": "Tiny Aya + G1-kit (CuratorKIT -> AlignTune), told its speed",
-    "typical_factor_off": 1.57,
-    "median_abs_log_error": 0.454,
+    "typical_factor_off": 1.55,
+    "median_abs_log_error": 0.439,
     "ci95": [
-      0.372,
-      0.591
+      0.377,
+      0.507
     ],
-    "within_2x": 0.765,
-    "median_estimate_over_actual": 0.687,
-    "pearson_log": 0.749
+    "within_2x": 0.721,
+    "median_estimate_over_actual": 0.726,
+    "pearson_log": 0.708
   }
 ]

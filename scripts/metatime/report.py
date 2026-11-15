@@ -19,50 +19,24 @@ ROWS = [
     ("static/text_regressor_description", "TF-IDF regressor on the description", "stated"),
     ("static/embedding_regressor_description", "Sentence-encoder regressor, description", "stated"),
     ("probe/question", "Linear probe on the untrained hidden state", "stated"),
-    ("g1-s0/card_description", "**Tiny Aya + G1 (primary)**", "stated"),
-    ("g1-s0/card_description", "G1, stated tokens through the speed formula", "token_reading"),
-    ("g1-s0/card_description+sampled_median", "G1, median of 16 sampled answers", "stated"),
-    ("g1-s0/card_paper_wording", "G1, the paper's question wording", "stated"),
-    ("g1-s0/protocol", "G1, no speed stated", "stated"),
-    ("g1-s0/card_full_prompt", "G1, shown the full prompt", "stated"),
-    ("g1-s0@base/card_description", "G1 predicting the untrained model's runs", "stated"),
-    ("g1-s0@base/card_full_prompt", "G1, full prompt, the untrained model's runs", "stated"),
-    ("g1-fixed@base/protocol", "G1-fixed, no speed stated (the untrained model's runs)", "stated"),
-    ("g1-fixed/protocol", "G1-fixed, no speed stated (its own runs, adapter merged)", "stated"),
-    (
-        "g1-fixed@base/plain_full_prompt",
-        "G1-fixed, no speed stated, full prompt (the untrained model's runs)",
-        "stated",
-    ),
-    (
-        "g1-fixed/plain_full_prompt",
-        "G1-fixed, no speed stated, full prompt (its own runs, adapter merged)",
-        "stated",
-    ),
-    (
-        "g1-kit@base/card_description",
-        "G1-kit, CuratorKIT -> AlignTune (the untrained model's runs)",
-        "stated",
-    ),
-    (
-        "g1-kit@base/card_full_prompt",
-        "G1-kit, full prompt (the untrained model's runs)",
-        "stated",
-    ),
+    ("g1-kit/card_description", "**Tiny Aya + G1-kit (primary)**", "stated"),
+    ("g1-kit/card_description", "G1-kit, stated tokens through the speed formula", "token_reading"),
+    ("g1-kit/card_description+sampled_median", "G1-kit, median of 16 sampled answers", "stated"),
+    ("g1-kit/card_paper_wording", "G1-kit, the paper's question wording", "stated"),
+    ("g1-kit/protocol", "G1-kit, no speed stated", "stated"),
+    ("g1-kit/card_full_prompt", "G1-kit, shown the full prompt", "stated"),
+    ("g1-kit@base/card_description", "G1-kit predicting the untrained model's runs", "stated"),
+    ("g1-kit@base/card_full_prompt", "G1-kit, full prompt, the untrained model's runs", "stated"),
     ("static/text_regressor_full", "TF-IDF regressor on the full prompt", "stated"),
     ("static/embedding_regressor_full", "Sentence-encoder regressor, full prompt", "stated"),
     ("probe/task", "Linear probe, state before answering the full prompt", "stated"),
 ]
-EXECUTORS = {
-    "base": "untrained model",
-    "g1-s0": "fine-tuned model (G1)",
-    "g1-fixed": "G1-fixed, adapter merged into the weights",
-}
+EXECUTORS = {"base": "untrained model", "g1-kit": "fine-tuned model (G1-kit, adapter unmerged)"}
 SAMPLED = {
-    "card_description": "G1, benchmark question (primary)",
-    "card_full_prompt": "G1, shown the full prompt",
-    "card_paper_wording": "G1, the paper's question wording",
-    "protocol": "G1, no speed stated",
+    "card_description": "G1-kit, benchmark question (primary)",
+    "card_full_prompt": "G1-kit, shown the full prompt",
+    "card_paper_wording": "G1-kit, the paper's question wording",
+    "protocol": "G1-kit, no speed stated",
 }
 
 
@@ -152,10 +126,8 @@ def main():
         (label, systems[key]["stated"])
         for key, label in (
             ("untrained/card_description", "Tiny Aya, untrained, speed stated"),
-            ("g1-s0/card_description", "**Tiny Aya + G1 (primary)**"),
-            ("g1-s0/card_full_prompt", "G1, shown the full prompt"),
-            ("g1-fixed@base/protocol", "G1-fixed, no speed stated (the untrained model's runs)"),
-            ("g1-fixed/protocol", "G1-fixed, no speed stated (its own runs, adapter merged)"),
+            ("g1-kit/card_description", "**Tiny Aya + G1-kit (primary)**"),
+            ("g1-kit/card_full_prompt", "G1-kit, shown the full prompt"),
         )
         if key in systems
     ]
@@ -184,8 +156,8 @@ def main():
 
     shown = [(label, result["published"][model]) for model, label in PUBLISHED.items()]
     for key, label in (
-        ("g1-s0/card_description", "Tiny Aya + G1"),
-        ("g1-s0@base/card_description", "G1 predicting the untrained model's runs"),
+        ("g1-kit/card_description", "Tiny Aya + G1-kit"),
+        ("g1-kit@base/card_description", "G1-kit predicting the untrained model's runs"),
     ):
         if key in systems:
             shown.append((label, systems[key]["stated"]))
@@ -204,10 +176,14 @@ def main():
             print(f"| {label} | {cells} |")
 
     # The same question with other speeds stated, per estimator, slowest machine first.
-    measured = {"g1-s0/card_description": "G1", "untrained/card_description": "Untrained"}
+    measured = {"g1-kit/card_description": "G1-kit", "untrained/card_description": "Untrained"}
     sweep = sorted(
         (
-            (measured.get(key) or ("G1" if key.startswith("g1-s0@") else "Untrained"), key, row)
+            (
+                measured.get(key) or ("G1-kit" if key.startswith("g1-kit@") else "Untrained"),
+                key,
+                row,
+            )
             for key, row in systems.items()
             if row.get("replayed_at_stated_speed") or key in measured
         ),
@@ -236,19 +212,15 @@ def main():
                 )
             )
 
-    # More adapters of the same recipe, each scored against the untrained model's runs.
+    # Stated time against stated tokens, and response-length drift, per scoring target.
     extra = [
-        ("g1-s0@base", "G1 seed 0 (1,353 prompts)"),
-        ("g1-s1@base", "Seed 1 (1,353 prompts)"),
-        ("g1-s2@base", "Seed 2 (1,353 prompts)"),
-        ("g1-n450@base", "450 prompts, seed 0"),
-        ("g1-n150@base", "150 prompts, seed 0"),
-        ("g1-kit@base", "G1-kit: CuratorKIT -> AlignTune (1,342 prompts), seed 0"),
+        ("g1-kit", "G1-kit, its own runs"),
+        ("g1-kit@base", "G1-kit, the untrained model's runs"),
     ]
     drift = result.get("pool_validation", {}).get("length_drift", {})
-    if any(f"{name}/card_description" in systems for name, _ in extra[1:]):
+    if any(f"{name}/card_description" in systems for name, _ in extra):
         print(
-            "\n| Adapter (against the untrained model's runs) | Stated time: log error | r (log) | Within 2x | Stated tokens through the formula: log error | r (log) | Stated time agrees with its own token counts (within 10%) | Full prompt, stated time: log error | Full prompt, tokens through the formula | Response-length drift |"
+            "\n| Adapter | Stated time: log error | r (log) | Within 2x | Stated tokens through the formula: log error | r (log) | Stated time agrees with its own token counts (within 10%) | Full prompt, stated time: log error | Full prompt, tokens through the formula | Response-length drift |"
         )
         print("|---|---|---|---|---|---|---|---|---|---|")
         for name, label in extra:
@@ -283,22 +255,15 @@ def main():
     ranged = [
         (key, label, systems[key])
         for key, label in (
-            ("g1-s0/card_description", "G1, benchmark question (primary), its own runs"),
-            ("g1-s0/card_full_prompt", "G1, shown the full prompt, its own runs"),
-            ("g1-s0@base/card_description", "G1, benchmark question, the untrained model's runs"),
+            ("g1-kit/card_description", "G1-kit, benchmark question (primary), its own runs"),
+            ("g1-kit/card_full_prompt", "G1-kit, shown the full prompt, its own runs"),
             (
-                "g1-s0@base/card_full_prompt",
-                "G1, shown the full prompt, the untrained model's runs",
+                "g1-kit@base/card_description",
+                "G1-kit, benchmark question, the untrained model's runs",
             ),
-            ("g1-fixed@base/protocol", "G1-fixed, no speed stated, the untrained model's runs"),
             (
-                "g1-fixed@base/plain_full_prompt",
-                "G1-fixed, no speed stated, full prompt, the untrained model's runs",
-            ),
-            ("g1-fixed/protocol", "G1-fixed, no speed stated, its own runs (adapter merged)"),
-            (
-                "g1-fixed/plain_full_prompt",
-                "G1-fixed, no speed stated, full prompt, its own runs (adapter merged)",
+                "g1-kit@base/card_full_prompt",
+                "G1-kit, shown the full prompt, the untrained model's runs",
             ),
         )
         if "conformal_80" in systems.get(key, {})
@@ -337,7 +302,7 @@ def main():
         print("|---|---|---|---|---|---|---|")
         seen = set()
         # The rows that never ask the model are listed once, on the primary adapter's targets.
-        ordered = sorted(check["estimators"].items(), key=lambda item: item[0] != "g1-s0")
+        ordered = sorted(check["estimators"].items(), key=lambda item: item[0] != "g1-kit")
         for name, rows in ordered:
             for key, row in rows.items():
                 label = key if key.startswith("static/") else f"{name}/{key}"

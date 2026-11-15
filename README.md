@@ -22,7 +22,7 @@ There is now a public test for it. MetaTime, a paper under review at ICLR 2027, 
 
 We took `CohereLabs/tiny-aya-global`, an open model with 3.35 billion parameters, and measured how long its own answers were on 1,353 ordinary public prompts. The track's three libraries then built one small adapter (a LoRA, 121 MB) from those measurements: CuratorKIT cleaned the data, AlignTune trained the adapter and AuditKIT tested it. We wrote the rules down and pushed them before running anything: all 68 tasks, the benchmark's own question and scoring, and no benchmark task anywhere in training. Then we told the model the measured speed of our graphics card, asked, and timed its real runs.
 
-| Estimating its own time | Typically off by | Within 2x of the real time |
+| Estimating its own time | Typically off by (lower is better, 1x is perfect) | Within 2x of the real time (higher is better) |
 |---|--:|--:|
 | GPT-5.5 (published) | 3.5x | 12% |
 | Claude Opus 4.8 (published) | 2.9x | 25% |

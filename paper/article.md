@@ -137,7 +137,7 @@ Each metric compares an estimate $\hat t$ with the measured time $t$ (median of 
 
 ### 7.1 Before and after, against the frontier models
 
-| System | Estimate/actual | Median abs. log error [95% CI] | Factor off | r (log) | Within 2x |
+| System | Estimate/actual (1x is ideal) | Median abs. log error [95% CI] (lower is better) | Factor off (lower is better) | r (log) (higher is better) | Within 2x (higher is better) |
 |---|--:|--:|--:|--:|--:|
 | GPT-5.5 (published) | 3.47x | 1.24 [1.10, 1.42] | 3.47x | 0.55 | 12% |
 | Claude Opus 4.8 (published) | 2.87x | 1.06 [0.90, 1.14] | 2.87x | 0.81 | 25% |

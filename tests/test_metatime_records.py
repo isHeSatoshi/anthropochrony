@@ -5,9 +5,8 @@ import json
 import statistics
 from pathlib import Path
 
+import metrics
 import pytest
-
-from anthropochrony.eval import metatime
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULT = ROOT / "results/metatime.json"
@@ -42,7 +41,7 @@ def test_published_rows_recompute_from_the_committed_reference():
     for model, expected in result["published"].items():
         mine = [row for row in rows if row["model"] == model]
         assert len(mine) == 68
-        got = metatime.metrics(
+        got = metrics.metrics(
             [float(row["estimate_before_seconds"]) for row in mine],
             [float(row["actual_seconds"]) for row in mine],
         )
@@ -66,7 +65,7 @@ def test_our_rows_recompute_from_the_committed_records():
         system, rows = result["systems"][key], estimates[key]
         assert len(rows) == 68
         actual = [statistics.median(runs[(system["scored_against"], row["task"])]) for row in rows]
-        got = metatime.metrics([row["stated_seconds"] for row in rows], actual)
+        got = metrics.metrics([row["stated_seconds"] for row in rows], actual)
         for name in CHECKED:
             assert got[name] == pytest.approx(system["stated"][name]), (key, name)
 
@@ -105,7 +104,7 @@ def test_pool_calibrated_range_coverage_recomputes_from_the_committed_records():
         rows, calibration = estimates[key], system["conformal_80"]
         assert calibration["rank"] == 137 and calibration["calibration_n"] == 170
         actual = [statistics.median(runs[(system["scored_against"], row["task"])]) for row in rows]
-        got = metatime.share_inside(
+        got = metrics.share_inside(
             [row["stated_seconds"] for row in rows], actual, calibration["factor"]
         )
         assert got == pytest.approx(calibration["coverage"]), key

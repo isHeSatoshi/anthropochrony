@@ -1,7 +1,7 @@
 """Build the training pool for the single-turn self-time adapter from public instruction data.
 
-The pool is a fixed stratified sample of four public datasets plus this project's own
-train-split coding tasks. No MetaTime task is in it: prompts that resemble any of the 68
+The pool is a fixed stratified sample of four public datasets plus 100 train-split coding tasks
+of this project's earlier dataset. No MetaTime task is in it: prompts that resemble any of the 68
 benchmark tasks (TF-IDF cosine at or above the threshold) are removed before any run.
 """
 
@@ -108,7 +108,11 @@ def _normal(text):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--suite", required=True)
-    parser.add_argument("--tasks", default="data/tasks/tasks.jsonl")
+    parser.add_argument(
+        "--tasks",
+        required=True,
+        help="tasks.jsonl of the project's earlier coding-task dataset (100 train tasks are used)",
+    )
     parser.add_argument("--out", default="data/metatime/pool.jsonl")
     args = parser.parse_args()
 

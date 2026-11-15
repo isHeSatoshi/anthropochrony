@@ -1,51 +1,31 @@
-[build-system]
-requires = ["hatchling==1.27.0"]
-build-backend = "hatchling.build"
-
 [project]
 name = "anthropochrony"
-version = "0.1.0"
-description = "Measured, speed-conditioned completion-time prediction for Tiny Aya."
+version = "0.2.0"
+description = "A small model taught to estimate its own running time, scored on the public MetaTime benchmark."
 requires-python = ">=3.12,<3.13"
 license = "Apache-2.0"
+# CPU side only: scoring, tables, figure and tests. The GPU scripts (training, timed runs,
+# estimates) also need PyTorch and peft; see docs/METATIME.md.
 dependencies = [
   "PyYAML==6.0.3",
   "numpy==2.4.6",
-  "scipy>=1.15,<2",
-  "pandas>=2.2,<4",
-  "pyarrow>=24,<25",
   "scikit-learn>=1.6,<2",
   "matplotlib>=3.10,<4",
-  "datasketch>=1.6,<2",
+  "pandas>=2.2,<4",
+  "pyarrow>=24,<25",
   "huggingface-hub==2.4.0",
-  "curatorkit==0.1.23",
-  "auditkit==1.1.6",
   "transformers==5.21.1",
-  "jinja2==3.1.6",
   "onnxruntime>=1.24,<2",
 ]
-
-[project.optional-dependencies]
-stack = [
-  "torch==2.13.0", "transformers==5.21.1", "trl==1.7.1",
-  "peft==0.21.2", "aligntune==0.1.32",
-  "auditkit[transformers,lmeval,interop]==1.1.6",
-  "sentence-transformers>=5,<6",
-]
-demo = ["gradio>=6,<7"]
 
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.14,<1", "nbclient>=0.10,<1", "ipykernel>=6,<8"]
 
-[project.scripts]
-anthropochrony = "anthropochrony.cli:main"
+[tool.uv]
+package = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = [
-  "security: real bubblewrap/cgroup isolation tests",
-  "release_data: needs the released research data (scripts/fetch_release.py)",
-]
 
 [tool.ruff]
 target-version = "py312"

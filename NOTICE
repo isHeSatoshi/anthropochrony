@@ -1,9 +1,9 @@
 Anthropochrony
 
-The CodeContests output-comparison routine in sandbox/worker.py is ported from:
-Google DeepMind, code_contests, execution/tester_sandboxer.cc,
-commit fa7a4f8139aab08362503f3344778eb86901709a (Apache License 2.0).
-https://github.com/google-deepmind/code_contests
+Model weights, datasets and third-party libraries have their own licenses; see the
+"Models" and "Datasets" sections of paper/article.md and the dataset cards on the
+Hugging Face Hub.
 
-Model weights, benchmark statements, and third-party libraries have separate
-licenses. See docs/HACKATHON_REQUIREMENTS.md and per-row dataset provenance.
+The MetaTime benchmark tasks are not redistributed here: its public artifact carries no
+license. The scripts download it, and the committed records hold task ids and numbers only
+(docs/METATIME.md).

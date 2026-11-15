@@ -6,9 +6,6 @@ __pycache__/
 .coverage
 .ipynb_checkpoints/
 data/
-results/analysis_rows.jsonl
-results/*.manifest.json
-results/gates/*.manifest.json
 adapters/
 models/
 pins/
@@ -16,3 +13,6 @@ artifacts/
 *.egg-info/
 .env
 *.log
+
+# The first study is kept locally only; it is in the git history up to aa450e4.
+legacy/

@@ -1,8 +1,8 @@
 # Head-to-head on a public benchmark (MetaTime)
 
-The rest of this project measures self-time estimates on its own coding tasks. This page
-answers a different question: on a benchmark we did not build, against the best published
-numbers, does the method still work?
+The first study of this project ([`legacy/`](../legacy/README.md)) measures self-time
+estimates on its own coding tasks. This page answers a different question: on a benchmark we
+did not build, against the best published numbers, does the method still work?
 
 **Short answer.** Yes, on the measure we declared in advance. On all 68 single-turn tasks,
 Tiny Aya (3.35B) with one new adapter estimates its own running time with a median absolute
@@ -34,9 +34,9 @@ committed records contain task ids, numbers and our model's answers, but no task
 
 ## Protocol
 
-Everything below was written into `docs/PREREGISTRATION.md` (section 7, entries of
+Everything below was written into `legacy/docs/PREREGISTRATION.md` (section 7, entries of
 2026-11-14) and pushed before any estimate of ours existed on the benchmark. The whole
-head-to-head came after the main study, so within this project it is exploratory work with
+head-to-head came after the first study, so within this project it is exploratory work with
 a protocol fixed in advance, not part of the original registered plan.
 
 | Item | Choice |
@@ -319,7 +319,7 @@ The same question was asked again with four other speeds in the system prompt. W
 have those machines, so the targets are the measured runs replayed through the speed
 formula (prompt tokens / reading speed + response tokens / writing speed). This checks
 whether the estimate follows the stated speed, not whether it is right on real hardware of
-that speed; sections 7.3 and 7.7 of the write-up do the latter for the main study.
+that speed; sections 7.3 and 7.7 of the write-up do the latter for the first study.
 
 | Estimator | Stated speed (tokens/s writing, reading) | Median target (s) | Median estimate (s) | Median estimate/actual | Median abs. log error | r (log) | Within 2x | Tokens through the formula | Stated writing speed vs this machine | Estimate vs its estimate at this machine's speed (median per task) |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -343,7 +343,7 @@ accurate (8 tokens a second) is a coincidence of scale.
 
 At the slowest speed `G1`'s stated time loses its ranking (r = 0.31) while the token count
 it states, put through the formula, keeps its accuracy (0.31). This is the same division
-weakness the main study found, and the same remedy.
+weakness the first study found, and the same remedy.
 
 ### A range around each estimate
 
@@ -555,19 +555,21 @@ models and machines differ, so the seconds are not comparable (our runs have a m
 - `results/metatime/estimates.jsonl`: every answer of ours with the time read from it. An answer that quotes a benchmark task is scored but not written out.
 - `results/metatime/reference-published.csv`: the artifact's per-task times and estimates for the two frontier models, as downloaded.
 - `results/metatime/pool-labels.jsonl`: the training pool's ids, sources and measured response lengths.
-- `tests/test_metatime_records.py` and the last cell of `notebooks/reproduce_results.ipynb` recompute the table rows from these records.
+- `tests/test_metatime_records.py` and `notebooks/benchmark_head_to_head.ipynb` recompute the table rows from these records.
 
 The adapters are not uploaded yet; each is 121 MB and can be retrained with the commands below.
 
 ## Reproduce
 
-Scoring runs on CPU in the project environment. It downloads the benchmark artifact once:
+Scoring runs on CPU in the pinned environment of the repository root. It downloads the
+benchmark artifact once:
 
 ```bash
+uv sync --locked
 . ./env.sh
 uv run python scripts/metatime/score.py --suite /path/to/metatime-artifact   # needs data/metatime/ for a full rescore
 uv run python scripts/metatime/report.py                                     # prints the tables on this page
-uv run anthropochrony plots                                                  # redraws F9
+uv run python scripts/metatime/figure.py                                     # redraws the figure
 ```
 
 The GPU steps need PyTorch, `transformers` and `peft`, which the pinned project environment
@@ -575,7 +577,7 @@ does not have. With such an environment active, from the repository root, on one
 
 ```bash
 M=CohereLabs/tiny-aya-global; D=data/metatime; SUITE=/path/to/metatime-artifact; X=scripts/metatime
-python $X/build_pool.py --suite $SUITE --out $D/pool.jsonl                      # training pool; drops look-alikes of benchmark tasks
+python $X/build_pool.py --suite $SUITE --out $D/pool.jsonl                      # training pool; drops look-alikes of benchmark tasks; reads the first study's legacy/data/tasks/tasks.jsonl
 python $X/gen_labels.py --model $M --pool $D/pool.jsonl --out $D/pool-labels.jsonl   # the model's own response lengths, 3 passes
 python $X/train.py --model $M --pool $D/pool.jsonl --labels $D/pool-labels.jsonl --output adapters/g1-s0
 python $X/estimate.py --model $M --adapter adapters/g1-s0 --executor adapter --suite $SUITE --out $D/est-g1-s0.jsonl --samples 16

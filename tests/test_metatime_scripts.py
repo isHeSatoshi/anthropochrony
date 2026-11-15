@@ -5,15 +5,13 @@ import math
 import sys
 from pathlib import Path
 
+import common
 import pytest
+import report
+import score
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/metatime"))
-
-import common  # noqa: E402
-import report  # noqa: E402
-import score  # noqa: E402
-
-RESULT = Path(__file__).resolve().parents[1] / "results/metatime.json"
+ROOT = Path(__file__).resolve().parents[1]
+RESULT = ROOT / "results/metatime.json"
 
 
 def test_answer_text_round_trips_through_the_parser():

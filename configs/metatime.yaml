@@ -1,0 +1,33 @@
+# Settings shared by the benchmark scripts. The speed profiles, the held-out speed band and
+# the seven speed-line phrasings were fixed in this project's earlier study and are used
+# here unchanged.
+
+# Deployment profiles a stated speed is drawn from in training: writing speed in tokens/s,
+# and the ratio of reading speed to writing speed.
+profiles:
+  cpu: {S: [2, 25], ratio: [4, 15]}
+  edge_gpu: {S: [20, 120], ratio: [20, 300]}
+  dc_gpu: {S: [60, 400], ratio: [50, 300]}
+  asic: {S: [400, 2500], ratio: [10, 40]}
+# Writing speeds that training never states.
+heldout_decode_band: [150, 260]
+
+# One-line statements of the machine's speed. Training uses sc01-sc06; every estimate we
+# report uses sc07, which training never shows.
+speed_lines:
+  sc01: 'Your serving speed: you write about {S} tokens per second and read about {P} prompt tokens per second.'
+  sc02: 'Throughput on this deployment: {S} output tokens/s, {P} input tokens/s.'
+  sc03: 'You are running on hardware that generates about {S} tokens/s (prompt processing about {P} tokens/s).'
+  sc04: 'Speed: decode {S} tok/s; prefill {P} tok/s.'
+  sc05: 'This server streams your replies at roughly {S} tokens a second and reads prompts at about {P} tokens a second.'
+  sc06: 'Measured speed for you here: {S_per_min} output tokens per minute and {P} input tokens per second.'
+  sc07: 'Benchmark for this deployment: {S} tokens/sec generation, {P} tokens/sec prompt.'
+
+# Frozen sentence encoder for the no-model text baselines.
+embedding:
+  repo: BAAI/bge-small-en-v1.5
+  revision: 5c38ec7c405ec4b44b94cc5a9bb96e735b38267a
+  onnx_file: onnx/model.onnx
+  pooling: cls_l2_normalized
+  max_length: 512
+  batch_size: 16

@@ -14,8 +14,8 @@ import statistics
 from pathlib import Path
 from typing import Optional
 
+import metrics
 import numpy as np
-import yaml
 from common import (
     ROOT,
     fetch_suite,
@@ -23,13 +23,12 @@ from common import (
     load_tasks,
     parse_answer,
     read_jsonl,
+    settings,
     task_view,
 )
+from embed import embeddings
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import RidgeCV
-
-from anthropochrony.baselines.features import embeddings
-from anthropochrony.eval import metatime
 
 # Questions asked without a stated speed (see VARIANTS in estimate.py).
 UNSTATED = {"protocol", "plain_full_prompt"}
@@ -87,12 +86,12 @@ def context_rows(estimate, actual):
     tasks apart, and the rescaled row shows what is left of a system's error once its
     overall scale is corrected.
     """
-    constant = metatime.metrics(metatime.leave_one_out_constant(actual), actual)
-    row = metatime.metrics(estimate, actual)
+    constant = metrics.metrics(metrics.leave_one_out_constant(actual), actual)
+    row = metrics.metrics(estimate, actual)
     return {
         "own_median_leave_one_out": constant,
-        "rescaled_leave_one_out": metatime.metrics(
-            metatime.leave_one_out_rescaled(estimate, actual), actual
+        "rescaled_leave_one_out": metrics.metrics(
+            metrics.leave_one_out_rescaled(estimate, actual), actual
         ),
         "error_relative_to_own_median": row["median_abs_log_error"]
         / constant["median_abs_log_error"],
@@ -104,7 +103,7 @@ def by_category(estimate, actual, categories):
     out = {}
     for category in sorted(set(categories)):
         keep = [index for index, value in enumerate(categories) if value == category]
-        row = metatime.metrics([estimate[i] for i in keep], [actual[i] for i in keep])
+        row = metrics.metrics([estimate[i] for i in keep], [actual[i] for i in keep])
         out[category] = {
             "n": row["n"],
             "median_abs_log_error": row["median_abs_log_error"],
@@ -114,13 +113,13 @@ def by_category(estimate, actual, categories):
 
 
 def system_row(estimate, actual, reference, categories=None):
-    row = metatime.metrics(estimate, actual)
-    row["ci95"] = metatime.intervals(estimate, actual)
+    row = metrics.metrics(estimate, actual)
+    row["ci95"] = metrics.intervals(estimate, actual)
     row["context"] = context_rows(estimate, actual)
     if categories:
         row["by_category"] = by_category(estimate, actual, categories)
     row["versus"] = {
-        name: metatime.paired_log_error(estimate, actual, ref["estimate"], ref["actual"])
+        name: metrics.paired_log_error(estimate, actual, ref["estimate"], ref["actual"])
         for name, ref in reference.items()
     }
     return row
@@ -137,7 +136,7 @@ def static_baselines(pool, tasks, card):
         ]
         * len(tasks)
     }
-    encoder = yaml.safe_load((ROOT / "configs/baselines.yaml").read_text())["embedding"]
+    encoder = settings()["embedding"]
     for view in ("description", "full"):
         vectorizer = TfidfVectorizer(ngram_range=(1, 2), sublinear_tf=True, min_df=2)
         features = vectorizer.fit_transform([task_view(row, view) for row in train])
@@ -146,9 +145,9 @@ def static_baselines(pool, tasks, card):
         out[f"text_regressor_{view}"] = [
             prompt_tokens / card["P"] + float(np.exp(value)) / card["S"] for value in predicted
         ]
-        # The project's B2 family: a frozen sentence encoder with a ridge on top.
+        # A frozen sentence encoder with a ridge on top.
         rows = [
-            {"task_id": f"{view}:{row['id']}", "task_turn": task_view(row, view)}
+            {"id": f"{view}:{row['id']}", "text": task_view(row, view)}
             for row in train + list(tasks)
         ]
         vectors = embeddings(rows, encoder, ROOT / "data/embeddings")
@@ -194,7 +193,7 @@ def pool_validation(data, pool, parse):
     by_id = {row["id"]: row for row in val}
     out = {
         "prompts": len(val),
-        "retest_ceiling_abs_log_error": metatime.retest_ceiling([row["tokens"] for row in val]),
+        "retest_ceiling_abs_log_error": metrics.retest_ceiling([row["tokens"] for row in val]),
         "estimators": {},
         "length_drift": {},
     }
@@ -211,17 +210,17 @@ def pool_validation(data, pool, parse):
             }
             if all(row["id"] in answers for row in val):
                 stated = [answers[row["id"]] for row in val]
-                scored[variant] = metatime.metrics(stated, actual)
-                scored[variant]["conformal_80"] = metatime.conformal_range(stated, actual)
+                scored[variant] = metrics.metrics(stated, actual)
+                scored[variant]["conformal_80"] = metrics.conformal_range(stated, actual)
             reading = sampled_reading(rows, variant, [row["id"] for row in val], parse)
             if reading:
                 scored[f"{variant}+sampled_median"] = {
-                    **metatime.metrics(reading["median"], actual),
+                    **metrics.metrics(reading["median"], actual),
                     "draws": reading["draws"],
                     "range_80_coverage": range_coverage(reading, actual),
                 }
         for name, estimate in static_baselines(pool, val, card).items():
-            scored[f"static/{name}"] = metatime.metrics(estimate, actual)
+            scored[f"static/{name}"] = metrics.metrics(estimate, actual)
         out["estimators"][path.stem.removeprefix("val-est-")] = scored
     # Does the adapter change how long the model's ordinary responses are?
     for path in sorted(data.glob("val-lengths-*.jsonl")):
@@ -281,7 +280,7 @@ def main():
         out = {}
         for model in sorted({row["model"] for row in rows}):
             scored = [row for row in rows if row["model"] == model and row[column]]
-            out[model] = metatime.metrics(
+            out[model] = metrics.metrics(
                 [float(row[column]) for row in scored],
                 [float(row["actual_seconds"]) for row in scored],
             )
@@ -341,8 +340,8 @@ def main():
         },
         "published": {
             model: {
-                **metatime.metrics(ref["estimate"], ref["actual"]),
-                "ci95": metatime.intervals(ref["estimate"], ref["actual"]),
+                **metrics.metrics(ref["estimate"], ref["actual"]),
+                "ci95": metrics.intervals(ref["estimate"], ref["actual"]),
                 "context": context_rows(ref["estimate"], ref["actual"]),
                 "by_category": by_category(ref["estimate"], ref["actual"], categories),
             }
@@ -369,8 +368,8 @@ def main():
             "max_seconds": max(executor["actual"]),
             "median_response_tokens": statistics.median(executor["tokens"]),
             "capped_runs": executor["capped_runs"],
-            "retest_ceiling_abs_log_error": metatime.retest_ceiling(executor["runs"]),
-            "measured_length_through_formula": metatime.metrics(formula, executor["actual"]),
+            "retest_ceiling_abs_log_error": metrics.retest_ceiling(executor["runs"]),
+            "measured_length_through_formula": metrics.metrics(formula, executor["actual"]),
         }
 
     estimate_rows, stated_by_key, actual_by_key = [], {}, {}
@@ -567,7 +566,7 @@ def main():
             if calibration and not out["systems"][key]["replayed_at_stated_speed"]:
                 out["systems"][key]["conformal_80"] = {
                     **calibration,
-                    "coverage": metatime.share_inside(
+                    "coverage": metrics.share_inside(
                         stated, actual_by_key[key], calibration["factor"]
                     ),
                 }

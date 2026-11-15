@@ -119,6 +119,13 @@ FULL_PROMPT_CHARS = 3000
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def settings():
+    """Speed profiles, speed-line phrasings and the text encoder (`configs/metatime.yaml`)."""
+    import yaml
+
+    return yaml.safe_load((ROOT / "configs/metatime.yaml").read_text())
+
+
 def sig(value, digits):
     return float(f"{value:.{digits}g}")
 
@@ -128,10 +135,7 @@ def plain(value):
 
 
 def speed_line(S, P, phrasing):
-    import yaml
-
-    templates = yaml.safe_load((ROOT / "src/anthropochrony/prompts/templates.yaml").read_text())
-    return templates["templates"][phrasing]["text"].format(
+    return settings()["speed_lines"][phrasing].format(
         S=plain(S), P=plain(P), S_per_min=plain(S * 60)
     )
 
@@ -144,9 +148,7 @@ def sample_card(rng):
     """One stated speed from the project's deployment profiles, shown to two significant digits."""
     import math
 
-    import yaml
-
-    config = yaml.safe_load((ROOT / "configs/speeds.yaml").read_text())
+    config = settings()
     low, high = config["heldout_decode_band"]
     while True:
         profile = rng.choice(sorted(config["profiles"].values(), key=lambda p: p["S"][0]))

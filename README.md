@@ -1,97 +1,26 @@
 # Anthropochrony
 
-### Ask an AI how long a job will take and it says days. It finishes in minutes.
+### Ask an AI how long a task will take it and it answers on a human clock. We taught a small model to know its own.
 
 _Built for the Lexsi AI Safety & Alignment Hackathon, Track 1._
 
-[Write-up](paper/article.md) · [For judges](docs/JUDGES.md) · [Benchmark head-to-head](docs/METATIME.md) · [Use it](docs/USAGE.md) · [Technical tables](docs/README-technical.md) · [Models](https://huggingface.co/collections/isHeSatoshi/anthropochrony-models-6af31e769e666b4001e8c5f2) · [Data](https://huggingface.co/collections/isHeSatoshi/anthropochrony-data-6af31e776d6f33265b0c33a8)
+[Benchmark head-to-head](docs/METATIME.md) · [For judges](docs/JUDGES.md) · [Write-up](paper/article.md) · [Check the numbers](notebooks/benchmark_head_to_head.ipynb) · [The first study](https://github.com/isHeSatoshi/anthropochrony/tree/aa450e4c6a2fd6094b800d75fe26ad4216888796) · [Models](https://huggingface.co/collections/isHeSatoshi/anthropochrony-models-6af31e769e666b4001e8c5f2) · [Data](https://huggingface.co/collections/isHeSatoshi/anthropochrony-data-6af31e776d6f33265b0c33a8)
 
-![Estimated vs measured time](paper/figures/F1-estimated-vs-measured.png)
+![Head-to-head on the MetaTime benchmark](paper/figures/F9-metatime-head-to-head.png)
 
-## The problem is everywhere
+## The problem
 
 Ask a frontier model how long a piece of work will take. Give Claude a refactor, a new feature, a migration, and you'll hear "this is a few days of work" or "figure on a week". Then you let it run, and it's done in minutes.
 
 The model isn't lying. It learned from text written by people, and when people say how long a job takes, they mean how long a person takes. So you get the time a human engineer would need, from something that isn't one. It's like asking a calculator how long long division takes and hearing "about ten minutes, with a pencil".
 
-We wanted to know how bad this is, so we tested it on a small model where we could measure everything. `tiny-aya-global` writes a Python function in about 8 seconds. Before each task, we asked how long it would take.
-
-"About two hours."
-
-We ran this on 1,465 tasks. On average the guess was 55 times too long. Telling it "you generate about 96 tokens a second" barely helped. It nodded and ignored the number.
-
 This matters because estimates drive decisions: how to queue jobs, when to time out a run, whether a task goes to a phone or a server, what to tell a customer about when their work will be done.
 
-## So we taught it to know itself
+There is now a public test for it. MetaTime, a paper under review at ICLR 2027, asks a model how long a task will take it, runs the task, and compares. Its 68 single-turn tasks are everyday requests: write a function, fix a bug, summarise a text, solve a puzzle, write an essay or a story, answer a question. The paper's public files include what GPT-5.5 and Claude Opus 4.8 answered and how long each one really took. Both say about three times too long for nearly everything.
 
-First we measured the truth: we ran the model on every task, eight times each, and wrote down how long each run really took. Then we trained small adapters (LoRA) on those real times, so the model learns what its own work costs on a machine with a stated speed.
+## The result
 
-That helped, but it still got something strange wrong. We asked for its estimate on a slow machine (1.5 tokens a second) and it wrote:
-
-> 550 tokens at 1.5 tokens per second is about 2.1 minutes.
-
-550 divided by 1.5 is 6.1 minutes. The model had committed to "2.1 minutes" first and then made the maths agree with it.
-
-The useful part is what the fine-tuning did learn: how much work a task is, meaning how many tokens it will write and how many tries it will need. It predicts those better than a model shown five worked examples: its token count is off by 1.9x against 2.1x on familiar tasks, and by 2.1x against 3.0x on a kind of task it never saw. The division it cannot do. So we let it predict tokens and tries, and a plain formula turns them into seconds. We call that version M1-Struct. It needs no extra training.
-
-## Did it work?
-
-A few tasks the model had never seen, in seconds:
-
-| Task | What really happened | Untrained model said | Ours said |
-|---|--:|--:|--:|
-| HumanEval/138 | 2.3 | 424 | 4.8 |
-| HumanEval/116 | 3.3 | 424 | 3.3 |
-| BigCodeBench/903 | 11.3 | 300 | 7.9 |
-| BigCodeBench/845 | 11.2 | 424 | 15.2 |
-
-Over the full test set, the untrained model is off by about 57 times and ours by about 1.6 times. On a machine 64 times slower than the one it trained on, the adapter alone is off by 3 times and with the formula by 1.4 times.
-
-We also put it on an ordinary CPU and gave it eight bigger jobs: a todo app, a URL shortener, a bank ledger, a snake game. They took 99 to 271 seconds. The untrained model predicted 7 minutes to 2.5 hours. The tuned one said 2 to 4.5 minutes. Neither version passed the hidden tests on those jobs, so this is about timing, not about the code being right.
-
-Then we timed 100 ordinary test tasks on that CPU, and the same 100 on a desktop graphics card (GPU) that ran them about 6 times faster. Before each run we asked how long it would take. The untrained model gave nearly the same answer on both machines, so it was off by about 8.6 times on the CPU and 47 times on the GPU. Ours with the formula was off by about 1.7 times on each. Its estimates shrank about 5.3 times between the two machines, and for 82 of the 100 tasks they caught that task's real speedup within 2x. The adapter on its own was as close on the GPU (1.75 times), but its estimates shrank only 3 times. It ran a little low on the CPU and a little high on the GPU, so its good GPU score came from where that machine happened to fall, not from following the speed.
-
-One honest comparison: a plain table of average times per kind of task (on the small model) is about as accurate as our adapter on familiar tasks. The adapter pulls ahead on a kind of task it never saw, and on slow hardware.
-
-## Does it work on other models and other tasks?
-
-We tested two ways it could fail to carry over.
-
-**A different, bigger model.** We repeated the whole method on Aya Expanse 8B, a different Cohere model with 2.4 times the parameters: measure it, train an adapter on what it measured, and compare. Time estimates at the same reference speed, off by how many times (test tasks / tasks of a new kind):
-
-| Estimator | Familiar tasks | New kind of task |
-|---|--:|--:|
-| Untrained, no hint | 65x | 83x |
-| Untrained, told its speed | 15x | 19x |
-| Five worked examples | 1.5x | 2.5x |
-| One average time per speed | 1.6x | 2.1x |
-| **Adapter** | **1.4x** | **1.4x** |
-| **Adapter + formula** | **1.3x** | **1.5x** |
-
-A few tasks Aya Expanse 8B had never seen, in seconds (for each kind of task we took the one with the middle-sized error, so these are typical, not the best):
-
-| Task | What really happened | Untrained model said | Ours said |
-|---|--:|--:|--:|
-| BigCodeBench/778 | 13.3 | 735 | 16.0 |
-| Mbpp/19 | 2.4 | 424 | 1.3 |
-| cc/1553_D. Backspace | 7.5 | 600 | 11.0 |
-| lcd/test/find-the-number-of-copy-arrays | 11.5 | 1800 | 14.0 |
-| ClassEval_4 (new kind of task) | 23.0 | 1800 | 16.0 |
-| ClassEval_70 (new kind of task) | 17.4 | 900 | 12.0 |
-
-"What really happened" is the time at the reference speed (96 tokens a second writing, 27,000 reading), worked out from the model's own recorded runs.
-
-The pattern from the small model repeats, including the token counts (off by 1.4x against 1.6x with examples). The untrained model is wildly off, the adapter fixes it, the formula rescues slow hardware (2.8x off with the adapter alone at 1.5 tokens a second, 1.3x with the formula), and the adapter's lead is clear on the kind of task it never saw. On familiar tasks its margin over a plain average is small. One seed, 4 runs per task instead of 8, trained with the same recipe but not through AlignTune.
-
-**Brand-new tasks.** We wrote 30 coding tasks that are in none of our data (small functions up to 100-line modules) and ran `tiny-aya-global` on an ordinary CPU with real tests. These were hard: it solved 3 of 30. The untrained model was off by 7.3 times. The adapter was off by 1.9 times, with 17 of 30 estimates within 2x. The formula made it worse here (3.4 times) because the model needed all three tries on 27 tasks and the adapter had assumed fewer. And inside a size class, neither version ranked tasks well: its overall ranking comes mostly from task size, not from telling apart tasks of similar size.
-
-Both of those tests are Python coding, with one training run each. The next section leaves coding behind.
-
-## Against the best published numbers
-
-Everything above uses tasks we chose. So we took a test we did not write. MetaTime, a paper under review at ICLR 2027, asks a model how long a task will take it, runs the task, and compares. Its 68 single-turn tasks are everyday requests: write a function, fix a bug, summarise a text, solve a puzzle, write an essay or a story, answer a question. The paper's public files include what GPT-5.5 and Claude Opus 4.8 answered and how long each one really took.
-
-We wrote the rules down and pushed them before running anything: all 68 tasks, the benchmark's own question and scoring, and no benchmark task anywhere in training. Then we trained one new adapter for Tiny Aya on how long its own answers were to 1,353 ordinary public prompts, told it the measured speed of our graphics card, and asked.
+We took `CohereLabs/tiny-aya-global`, an open model with 3.35 billion parameters, and trained one small adapter (a LoRA, 121 MB) on how long its own answers were to 1,353 ordinary public prompts. We wrote the rules down and pushed them before running anything: all 68 tasks, the benchmark's own question and scoring, and no benchmark task anywhere in training. Then we told the model the measured speed of our graphics card, and asked.
 
 | Estimating its own time | Typically off by | Within 2x of the real time |
 |---|--:|--:|
@@ -101,48 +30,63 @@ We wrote the rules down and pushed them before running anything: all 68 tasks, t
 | **Tiny Aya with our adapter** | **1.5x** | **79%** |
 | Tiny Aya with a second adapter, told nothing about its speed | 1.5x | 76% |
 
-![Head-to-head on the MetaTime benchmark](paper/figures/F9-metatime-head-to-head.png)
-
 Ours was closer than GPT-5.5 on 62 of the 68 tasks, closer than Claude Opus 4.8 on 61, and closer on each of the seven kinds of task. That is the result we said in advance would count as success. The paper also trained an 8B open model for this job; its best version reaches a correlation of 0.44 with the real times, and ours reaches 0.66.
 
-Read it with care:
+## Read it with care
 
 - **Each model is judged on its own clock.** The result says a 3-billion-parameter model can be taught to know its own running time better than the largest models know theirs. It says nothing about which model is smarter.
 - **The big models were asked cold, so we also asked ours cold.** The adapter in the main row is told its machine's speed, and without it is worse than both (off by 5.9x). So we trained a second adapter that learned one machine's speed during training and is told nothing (last row of the table). Asked exactly as the big models were, it is closer than GPT-5.5 on 62 of the 68 tasks and closer than Claude Opus 4.8 on 59. Timed on its own runs afterwards, it scores about the same (off by 1.5x, 82% within 2x). It only knows that one machine, and we added it after seeing the first results. The big models were never trained for this question, so it is still not an even contest.
 - **Their mistake is mostly one of scale.** Both say about three times too long for nearly everything. Claude Opus 4.8 sorts tasks from quick to slow as well as ours does, and one correction factor would bring it level with us or a little ahead. Finding that factor takes measurements, which is what our method supplies.
 - **The untrained model already knows more than it says.** A simple readout of its internal state predicts its time about as well as the adapter does when both see the full task. The adapter teaches it to say so.
-- **Smaller caveats.** Ours guesses short (about three-quarters of the real time), the range you get by asking it 16 times is too narrow (a range set from held-out training prompts holds 93% of the real times, but it is wide: 2.5x either way), two repeat training runs of the main adapter came out worse than the first (off by 1.5x and 1.7x, with 71% and 75% within 2x, still well ahead of both big models), and this is one machine. This adapter is separate from the released coding model and is not uploaded yet.
+- **Smaller caveats.** Ours guesses short (about three-quarters of the real time), the range you get by asking it 16 times is too narrow (a range set from held-out training prompts holds 93% of the real times, but it is wide: 2.5x either way), two repeat training runs of the main adapter came out worse than the first (off by 1.5x and 1.7x, with 71% and 75% within 2x, still well ahead of both big models), and this is one machine. The adapters are not uploaded yet.
 
 Every control, the full tables and the commands are in [`docs/METATIME.md`](docs/METATIME.md).
 
-## Use it in your own agent
+## How it works
 
-The tuned model is a 2 GB file that runs with llama.cpp on an ordinary CPU or a desktop GPU. Start it, measure your machine's speed once, then ask before each task:
+1. **Measure.** We collected 1,523 public prompts (Dolly-15k, CodeAlpaca-20k, no_robots, GSM8K, and 100 coding tasks from our first study), after removing 21 that looked like a benchmark task. We ran the untrained model on each one three times and recorded how long its answers were. 1,353 prompts are for training and 170 are held out for checking.
+2. **Train.** The adapter learns to answer "how long will this take you?" with the work first and the time second, for example `Prompt: about 380 tokens. Response: about 520 tokens.` and then `Time: 15.4 seconds`. Each training prompt states a machine speed, drawn from a wide range (writing speeds from 2 to 2,500 tokens a second), and the time in the answer is worked out from the token counts at that speed. So the model learns how much work a task is for it, and that the time depends on the machine.
+3. **Ask.** On the benchmark, the prompt states the speed we measured on our own machine (an RTX 4060 Ti: about 30 tokens a second writing and 3,300 reading), followed by the benchmark's own question. The benchmark's own parser reads the time out of the answer. We compare it with the median of five timed runs of the same model on the full task.
+
+The second adapter has the same recipe with no stated speed: every training answer was computed at this one machine's speed. Everything was trained and timed on one desktop GPU, with no paid compute.
+
+## Check it yourself
 
 ```bash
-hf download isHeSatoshi/anthropochrony-tiny-aya-global-gguf m1-s0-q4_k_m.gguf --local-dir models
-llama-server -m models/m1-s0-q4_k_m.gguf --port 8082 -c 8192        # add -ngl 99 on a GPU
-uv run anthropochrony speedcard --llama-bench /path/to/llama-bench --gguf models/m1-s0-q4_k_m.gguf
-uv run anthropochrony estimate --task task.md --speed S,P --human   # S,P from the speedcard step
+uv sync --locked
+uv run pytest                              # recomputes the published rows and ours from the committed records
+uv run python scripts/run_notebook.py      # the same check as a notebook, plus the paired comparison and the figure
+uv run python scripts/metatime/report.py   # prints every table of docs/METATIME.md from results/metatime.json
 ```
 
-It prints one line for its own time, with an 80% range, and with `--human` a second line with its guess for a human developer. [`docs/USAGE.md`](docs/USAGE.md) covers the Python API (`SelfTimeEstimator`) and [`examples/agent_with_tripwire.py`](examples/agent_with_tripwire.py), which runs your agent with a timeout set from the estimate.
+None of this needs a GPU or the benchmark download. The commands that rebuild the training pool, retrain the adapters and rerun the timing are in [`docs/METATIME.md`](docs/METATIME.md#reproduce).
+
+## What is in this repository
+
+| Path | What it is |
+|---|---|
+| [`docs/METATIME.md`](docs/METATIME.md) | The full head-to-head: the rules, every control row, what it does not show, and the commands |
+| [`scripts/metatime/`](scripts/metatime/) | Building the training pool, measuring answer lengths, training, asking, timing, scoring, and the figure |
+| [`results/metatime.json`](results/metatime.json), [`results/metatime/`](results/metatime/) | Every number in the tables, and the per-task records behind them (task ids and numbers, no benchmark text) |
+| [`notebooks/`](notebooks/benchmark_head_to_head.ipynb), [`tests/`](tests/) | Recompute the rows from the records |
+| [`paper/article.md`](paper/article.md) | The hackathon write-up, covering both parts of the project |
+| [`docs/JUDGES.md`](docs/JUDGES.md) | Where to look for each judging criterion |
+| [`docs/PREREGISTRATION.md`](docs/PREREGISTRATION.md) | Every declaration, word for word, with the commit that pushed it |
+
+## Where this came from: the first study
+
+The method was built in the project's first study, which is no longer in this repository's tree; it can be read at commit [`aa450e4`](https://github.com/isHeSatoshi/anthropochrony/tree/aa450e4c6a2fd6094b800d75fe26ad4216888796). There we ran the same small model as a coding agent on 1,465 Python tasks, eight runs each, and timed every run. Untrained, it guessed about 57 times too long. An adapter trained on the measured times, with a plain formula that turns its predicted tokens and tries into seconds (we call it M1-Struct), is off by about 1.6 times. It holds up on a kind of task it never saw and on a real CPU and GPU, and the method repeats on a second, larger model.
+
+That study is where the three hackathon libraries are chained: CuratorKIT for the data, AlignTune for the training, AuditKIT for the evaluation. It has the released models and datasets, a command-line tool for your own agent, and a local demo. The benchmark adapter reuses its recipe, its ways of stating a machine's speed and 100 of its coding tasks, and was trained on one local GPU with plain PyTorch and PEFT.
 
 ## Limits
 
-- One training run per model, so small gaps between our own variants mean little.
-- One variant (M3) was trained on data that included some hidden test tasks. We do not use it for any conclusion.
-- The formula idea came after we saw the first results, so it is not part of the plan we registered in advance. The same goes for the Aya Expanse 8B and brand-new-task tests.
-- On real machines with the 4-bit model, the 80% range was too narrow (it held 63 to 64 of 100 runs) and the estimates ran low, so the timeout tool waits 1.5 times the upper bound. In 20 to 29 of 100 tasks the 4-bit model answered the human-developer question with its own time; the tool then shows no human number.
-- The main study and the released model are coding tasks only. The benchmark test above covers other kinds of work with a separate adapter.
-- The benchmark comparison was planned after the main study. Its rules were fixed before its first run, but it is not part of the original registered plan.
-- No live hosted demo yet. It runs on your machine.
+- The benchmark comparison is not an even contest, for the reasons under "Read it with care".
+- It is one model, one machine and single-turn tasks. The rows for other machines' speeds use computed times, not runs on those machines.
+- The main adapter's first training run is the best of three.
+- The rows for GPT-5.5 and Claude Opus 4.8 are the paper's published numbers. We did not rerun those models.
+- The benchmark comparison was planned after the first study. Its rules were fixed before its first run, but it is not part of the plan we registered at the start.
+- The benchmark adapters are separate from the released coding model and are not uploaded yet. Each can be retrained with the commands in `docs/METATIME.md`.
+- No live hosted demo yet.
 
-## Try it
-
-```bash
-uv sync && make figures    # rebuild every table and figure on CPU
-make demo                  # the local demo
-```
-
-Built with the hackathon stack: CuratorKIT for the data, AlignTune for the training, AuditKIT for the evaluation. Subject model: `CohereLabs/tiny-aya-global` (3.35B).
+Subject model: `CohereLabs/tiny-aya-global` (3.35B). Code: Apache-2.0.

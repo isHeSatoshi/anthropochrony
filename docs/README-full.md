@@ -60,6 +60,10 @@ All fine-tuned numbers come from **one training seed (`S0`)** across **93 unseen
 
 ---
 
+### Public benchmark head-to-head
+
+On the 68 single-turn tasks of the MetaTime benchmark, with the benchmark's own question, parser and metrics and rules committed before the first run, a separate adapter trained the same way on public prompts (`G1`) has a median absolute natural-log error of `0.38` against its own measured time. The published self-estimates of GPT-5.5 and Claude Opus 4.8 score `1.24` and `1.06` against theirs. [`docs/METATIME.md`](METATIME.md) has the protocol, every control row, and the list of what this comparison does not show.
+
 ## Limitations & negative results (read before using any number above)
 
 - **Single training seed (`S0`)** for `M1`, `M2`, and `M3` (`$26.7` spent under the `$30` compute cap). Differences of `0.02–0.04` $\text{log}_{10}$ across SFT variants do not carry multi-seed error bars.
@@ -148,11 +152,12 @@ src/anthropochrony/   tasks, sandbox, gen, measure, timemodel, labels, baselines
                       curate, train, eval (metrics, structured, extra), sim, plots,
                       release, demo, workbench
 jobs/                 HF Jobs entrypoints (vLLM generation, AlignTune SFT, AuditKIT lmeval)
-scripts/              ROI calculator, X10 CPU runner, G6 parity check, notebook builder/runner
+scripts/              ROI calculator, X10 CPU runner, G6 parity check, notebook builder/runner;
+                      scripts/metatime/ holds the public-benchmark head-to-head (docs/METATIME.md)
 configs/              speed cards, dataset/model pins, measurement & baseline configs
-docs/                 PLAN, PREREGISTRATION (frozen tag prereg-v1), PROMPTS, HACKATHON_REQUIREMENTS
-results/              metrics, hypotheses, extra-analyses, simulations, roi, proj8, gates
-paper/                article.md, submission_fields.md, and figures F1–F7
+docs/                 PLAN, PREREGISTRATION (frozen tag prereg-v1), PROMPTS, HACKATHON_REQUIREMENTS, METATIME
+results/              metrics, hypotheses, extra-analyses, simulations, roi, proj8, gates, metatime
+paper/                article.md, submission_fields.md, and figures F1–F9
 notebooks/            reproduce_results.ipynb (CPU reproduction & verification)
 space/                4-tab Gradio workbench (app.py)
 tests/                unit, leakage/conformal regression, workbench, and sandbox security tests

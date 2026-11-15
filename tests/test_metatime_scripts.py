@@ -1,5 +1,7 @@
 """Pure helpers of the head-to-head scripts (no GPU, no benchmark download)."""
 
+import json
+import math
 import sys
 from pathlib import Path
 
@@ -8,7 +10,10 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/metatime"))
 
 import common  # noqa: E402
+import report  # noqa: E402
 import score  # noqa: E402
+
+RESULT = Path(__file__).resolve().parents[1] / "results/metatime.json"
 
 
 def test_answer_text_round_trips_through_the_parser():
@@ -68,3 +73,29 @@ def test_sampled_reading_takes_the_median_and_the_range():
     assert reading["low"][0] == pytest.approx(12.0) and reading["high"][0] == pytest.approx(28.0)
     assert score.sampled_reading(rows, "v", ["a", "c"], read) is None
     assert score.range_coverage({"low": [12.0, None], "high": [28.0, None]}, [15.0, 5.0]) == 0.5
+
+
+def test_change_is_worded_as_a_factor():
+    assert report.change(20.0, "slower", "faster") == "20x slower"
+    assert report.change(0.158, "slower", "faster") == "6.33x faster"
+    assert report.change(1.004, "longer", "shorter") == "unchanged"
+    assert report.change(None, "longer", "shorter") == "n/a"
+
+
+def test_category_rows_score_each_category_on_its_own_tasks():
+    rows = score.by_category([10.0, 40.0, 5.0], [10.0, 10.0, 10.0], ["a", "b", "a"])
+    assert rows["a"]["n"] == 2 and rows["b"]["n"] == 1
+    assert rows["b"]["median_ratio"] == pytest.approx(4.0)
+    assert rows["a"]["median_abs_log_error"] == pytest.approx(math.log(2) / 2)
+
+
+@pytest.mark.skipif(not RESULT.exists(), reason="the head-to-head is not scored yet")
+def test_report_prints_the_declared_rows_from_the_results_file(capsys, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["report.py", "--results", str(RESULT)])
+    report.main()
+    printed = capsys.readouterr().out
+    result = json.loads(RESULT.read_text())
+    primary = result["systems"]["g1-s0/card_description"]["stated"]
+    assert f"| **Tiny Aya + G1 (primary)** | {primary['median_ratio']:.2f}x |" in printed
+    assert "| GPT-5.5 (published) |" in printed and "| Claude Opus 4.8 (published) |" in printed
+    assert "| **Tiny Aya + G1 (primary)** vs Claude Opus 4.8 |" in printed

@@ -21,10 +21,15 @@ def main():
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--load-in-4bit", action="store_true")
     parser.add_argument("--no-thinking", action="store_true")
+    parser.add_argument(
+        "--merge", action="store_true", help="fold the adapter into the weights before timing"
+    )
     args = parser.parse_args()
 
     tasks = load_tasks(args.suite)
-    engine = Engine(args.model, adapter=args.adapter, load_in_4bit=args.load_in_4bit)
+    engine = Engine(
+        args.model, adapter=args.adapter, load_in_4bit=args.load_in_4bit, merge=args.merge
+    )
     if args.no_thinking:
         engine.template_kwargs = {"enable_thinking": False}
     done = {(row["task"], row["run"]) for row in read_jsonl(args.out) if row.get("kind") == "run"}

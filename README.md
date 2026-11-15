@@ -110,7 +110,7 @@ Read it with care:
 - **The big models were asked cold.** Ours was trained on its own timings and told its machine's speed. Without the speed it is worse than both (off by 5.9x).
 - **Their mistake is mostly one of scale.** Both say about three times too long for nearly everything. Claude Opus 4.8 sorts tasks from quick to slow as well as ours does, and one correction factor would bring it level with us or a little ahead. Finding that factor takes measurements, which is what our method supplies.
 - **The untrained model already knows more than it says.** A simple readout of its internal state predicts its time about as well as the adapter does when both see the full task. The adapter teaches it to say so.
-- **Smaller caveats.** Ours guesses short (about three-quarters of the real time), the range you get by asking it 16 times is too narrow, and this is one machine. This adapter is separate from the released coding model and is not uploaded yet.
+- **Smaller caveats.** Ours guesses short (about three-quarters of the real time), the range you get by asking it 16 times is too narrow (a range set from held-out training prompts holds 93% of the real times, but it is wide: 2.5x either way), and this is one machine. This adapter is separate from the released coding model and is not uploaded yet.
 
 Every control, the full tables and the commands are in [`docs/METATIME.md`](docs/METATIME.md).
 

@@ -25,7 +25,7 @@ def _sample(logits, temperature, top_p, generator):
 
 
 class Engine:
-    def __init__(self, model_dir, adapter=None, load_in_4bit=False):
+    def __init__(self, model_dir, adapter=None, load_in_4bit=False, merge=False):
         self.tok = AutoTokenizer.from_pretrained(model_dir)
         kwargs = {"device_map": {"": 0}}
         if load_in_4bit:
@@ -46,6 +46,9 @@ class Engine:
 
             self.model = PeftModel.from_pretrained(self.model, adapter)
             self.adapter = adapter
+            if merge:  # folded into the weights, so it runs at the plain model's speed
+                self.model = self.model.merge_and_unload()
+                self.adapter = None
         self.model.eval()
         stops = {self.tok.eos_token_id}
         for name in ("<|END_OF_TURN_TOKEN|>", "<|END_RESPONSE|>", "<|im_end|>", "<|endoftext|>"):

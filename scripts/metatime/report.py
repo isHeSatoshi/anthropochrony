@@ -27,6 +27,17 @@ ROWS = [
     ("g1-s0/card_full_prompt", "G1, shown the full prompt", "stated"),
     ("g1-s0@base/card_description", "G1 predicting the untrained model's runs", "stated"),
     ("g1-s0@base/card_full_prompt", "G1, full prompt, the untrained model's runs", "stated"),
+    ("g1-fixed@base/protocol", "G1-fixed: no speed stated, the untrained model's runs", "stated"),
+    (
+        "g1-fixed@base/protocol",
+        "G1-fixed, stated tokens through the speed formula",
+        "token_reading",
+    ),
+    (
+        "g1-fixed@base/plain_full_prompt",
+        "G1-fixed, shown the full prompt, no speed stated",
+        "stated",
+    ),
     ("static/text_regressor_full", "TF-IDF regressor on the full prompt", "stated"),
     ("static/embedding_regressor_full", "Sentence-encoder regressor, full prompt", "stated"),
     ("probe/task", "Linear probe, state before answering the full prompt", "stated"),
@@ -88,7 +99,7 @@ def main():
     )
     print("|---|---|---|---|")
     for key, label, reading in ROWS:
-        if not key.startswith("g1-s0") or key not in systems or reading not in systems[key]:
+        if not key.startswith("g1-") or key not in systems or reading not in systems[key]:
             continue
         for model, name in PUBLISHED.items():
             versus = systems[key][reading]["versus"][model]
@@ -128,6 +139,7 @@ def main():
             ("untrained/card_description", "Tiny Aya, untrained, speed stated"),
             ("g1-s0/card_description", "**Tiny Aya + G1 (primary)**"),
             ("g1-s0/card_full_prompt", "G1, shown the full prompt"),
+            ("g1-fixed@base/protocol", "G1-fixed: no speed stated, the untrained model's runs"),
         )
         if key in systems
     ]
@@ -260,6 +272,11 @@ def main():
             (
                 "g1-s0@base/card_full_prompt",
                 "G1, shown the full prompt, the untrained model's runs",
+            ),
+            ("g1-fixed@base/protocol", "G1-fixed, no speed stated, the untrained model's runs"),
+            (
+                "g1-fixed@base/plain_full_prompt",
+                "G1-fixed, shown the full prompt, the untrained model's runs",
             ),
         )
         if "conformal_80" in systems.get(key, {})

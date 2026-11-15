@@ -31,6 +31,9 @@ from sklearn.linear_model import RidgeCV
 from anthropochrony.baselines.features import embeddings
 from anthropochrony.eval import metatime
 
+# Questions asked without a stated speed (see VARIANTS in estimate.py).
+UNSTATED = {"protocol", "plain_full_prompt"}
+
 PUBLISHED_TABLE_22 = {
     "source": "MetaTime Appendix C, Table 22 (Qwen3-8B, 68 held-out single-turn tasks, before generating)",
     "rows": {
@@ -458,6 +461,20 @@ def main():
                     "answers": len(gaps),
                     "within_10_percent": sum(gap < math.log(1.1) for gap in gaps),
                     "median_abs_log_gap": statistics.median(gaps) if gaps else None,
+                }
+            own = name.split("@")[0]
+            if own != name and variant in UNSTATED and own in executors:
+                # No speed was stated, so the same answers also stand for the estimator's own runs.
+                own_key = f"{own}/{variant}"
+                stated_by_key[own_key] = stated
+                actual_by_key[own_key] = executors[own]["actual"]
+                out["systems"][own_key] = {
+                    "scored_against": own,
+                    "stated_speed": {"S": card["S"], "P": card["P"]},
+                    "replayed_at_stated_speed": False,
+                    "median_target_seconds": statistics.median(executors[own]["actual"]),
+                    "median_estimate_seconds": out["systems"][key]["median_estimate_seconds"],
+                    "stated": system_row(stated, executors[own]["actual"], reference, categories),
                 }
             if reading:
                 out["systems"][f"{key}+sampled_median"] = {

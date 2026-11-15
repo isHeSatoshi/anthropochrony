@@ -1,0 +1,74 @@
+[
+  {
+    "system": "GPT-5.5 (published)",
+    "typical_factor_off": 3.47,
+    "median_abs_log_error": 1.243,
+    "ci95": [
+      1.104,
+      1.425
+    ],
+    "within_2x": 0.118,
+    "median_estimate_over_actual": 3.467,
+    "pearson_log": 0.549
+  },
+  {
+    "system": "Claude Opus 4.8 (published)",
+    "typical_factor_off": 2.87,
+    "median_abs_log_error": 1.056,
+    "ci95": [
+      0.9,
+      1.138
+    ],
+    "within_2x": 0.25,
+    "median_estimate_over_actual": 2.875,
+    "pearson_log": 0.806
+  },
+  {
+    "system": "Tiny Aya, untrained, told its speed",
+    "typical_factor_off": 5.53,
+    "median_abs_log_error": 1.71,
+    "ci95": [
+      1.59,
+      1.904
+    ],
+    "within_2x": 0.044,
+    "median_estimate_over_actual": 5.395,
+    "pearson_log": 0.411
+  },
+  {
+    "system": "Tiny Aya + G1 adapter, told its speed",
+    "typical_factor_off": 1.46,
+    "median_abs_log_error": 0.377,
+    "ci95": [
+      0.32,
+      0.45
+    ],
+    "within_2x": 0.794,
+    "median_estimate_over_actual": 0.742,
+    "pearson_log": 0.783
+  },
+  {
+    "system": "Tiny Aya + G1-fixed, told nothing",
+    "typical_factor_off": 1.52,
+    "median_abs_log_error": 0.419,
+    "ci95": [
+      0.37,
+      0.468
+    ],
+    "within_2x": 0.765,
+    "median_estimate_over_actual": 0.741,
+    "pearson_log": 0.766
+  },
+  {
+    "system": "Tiny Aya + G1-kit (CuratorKIT -> AlignTune), told its speed",
+    "typical_factor_off": 1.57,
+    "median_abs_log_error": 0.454,
+    "ci95": [
+      0.372,
+      0.591
+    ],
+    "within_2x": 0.765,
+    "median_estimate_over_actual": 0.687,
+    "pearson_log": 0.749
+  }
+]

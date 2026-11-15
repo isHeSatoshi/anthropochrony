@@ -5,7 +5,7 @@ __pycache__/
 .venv/
 .coverage
 .ipynb_checkpoints/
-data/
+/data/
 adapters/
 models/
 pins/

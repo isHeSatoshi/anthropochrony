@@ -2,6 +2,7 @@
 
 import csv
 import json
+import math
 import statistics
 from pathlib import Path
 
@@ -108,3 +109,44 @@ def test_pool_calibrated_range_coverage_recomputes_from_the_committed_records():
             [row["stated_seconds"] for row in rows], actual, calibration["factor"]
         )
         assert got == pytest.approx(calibration["coverage"]), key
+
+
+AUDIT = ROOT / "results/metatime-audit.json"
+
+
+@pytest.mark.skipif(not AUDIT.exists(), reason="the AuditKIT stage has not run")
+def test_auditkit_report_matches_the_committed_records():
+    audit = json.loads(AUDIT.read_text())
+    runs = {}
+    for row in _rows("runs.jsonl"):
+        runs.setdefault((row["executor"], row["task"]), []).append(row["wall_s"])
+    estimates = _estimates()
+    for arm, key in (
+        ("untrained", "untrained/card_description"),
+        ("g1-kit", "g1-kit/card_description"),
+    ):
+        stated = {row["task"]: row["stated_seconds"] for row in estimates[key]}
+        per_task = {row["task"]: row for row in audit[arm]["per_task"]}
+        assert (
+            set(per_task) == set(stated) and audit[arm]["answers_equal_to_estimate_py"] == "68/68"
+        )
+        for task, row in per_task.items():
+            error = abs(math.log(stated[task] / statistics.median(runs[("base", task)])))
+            assert row["abs_log_error"] == pytest.approx(error), (arm, task)
+            assert row["within_2x"] == float(error <= math.log(2))
+        assert audit[arm]["headline"]["abs_log_error"] == pytest.approx(
+            statistics.mean(row["abs_log_error"] for row in per_task.values())
+        )
+
+    lmeval = audit["lmeval"]
+    for arm in ("untrained", "g1-kit"):
+        for task, answers in lmeval["per_question"][arm].items():
+            accuracy = answers.count("1") / len(answers)
+            assert accuracy == pytest.approx(lmeval[arm]["headline"][f"{task}:acc"])
+            assert accuracy == pytest.approx(
+                lmeval["paired_bootstrap_by_task"][task][
+                    "mean_baseline" if arm == "untrained" else "mean_candidate"
+                ],
+                abs=1e-6,
+            )
+    assert lmeval["paired_bootstrap_by_task"]["pooled"]["n"] == 2376 + 1172

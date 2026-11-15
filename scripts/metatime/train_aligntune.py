@@ -26,13 +26,15 @@ def check_answer_only_labels(trainer, count=16):
     for row, ids, labels in zip(
         rows, batch["input_ids"].tolist(), batch["labels"].tolist(), strict=True
     ):
-        n = len(row["input_ids"])
         start = next(i for i, token in enumerate(ids) if token == row["input_ids"][0])
+        # The collator cuts a sequence longer than the limit, so compare the part it kept.
+        n = min(len(row["input_ids"]), len(ids) - start)
         ids, labels = ids[start : start + n], labels[start : start + n]
         expected = [
-            t if m else -100 for t, m in zip(row["input_ids"], row["assistant_masks"], strict=True)
+            t if m else -100
+            for t, m in zip(row["input_ids"][:n], row["assistant_masks"][:n], strict=True)
         ]
-        if ids != row["input_ids"] or labels != expected or not any(row["assistant_masks"]):
+        if ids != row["input_ids"][:n] or labels != expected or not any(row["assistant_masks"]):
             raise ValueError("Training labels are not the answer-only mask")
     return {"inspected_sequences": len(rows), "answer_only": True}
 

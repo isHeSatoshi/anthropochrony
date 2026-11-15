@@ -46,19 +46,77 @@ def fresh_cache():
     os.environ["XDG_CACHE_HOME"] = tempfile.mkdtemp(prefix="auditkit-")
 
 
+def arc_scores(predictions):
+    """{task: {question id: 0/1}} from lm-eval predictions (objects or saved run JSON)."""
+    out = {}
+    for p in predictions:
+        get = p.get if isinstance(p, dict) else lambda k, p=p: getattr(p, k)
+        if get("score") is not None:
+            out.setdefault(get("task"), {})[get("sample_id")] = int(get("score"))
+    return out
+
+
+def arc_paired(base, cand):
+    """AuditKIT's paired bootstrap per ARC task and pooled, pairing questions by task and id.
+
+    lm-eval numbers questions from 0 within each task, so pairing by question id alone, as
+    `compare(...).significance()` does, matches ARC-Easy questions with ARC-Challenge ones.
+    """
+    from auditkit._bootstrap import paired_bootstrap
+
+    pairs = {
+        task: [
+            (base[task][i], cand[task][i]) for i in sorted(base[task].keys() & cand[task].keys())
+        ]
+        for task in ARC
+    }
+    out = {task: paired_bootstrap(p) for task, p in pairs.items()}
+    out["pooled"] = paired_bootstrap([pair for task in ARC for pair in pairs[task]])
+    return out
+
+
+def add_arc_comparison(lmeval, scores):
+    lmeval["per_question"] = {
+        arm: {
+            task: "".join(str(by_id[i]) for i in sorted(by_id, key=int))
+            for task, by_id in per_task.items()
+        }
+        for arm, per_task in scores.items()
+    }
+    lmeval["paired_bootstrap_by_task"] = arc_paired(scores["untrained"], scores["g1-kit"])
+
+
+def rescore_lmeval(report_path, base_run, cand_run):
+    """Recompute the ARC comparison from two saved AuditKIT lm-eval run files."""
+    report = json.loads(Path(report_path).read_text())
+    scores = {
+        arm: arc_scores(json.loads(Path(path).read_text())["predictions"])
+        for arm, path in (("untrained", base_run), ("g1-kit", cand_run))
+    }
+    add_arc_comparison(report["lmeval"], scores)
+    Path(report_path).write_text(json.dumps(report, indent=2, default=str) + "\n")
+    print(json.dumps(report["lmeval"]["paired_bootstrap_by_task"], indent=2))
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", required=True)
-    parser.add_argument("--adapter", required=True)
-    parser.add_argument("--suite", required=True)
+    parser.add_argument("--rescore-lmeval", nargs=3, metavar=("REPORT", "BASE_RUN", "CAND_RUN"))
+    parser.add_argument("--model")
+    parser.add_argument("--adapter")
+    parser.add_argument("--suite")
     parser.add_argument("--runs", default="data/metatime/time-base.jsonl")
     parser.add_argument("--base-estimates", default="data/metatime/est-untrained.jsonl")
-    parser.add_argument("--estimates", required=True, help="estimate.py output for the adapter")
-    parser.add_argument("--out", required=True)
+    parser.add_argument("--estimates", help="estimate.py output for the adapter")
+    parser.add_argument("--out")
     parser.add_argument("--lmeval-limit", type=int, help="dry run")
     parser.add_argument("--lmeval-batch", type=int, default=16)
     parser.add_argument("--skip-lmeval", action="store_true")
     args = parser.parse_args()
+    if args.rescore_lmeval:
+        return rescore_lmeval(*args.rescore_lmeval)
+    for name in ("model", "adapter", "suite", "estimates", "out"):
+        if getattr(args, name) is None:
+            parser.error(f"--{name} is required")
 
     import auditkit as ak
     import torch
@@ -192,7 +250,10 @@ def main():
             },
             "paired_bootstrap": ak.compare(lm["untrained"], lm["g1-kit"]).significance(),
         }
-        print(json.dumps(report["lmeval"]["paired_bootstrap"]))
+        add_arc_comparison(
+            report["lmeval"], {arm: arc_scores(r.predictions) for arm, r in lm.items()}
+        )
+        print(json.dumps(report["lmeval"]["paired_bootstrap_by_task"]))
     Path(args.out).write_text(json.dumps(report, indent=2, default=str) + "\n")
 
 

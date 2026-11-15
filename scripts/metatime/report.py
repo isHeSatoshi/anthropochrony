@@ -39,6 +39,16 @@ ROWS = [
         "G1-fixed, no speed stated, full prompt (its own runs, adapter merged)",
         "stated",
     ),
+    (
+        "g1-kit@base/card_description",
+        "G1-kit, CuratorKIT -> AlignTune (the untrained model's runs)",
+        "stated",
+    ),
+    (
+        "g1-kit@base/card_full_prompt",
+        "G1-kit, full prompt (the untrained model's runs)",
+        "stated",
+    ),
     ("static/text_regressor_full", "TF-IDF regressor on the full prompt", "stated"),
     ("static/embedding_regressor_full", "Sentence-encoder regressor, full prompt", "stated"),
     ("probe/task", "Linear probe, state before answering the full prompt", "stated"),
@@ -233,6 +243,7 @@ def main():
         ("g1-s2@base", "Seed 2 (1,353 prompts)"),
         ("g1-n450@base", "450 prompts, seed 0"),
         ("g1-n150@base", "150 prompts, seed 0"),
+        ("g1-kit@base", "G1-kit: CuratorKIT -> AlignTune (1,342 prompts), seed 0"),
     ]
     drift = result.get("pool_validation", {}).get("length_drift", {})
     if any(f"{name}/card_description" in systems for name, _ in extra[1:]):

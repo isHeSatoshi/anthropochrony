@@ -1,29 +1,30 @@
 # Submission form values
 
-Fill the `TODO` placeholders below before submitting at https://hackathon.lexsi.ai/submission/. All other fields and numbers are verified against `results/metatime.json`, `legacy/results/*.json` and live public URLs.
+Fill the `TODO` lines before submitting at https://hackathon.lexsi.ai/submission/. Every other value is checked against the repository and the live Hugging Face pages.
 
 | Field | Value |
 |---|---|
-| Registered email | `TODO: fill in your exact registered email` |
-| Discord username (optional) | `TODO: fill in your Discord handle` |
-| Teammates | `TODO: fill in teammate names/handles, or "Solo"` |
-| HF model collection | https://huggingface.co/collections/isHeSatoshi/anthropochrony-models-6af31e769e666b4001e8c5f2 |
-| HF dataset collection | https://huggingface.co/collections/isHeSatoshi/anthropochrony-data-6af31e776d6f33265b0c33a8 |
-| Write-up | https://github.com/isHeSatoshi/anthropochrony (`README.md` + `paper/article.md`) |
+| Registered email | `TODO: your registered email` |
+| Discord username (optional) | `TODO: your Discord handle` |
+| Teammates | Solo ([@isHeSatoshi](https://huggingface.co/isHeSatoshi)) |
+| HF model collection | https://huggingface.co/collections/isHeSatoshi/anthropochrony-self-time-models-6af986a95a140f4184fae18f |
+| HF dataset collection | https://huggingface.co/collections/isHeSatoshi/anthropochrony-self-time-data-6af986a99994d1dfbbad03aa |
+| Write-up | https://github.com/isHeSatoshi/anthropochrony/blob/main/paper/article.md |
 | GitHub repo | https://github.com/isHeSatoshi/anthropochrony |
-| Demo | Local 4-tab Gradio CPU workbench (`make -C legacy demo` / `legacy/space/app.py`: benchmark and 8-speed-card explorer, static AST workload and hardware simulator, empirical SLA and closed-API ROI calculator, and optional live `llama.cpp` GGUF sandbox); no hosted HF Space; `anthropochrony estimate` CLI and Python API for local `llama.cpp` (`legacy/docs/USAGE.md`); 100-task (`X10`) real CPU and GPU deployment results and the 8-project (`PROJ-8`) CPU showcase in `legacy/README.md` and `paper/article.md` §7.7 |
-| Repos and models used | CuratorKIT 0.1.23, AlignTune 0.1.32, AuditKIT 1.1.6; CohereLabs/tiny-aya-global @ af89d219b53ed9b13b8a4645f9c8028973510324; DeepSeek-V4-Pro (teacher control); BAAI/bge-small-en-v1.5 (tabular baseline) |
+| Demo | Local Gradio app in `space/` (CPU, 4-bit GGUFs from `isHeSatoshi/anthropochrony-tiny-aya-global-g1-gguf`); a hosted Space needs a paid plan |
+| Repos used | CuratorKIT 0.1.23, AlignTune 0.1.32, AuditKIT 1.1.6 |
+| Models used | `CohereLabs/tiny-aya-global` (revision `af89d219b53ed9b13b8a4645f9c8028973510324`); published GPT-5.5 and Claude Opus 4.8 numbers from the MetaTime artifact as baselines (not called) |
 | Track | Track 1: Fine-tuning and Data Curation |
-| Problem statements | #8 Data-scarce domains (primary), #2 Replacing a closed-model API (ROI and accuracy comparison) |
+| Problem statements | #2 Replacing a closed-model API; Other: model self-knowledge of its own running time |
 
 ## Abstract (under 500 words)
 
-Language models estimate their own runtime on a human developer's clock, predicting minutes or hours for tasks they finish in seconds. Monperrus and Stenqvist described this anthropocentric time bias; we did not discover it. We correct it by fine-tuning `CohereLabs/tiny-aya-global` (3.35B) on measurements of its own runs.
+Ask a language model how long a task will take it and it answers on a human clock: "a few minutes" for work it finishes in seconds, because the text it learned from describes how long people take. Those estimates feed real decisions, such as job queues, timeouts, routing between machines and what users are told. On the 68 single-turn tasks of the public MetaTime benchmark, the published self-estimates of GPT-5.5 and Claude Opus 4.8 are typically 3.47x and 2.87x off their own measured times (12% and 25% within 2x).
 
-Headline: on a public benchmark we did not build (MetaTime, 68 single-turn tasks; protocol committed before the first run), an adapter trained on 1,353 public prompts has median absolute natural-log error 0.38 against its own measured time (79% within 2x), versus 1.24 and 1.06 for the published self-estimates of GPT-5.5 and Claude Opus 4.8 (paired 95% intervals exclude zero; closer on 62 and 61 of 68 tasks). Each model is scored on its own clock, and Claude Opus 4.8 ranks tasks equally well (r 0.81 vs 0.78). Ours is told its speed; a variant trained for one machine and asked cold, as theirs were, scores 0.42; repeat seeds score 0.43 and 0.50.
+We taught Cohere Labs' Tiny Aya Global (3.35B) its own clock, with no teacher model and no paid labels. We ran the untrained model three times on each of 1,523 public instruction prompts (Dolly-15k, CodeAlpaca-20k, no_robots, GSM8K and 100 coding tasks of ours), after removing 21 prompts that resembled a benchmark task, and recorded how long its answers were. A LoRA adapter learns to answer "how long will this take you?" with the work first and the time second: the tokens it expects to read and write, then the seconds at the machine speed stated in its prompt.
 
-The method comes from our first study (`legacy/`). Across 1,465 executable Python tasks curated with CuratorKIT 0.1.23, we ran eight 3-attempt sandboxed trajectories per task, trained rank-16 QLoRA adapters with AlignTune 0.1.32, re-measured each checkpoint on held-out tasks, and evaluated with AuditKIT 1.1.6 under a pre-registered plan (`prereg-v1`). Without a speed card, the base model (`E0`) overestimates 55-fold on `test` (1.760 log10 error). Adding a speed card (`E1`) leaves 1.375 (23.7x). On familiar task families at one speed, 5-shot prompting (`E2`, 0.240, 1.74x) and per-family lookup tables (`B1`, 0.123, 1.33x) compete with fine-tuning; on an unseen class family (`CLASS`, 93 tasks) both degrade (`E2`: 0.503, 3.18x; `B1`: 0.336, 2.17x). Fine-tuning on curated measured runs (`M1-S0`) cuts `CLASS` error to 0.300 (2.00x; Holm p = 0.00025 vs `E2`) and `test` error to 0.242 (1.75x), beats SFT on teacher guesses (`M2-S0`: 0.287 on `test`, Holm p = 0.00056), and preserves `pass@1`.
+Before any estimate existed we pushed the task list, the benchmark's own question and parser, the metrics and the success criterion to GitHub. Before → after on the same model: median absolute log error 1.71 → 0.38 (typical miss 5.5x → 1.46x; within 2x 4% → 79%). Ours is closer than GPT-5.5 on 62 of 68 tasks and than Claude Opus 4.8 on 61, and both paired 95% intervals exclude zero, so the declared criterion is met. Told another machine's speed, the estimates scale with it across a 270-fold range. An adapter told nothing, asked exactly as the frontier models were, scores 0.42.
 
-`M1-S0` predicts its output tokens better than `E2` (0.268 vs 0.313 on `test`; 0.314 vs 0.476 on `CLASS`), yet writing seconds before `(tokens, attempts)` introduces 0.272 log10 division error and slow-hardware failure (0.492 at 1.5 tok/s). Pairing its predicted tokens and attempts with the exact timing formula (`M1-Struct`, zero retraining) cuts `CLASS` error to 0.269 (1.86x, 58.1% within 2x), `test` error to 0.213 (1.63x, 71.8% within 2x), and 1.5 tok/s `test` error 3.17x to 0.155. `M1-Struct` beats `DeepSeek-V4-Pro` point accuracy (0.294 on `CLASS`, 0.244 on `test`) at $16.01 vs ~$1,700 per million batched estimates. Split-conformal calibration (`M1-Struct+CP`) raises fresh-trajectory coverage to 75.8% on `test` and cuts timeout false aborts 10.5x. On a desktop CPU (100 tasks), within-2x accuracy rises from 3.0% (base) to 63.0% (`M1-Struct`); on a consumer GPU running the same tasks 5.95x faster, `M1-Struct` predicts each task's speedup within 2x for 82%.
+The track's pipeline builds a second adapter end to end: CuratorKIT gates the training pool (1,353 → 1,342 prompts), AlignTune trains the LoRA, and AuditKIT evaluates it. It scores 0.45 (76% within 2x), inside the spread of the first adapter's three seeds, and also beats both frontier models. AuditKIT's paired bootstrap confirms the gain over the untrained model (mean log error 1.78 → 0.50, p = 0.001) and finds a cost: ARC accuracy falls by about 2 points (Easy 73.0% → 71.1%, Challenge 42.2% → 40.2%), so the adapter is best switched on only for the time question. 1,000 estimates cost 3 to 5 cents of GPU time; the same question at frontier list prices costs at least 57 to 60 cents.
 
-Limitations: one seed (`S0`) in the first study; GBDT regressor `B2` leads fixed-speed point error (0.137 `test`, 0.130 `CLASS`); `M1-Struct` and the benchmark arm are post-hoc; uncurated `M3` leaked 40 `CLASS` rows, so it supports no conclusions; local CPU demo only; IFEval dipped 5.0 points.
+Limits: each model is judged on its own clock; Claude Opus 4.8 ranks tasks as well as ours; our primary seed is the best of three (0.37, 0.43, 0.50). One model, one consumer GPU, English, single-turn tasks. All compute was local, at no cost.

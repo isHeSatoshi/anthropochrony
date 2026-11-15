@@ -717,11 +717,11 @@ H2H_ROWS = [
     ("published:gpt-5.5", "GPT-5.5 (published)", COLORS["E0"]),
     ("published:claude-opus-4-8", "Claude Opus 4.8 (published)", COLORS["B4"]),
     ("untrained/protocol", "Tiny Aya, untrained", COLORS["E1"]),
-    ("untrained/card_description", "Tiny Aya, untrained, speed stated", COLORS["E4"]),
-    ("untrained/card_fewshot", "Untrained, speed stated, 5 measured examples", COLORS["E2"]),
-    ("static/pool_median_constant", "Same constant for every task", COLORS["B0"]),
-    ("static/text_regressor_description", "Text regressor on the description", COLORS["B2"]),
-    ("probe/question", "Linear probe on the hidden state", COLORS["M2-S0"]),
+    ("untrained/card_description", "Untrained, speed stated", COLORS["E4"]),
+    ("untrained/card_fewshot", "Untrained, speed + 5 examples", COLORS["E2"]),
+    ("static/pool_median_constant", "One constant (no model)", COLORS["B0"]),
+    ("static/text_regressor_description", "Text regressor (no model)", COLORS["B2"]),
+    ("probe/question", "Probe on hidden state", COLORS["M2-S0"]),
     (H2H_PRIMARY, "Tiny Aya + G1 (ours)", COLORS["M1-Struct"]),
 ]
 
@@ -751,7 +751,9 @@ def head_to_head(root: Path, directory: Path):
         published = list(csv.DictReader(handle))
 
     _style()
-    fig, axes = plt.subplots(1, 2, figsize=(12.2, 4.6), gridspec_kw={"width_ratios": [1, 1.15]})
+    fig, axes = plt.subplots(
+        1, 2, figsize=(12.6, 4.6), gridspec_kw={"width_ratios": [1, 1.05], "wspace": 0.5}
+    )
     axis = axes[0]
     line = np.geomspace(0.3, 5000.0, 60)
     axis.fill_between(line, line / 2, line * 2, color="#2a9d8f", alpha=0.15, zorder=1)
@@ -813,14 +815,16 @@ def head_to_head(root: Path, directory: Path):
     for position, (_, color, row) in zip(range(len(rows) - 1, -1, -1), rows, strict=True):
         value = row["median_abs_log_error"]
         axis.barh(position, min(value, limit), color=color, height=0.62, zorder=3)
+        edge = min(value, limit)
         if math.isfinite(value) and "median_abs_log_error" in row.get("ci95", {}):
             low, high = row["ci95"]["median_abs_log_error"]
             axis.plot([low, min(high, limit)], [position] * 2, color="#111111", lw=1.1, zorder=4)
+            edge = max(edge, min(high, limit))
         correlation = row["pearson_log"]
         note = f"{value:.2f}" if math.isfinite(value) else "most answers unusable"
         if correlation is not None:
             note += f"   r = {correlation:.2f}"
-        axis.text(min(value, limit) + 0.04, position, note, va="center", fontsize=7.6, zorder=5)
+        axis.text(edge + 0.04, position, note, va="center", fontsize=7.6, zorder=5)
     noise = result["executors"][primary["scored_against"]]["retest_ceiling_abs_log_error"]
     axis.axvline(math.log(2), color="#2a9d8f", lw=1.0, ls="--", zorder=2)
     axis.text(math.log(2) + 0.02, len(rows) - 0.45, "factor of 2", fontsize=7, color="#1b7f79")
@@ -829,7 +833,7 @@ def head_to_head(root: Path, directory: Path):
     axis.set(
         yticks=range(len(rows) - 1, -1, -1),
         yticklabels=[label for label, _, _ in rows],
-        xlim=(0, limit + 0.75),
+        xlim=(0, limit + 0.2),
         ylim=(-0.95, len(rows) - 0.2),
         xlabel="Median absolute log error (0 is exact; lower is better), with 95% interval",
         title="(b) Size of the typical miss, and r on log durations",

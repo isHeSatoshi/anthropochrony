@@ -1,4 +1,5 @@
 import copy
+import json
 import runpy
 
 import pytest
@@ -169,3 +170,24 @@ def test_gradio_full_workbench_builds_on_root():
     assert "Anthropochrony" in config["title"]
     assert not config.get("analytics_enabled")
     assert len(config["dependencies"]) >= 8
+
+
+def test_public_benchmark_panel_reads_the_results_file(tmp_path):
+    pytest.importorskip("gradio")
+    functions = runpy.run_path(str(SPEC.parent.parent / "space/app.py"))
+    panel = functions["_public_benchmark_markdown"]
+    assert panel(tmp_path) == ""
+    row = {"median_ratio": 0.5, "median_abs_log_error": 0.7, "pearson_log": 0.6, "within_2x": 0.5}
+    (tmp_path / "results").mkdir()
+    (tmp_path / "results/metatime.json").write_text(
+        json.dumps(
+            {
+                "published": {"gpt-5.5": {**row, "median_ratio": 3.0}},
+                "systems": {"g1-s0/card_description": {"stated": row}},
+            }
+        )
+    )
+    text = panel(tmp_path)
+    assert "| GPT-5.5 (published) | 3.00× | 0.70 | 0.60 | 50% |" in text
+    assert "| **Tiny Aya + G1 (primary)** | 0.50× | 0.70 | 0.60 | 50% |" in text
+    assert "Claude" not in text.split("|---")[1]

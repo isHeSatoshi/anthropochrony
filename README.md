@@ -4,7 +4,7 @@
 
 _Built for the Lexsi AI Safety & Alignment Hackathon, Track 1._
 
-[Write-up](paper/article.md) · [For judges](docs/JUDGES.md) · [Use it](docs/USAGE.md) · [Technical tables](docs/README-technical.md) · [Models](https://huggingface.co/collections/isHeSatoshi/anthropochrony-models-6af31e769e666b4001e8c5f2) · [Data](https://huggingface.co/collections/isHeSatoshi/anthropochrony-data-6af31e776d6f33265b0c33a8)
+[Write-up](paper/article.md) · [For judges](docs/JUDGES.md) · [Benchmark head-to-head](docs/METATIME.md) · [Use it](docs/USAGE.md) · [Technical tables](docs/README-technical.md) · [Models](https://huggingface.co/collections/isHeSatoshi/anthropochrony-models-6af31e769e666b4001e8c5f2) · [Data](https://huggingface.co/collections/isHeSatoshi/anthropochrony-data-6af31e776d6f33265b0c33a8)
 
 ![Estimated vs measured time](paper/figures/F1-estimated-vs-measured.png)
 
@@ -85,7 +85,34 @@ The pattern from the small model repeats, including the token counts (off by 1.4
 
 **Brand-new tasks.** We wrote 30 coding tasks that are in none of our data (small functions up to 100-line modules) and ran `tiny-aya-global` on an ordinary CPU with real tests. These were hard: it solved 3 of 30. The untrained model was off by 7.3 times. The adapter was off by 1.9 times, with 17 of 30 estimates within 2x. The formula made it worse here (3.4 times) because the model needed all three tries on 27 tasks and the adapter had assumed fewer. And inside a size class, neither version ranked tasks well: its overall ranking comes mostly from task size, not from telling apart tasks of similar size.
 
-What we have not tested: anything that is not Python coding, and a second seed.
+Both of those tests are Python coding, with one training run each. The next section leaves coding behind.
+
+## Against the best published numbers
+
+Everything above uses tasks we chose. So we took a test we did not write. MetaTime, a paper under review at ICLR 2027, asks a model how long a task will take it, runs the task, and compares. Its 68 single-turn tasks are everyday requests: write a function, fix a bug, summarise a text, solve a puzzle, write an essay or a story, answer a question. The paper's public files include what GPT-5.5 and Claude Opus 4.8 answered and how long each one really took.
+
+We wrote the rules down and pushed them before running anything: all 68 tasks, the benchmark's own question and scoring, and no benchmark task anywhere in training. Then we trained one new adapter for Tiny Aya on how long its own answers were to 1,353 ordinary public prompts, told it the measured speed of our graphics card, and asked.
+
+| Estimating its own time | Typically off by | Within 2x of the real time |
+|---|--:|--:|
+| GPT-5.5 (published) | 3.5x | 12% |
+| Claude Opus 4.8 (published) | 2.9x | 25% |
+| Tiny Aya, untrained, told its speed | 5.5x | 4% |
+| **Tiny Aya with our adapter** | **1.5x** | **79%** |
+
+![Head-to-head on the MetaTime benchmark](paper/figures/F9-metatime-head-to-head.png)
+
+Ours was closer than GPT-5.5 on 62 of the 68 tasks, closer than Claude Opus 4.8 on 61, and closer on each of the seven kinds of task. That is the result we said in advance would count as success. The paper also trained an 8B open model for this job; its best version reaches a correlation of 0.44 with the real times, and ours reaches 0.66.
+
+Read it with care:
+
+- **Each model is judged on its own clock.** The result says a 3-billion-parameter model can be taught to know its own running time better than the largest models know theirs. It says nothing about which model is smarter.
+- **The big models were asked cold.** Ours was trained on its own timings and told its machine's speed. Without the speed it is worse than both (off by 5.9x).
+- **Their mistake is mostly one of scale.** Both say about three times too long for nearly everything. Claude Opus 4.8 sorts tasks from quick to slow as well as ours does, and one correction factor would bring it level with us or a little ahead. Finding that factor takes measurements, which is what our method supplies.
+- **The untrained model already knows more than it says.** A simple readout of its internal state predicts its time about as well as the adapter does when both see the full task. The adapter teaches it to say so.
+- **Smaller caveats.** Ours guesses short (about three-quarters of the real time), the range you get by asking it 16 times is too narrow, and this is one machine. This adapter is separate from the released coding model and is not uploaded yet.
+
+Every control, the full tables and the commands are in [`docs/METATIME.md`](docs/METATIME.md).
 
 ## Use it in your own agent
 
@@ -106,7 +133,9 @@ It prints one line for its own time, with an 80% range, and with `--human` a sec
 - One variant (M3) was trained on data that included some hidden test tasks. We do not use it for any conclusion.
 - The formula idea came after we saw the first results, so it is not part of the plan we registered in advance. The same goes for the Aya Expanse 8B and brand-new-task tests.
 - On real machines with the 4-bit model, the 80% range was too narrow (it held 63 to 64 of 100 runs) and the estimates ran low, so the timeout tool waits 1.5 times the upper bound. In 20 to 29 of 100 tasks the 4-bit model answered the human-developer question with its own time; the tool then shows no human number.
-- Coding tasks only, and no live hosted demo yet. It runs on your machine.
+- The main study and the released model are coding tasks only. The benchmark test above covers other kinds of work with a separate adapter.
+- The benchmark comparison was planned after the main study. Its rules were fixed before its first run, but it is not part of the original registered plan.
+- No live hosted demo yet. It runs on your machine.
 
 ## Try it
 

@@ -10,6 +10,7 @@ When `root` does not contain `results/metrics.json` (e.g., isolated unit-test di
 renders the minimal two-action `Demo` sandbox interface (`len(config["dependencies"]) == 2`).
 """
 
+import json
 import os
 from pathlib import Path
 
@@ -77,6 +78,41 @@ def _build_minimal_sandbox(controller: Demo, backend) -> gr.Blocks:
     return interface
 
 
+def _public_benchmark_markdown(root: Path) -> str:
+    """The head-to-head table, read from `results/metatime.json`; empty when it is absent."""
+    path = root / "results/metatime.json"
+    if not path.exists():
+        return ""
+    result = json.loads(path.read_text())
+    rows = [
+        ("GPT-5.5 (published)", result["published"].get("gpt-5.5")),
+        ("Claude Opus 4.8 (published)", result["published"].get("claude-opus-4-8")),
+    ]
+    for key, label in (
+        ("untrained/card_description", "Tiny Aya, untrained, speed stated"),
+        ("g1-s0/protocol", "Tiny Aya + G1, no speed stated"),
+        ("g1-s0/card_description", "**Tiny Aya + G1 (primary)**"),
+    ):
+        rows.append((label, result["systems"].get(key, {}).get("stated")))
+    lines = [
+        "Each system estimates its own running time before starting and is scored against its "
+        "own measured time, with the benchmark's question, parser and metrics. `G1` is a "
+        "separate adapter trained on the model's own response lengths for public prompts; no "
+        "benchmark task was used in training. The frontier models were asked without a stated "
+        "speed, and `G1` needs one. See `docs/METATIME.md` for every control and caveat.",
+        "",
+        "| System | Median estimate/actual | Median abs. log error | Pearson r (log) | Within 2× |",
+        "|---|--:|--:|--:|--:|",
+    ]
+    for label, row in rows:
+        if row:
+            lines.append(
+                f"| {label} | {row['median_ratio']:.2f}× | {row['median_abs_log_error']:.2f} | "
+                f"{row['pearson_log']:.2f} | {row['within_2x']:.0%} |"
+            )
+    return "\n".join(lines)
+
+
 def app(root=ROOT, backend=None):
     root = Path(root)
     path = root / "data/demo/tasks.jsonl"
@@ -116,6 +152,16 @@ def app(root=ROOT, backend=None):
             "verbal-arithmetic bottleneck, reaching **`0.269` OOD (`58.1%` within 2×, `4.6×` higher $\\rho$)**, **`0.213` on `test` (`71.8%` within 2×)**, "
             "**3.17× lower slow-hardware error** (`0.155` at `1.5 tok/s`), **63.0% within 2×** on live CPU (`llama.cpp` Q4_K_M), and **10.5× fewer SLA false aborts** (`1.33%`)."
         )
+
+        benchmark_md = _public_benchmark_markdown(root)
+        if benchmark_md:
+            with gr.Accordion(
+                "Public benchmark head-to-head (MetaTime, 68 single-turn tasks)", open=False
+            ):
+                gr.Markdown(benchmark_md)
+                figure = root / "paper/figures/F9-metatime-head-to-head.png"
+                if figure.exists():
+                    gr.Image(str(figure), show_label=False, interactive=False)
 
         with gr.Tabs():
             # ==========================================================

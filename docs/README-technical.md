@@ -4,7 +4,7 @@
 
 _Built for the Lexsi AI Safety & Alignment Hackathon, Track 1 (Fine-tuning and Data Curation), problems 8 and 2. Independent project. Monperrus and Stenqvist described anthropocentric time bias in LLMs; we did not discover the phenomenon._
 
-**[Write-up](../paper/article.md)** · **[Judge guide](JUDGES.md)** · **[Full tables and reproduction](README-full.md)** · **[Use it in your agent](USAGE.md)** · **[Models on Hugging Face](https://huggingface.co/collections/isHeSatoshi/anthropochrony-models-6af31e769e666b4001e8c5f2)** · **[Data on Hugging Face](https://huggingface.co/collections/isHeSatoshi/anthropochrony-data-6af31e776d6f33265b0c33a8)** · **[Run it on your CPU](#run-it)**
+**[Write-up](../paper/article.md)** · **[Judge guide](JUDGES.md)** · **[Benchmark head-to-head](METATIME.md)** · **[Full tables and reproduction](README-full.md)** · **[Use it in your agent](USAGE.md)** · **[Models on Hugging Face](https://huggingface.co/collections/isHeSatoshi/anthropochrony-models-6af31e769e666b4001e8c5f2)** · **[Data on Hugging Face](https://huggingface.co/collections/isHeSatoshi/anthropochrony-data-6af31e776d6f33265b0c33a8)** · **[Run it on your CPU](#run-it)**
 
 ![Estimated vs measured completion time](../paper/figures/F1-estimated-vs-measured.png)
 
@@ -84,6 +84,24 @@ The per-family lookup table (`B1`) and static feature regressor (`B2`) beat the 
 
 On the live `X10` rows the base model is asked without a speed card (`E0`). Sources: `results/extra-analyses.json` (`x10_cpu_deployment_struct`, `x10_gpu_deployment_struct`, `x10_hardware_tracking`).
 
+## On a public benchmark
+
+Everything above uses tasks we selected, so we also ran the 68 single-turn tasks of the MetaTime benchmark (code, debugging, summaries, reasoning, writing, creative, Q&A), whose public artifact includes the estimates GPT-5.5 and Claude Opus 4.8 gave before starting and the times they then took. The task list, question, parser, metrics, primary estimator and success criterion were committed before any estimate of ours existed on the benchmark. `G1` is a separate adapter with the `M1` recipe, trained on a local GPU on the model's own response lengths for 1,353 public instruction prompts, with no benchmark task in training. It is told the measured speed of the deployment and scored against the median of 5 timed runs of the same fine-tuned model. The error here is the benchmark's median absolute natural-log error (divide by 2.303 for log10).
+
+| System | Median estimate/actual | Median abs. log error [95% CI] | Typical factor off | r (log) | Within 2x | MAE (s) | Parsed |
+|---|---|---|---|---|---|---|---|
+| GPT-5.5 (published) | 3.47x | 1.24 [1.10, 1.42] | 3.47x | 0.55 | 12% | 92.2 | 68/68 |
+| Claude Opus 4.8 (published) | 2.87x | 1.06 [0.90, 1.14] | 2.87x | 0.81 | 25% | 30.5 | 68/68 |
+| Tiny Aya, untrained, speed stated | 5.39x | 1.71 [1.59, 1.90] | 5.53x | 0.41 | 4% | 70.9 | 68/68 |
+| **Tiny Aya + G1 (primary)** | 0.74x | 0.38 [0.32, 0.45] | 1.46x | 0.78 | 79% | 6.6 | 68/68 |
+| G1, no speed stated | 0.17x | 1.77 [1.51, 1.94] | 5.86x | 0.34 | 7% | 14.8 | 68/68 |
+| G1, shown the full prompt | 0.82x | 0.32 [0.24, 0.38] | 1.38x | 0.83 | 88% | 5.8 | 68/68 |
+| Linear probe, state before answering the full prompt | 0.75x | 0.36 [0.25, 0.45] | 1.43x | 0.86 | 85% | 5.7 | 68/68 |
+
+`G1`'s error is lower than GPT-5.5's by `0.87` (paired 95% CI `0.70` to `1.06`) and lower than Claude Opus 4.8's by `0.68` (`0.51` to `0.79`); it is closer on 62 and 61 of the 68 tasks. That meets the declared success criterion. What the comparison does not show: each model is scored against its own clock; the frontier models were asked cold while `G1` is trained and told its speed, and without the speed it is worse than both; the frontier error is mostly scale, and Claude Opus 4.8 ranks tasks as well as `G1` does; a linear probe on the untrained model matches `G1` when both see the full prompt. [`docs/METATIME.md`](METATIME.md) has every control row and the commands.
+
+![Head-to-head on the MetaTime single-turn suite](../paper/figures/F9-metatime-head-to-head.png)
+
 ## Where this goes
 
 Ordering a 30-job queue on unseen `CLASS` tasks by shortest predicted duration (`SJF`) brings mean completion time to `1.18x` the oracle with `M1-Struct` (tied with frontier `B4` at `1.18x`), ahead of `E2` (`1.21x`), `B2` (`1.25x`), verbal `M1` (`1.28x`), and `FIFO` (`1.38x`). Adding `val`-calibrated split-conformal intervals (`M1-Struct+CP`) raises fresh-trajectory 80% interval coverage from `17.7%` to `75.8%` on `test` (`64.9%` on `CLASS`), cuts timeout false aborts on passing runs 10.5x from `13.9%` to `1.3%` while saving `19.9%` of failed-run GPU time, and cuts 15-second edge-vs-datacenter SLA violations from `31.2%` to `6.3%` at `26.4%` lower cost than always-datacenter (`$2.04` vs `$2.77` per 1,000 runs). Self-hosting `M1-Struct` on an L40S (`$1.80/h`, `31.2 req/s`) costs `$16.01` per million batched estimates against `$452.20` for `gpt-5-mini` and `~$1,700` for `DeepSeek-V4-Pro`.
@@ -101,4 +119,4 @@ uv run anthropochrony estimate --task task.md --speed S,P --human   # ask a loca
 
 ## Limits
 
-We trained one seed (`S0`) per model under the hackathon compute cap ($30.2 spent in total), so small gaps between estimators are noisy. The uncurated ablation `M3` had held-out `CLASS` tasks leaked into its training pool (`40` SFT rows from `6` `ClassEval` tasks in `raw_extra`) and was not retrained, so we draw no conclusions from `M3`. `M1-Struct` was designed post-hoc after inspecting `M1`'s verbal arithmetic errors and was not pre-registered. Pre-registered hypothesis `H1` was not met as stated because adding a speed card alone stopped hour-scale units while leaving 1.38 log10 error. We do not host a live Hugging Face Space; the 4-tab Gradio workbench runs locally on CPU via `make demo`. All experiments test a single 3.35B subject model (`CohereLabs/tiny-aya-global`), and IFEval strict accuracy dipped 5.0 points after fine-tuning (`75.0%` to `70.0%`, first 200 prompts) while `pass@1` held steady (`-2.2` to `+3.0` pp 95% CI).
+We trained one seed (`S0`) per model under the hackathon compute cap ($30.2 spent in total), so small gaps between estimators are noisy. The uncurated ablation `M3` had held-out `CLASS` tasks leaked into its training pool (`40` SFT rows from `6` `ClassEval` tasks in `raw_extra`) and was not retrained, so we draw no conclusions from `M3`. `M1-Struct` was designed post-hoc after inspecting `M1`'s verbal arithmetic errors and was not pre-registered. Pre-registered hypothesis `H1` was not met as stated because adding a speed card alone stopped hour-scale units while leaving 1.38 log10 error. We do not host a live Hugging Face Space; the 4-tab Gradio workbench runs locally on CPU via `make demo`. The public-benchmark comparison was designed after the main study (its rules were fixed before its first run) and is not a like-for-like contest, as described above. The main study tests a single 3.35B subject model (`CohereLabs/tiny-aya-global`), and IFEval strict accuracy dipped 5.0 points after fine-tuning (`75.0%` to `70.0%`, first 200 prompts) while `pass@1` held steady (`-2.2` to `+3.0` pp 95% CI).

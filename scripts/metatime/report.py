@@ -26,10 +26,18 @@ ROWS = [
     ("g1-s0/protocol", "G1, no speed stated", "stated"),
     ("g1-s0/card_full_prompt", "G1, shown the full prompt", "stated"),
     ("g1-s0@base/card_description", "G1 predicting the untrained model's runs", "stated"),
+    ("g1-s0@base/card_full_prompt", "G1, full prompt, the untrained model's runs", "stated"),
     ("static/text_regressor_full", "TF-IDF regressor on the full prompt", "stated"),
     ("static/embedding_regressor_full", "Sentence-encoder regressor, full prompt", "stated"),
     ("probe/task", "Linear probe, state before answering the full prompt", "stated"),
 ]
+EXECUTORS = {"base": "untrained model", "g1-s0": "fine-tuned model (G1)"}
+SAMPLED = {
+    "card_description": "G1, benchmark question (primary)",
+    "card_full_prompt": "G1, shown the full prompt",
+    "card_paper_wording": "G1, the paper's question wording",
+    "protocol": "G1, no speed stated",
+}
 
 
 def number(value, digits=2):
@@ -38,12 +46,22 @@ def number(value, digits=2):
     return f"{value:.{digits}f}" if math.isfinite(value) else "inf"
 
 
+def change(ratio, up, down):
+    """A ratio in words: `20x slower`, `6.3x faster`, or `unchanged` within 1%."""
+    if ratio is None:
+        return "n/a"
+    if abs(math.log(ratio)) < 0.01:
+        return "unchanged"
+    return f"{ratio:.3g}x {up}" if ratio > 1 else f"{1 / ratio:.3g}x {down}"
+
+
 def line(label, row):
     low, high = row.get("ci95", {}).get("median_abs_log_error", (None, None))
     interval = f" [{number(low)}, {number(high)}]" if low is not None else ""
     return (
         f"| {label} | {number(row['median_ratio'])}x | "
-        f"{number(row['median_abs_log_error'])}{interval} | {number(row['pearson_log'])} | "
+        f"{number(row['median_abs_log_error'])}{interval} | "
+        f"{number(math.exp(row['median_abs_log_error']))}x | {number(row['pearson_log'])} | "
         f"{row['within_2x']:.0%} | {number(row['mae_s'], 1)} | {row['parsed']}/{row['n']} |"
     )
 
@@ -56,9 +74,9 @@ def main():
     systems = result["systems"]
 
     print(
-        "| System | Median estimate/actual | Median abs. log error [95% CI] | r (log) | Within 2x | MAE (s) | Parsed |"
+        "| System | Median estimate/actual | Median abs. log error [95% CI] | Typical factor off | r (log) | Within 2x | MAE (s) | Parsed |"
     )
-    print("|---|---|---|---|---|---|---|")
+    print("|---|---|---|---|---|---|---|---|")
     for model, label in PUBLISHED.items():
         print(line(label, result["published"][model]))
     for key, label, reading in ROWS:
@@ -99,6 +117,64 @@ def main():
             f"{number(row['pearson_log'])} |"
         )
 
+    print(
+        "\n| Telling tasks apart | Pearson r, log durations [95% CI] | Spearman | Pairs ordered correctly | Pearson r, raw seconds |"
+    )
+    print("|---|---|---|---|---|")
+    ranking = [(label, result["published"][model]) for model, label in PUBLISHED.items()]
+    ranking += [
+        (label, systems[key]["stated"])
+        for key, label in (
+            ("untrained/card_description", "Tiny Aya, untrained, speed stated"),
+            ("g1-s0/card_description", "**Tiny Aya + G1 (primary)**"),
+            ("g1-s0/card_full_prompt", "G1, shown the full prompt"),
+        )
+        if key in systems
+    ]
+    for label, row in ranking:
+        low, high = row["ci95"]["pearson_log"]
+        print(
+            f"| {label} | {number(row['pearson_log'])} [{number(low)}, {number(high)}] | "
+            f"{number(row['spearman'])} | {row['ordering_accuracy']:.0%} | "
+            f"{number(row['pearson_raw'])} |"
+        )
+
+    after = result.get("published_context", {}).get("single_turn_after_completing", {})
+    if after:
+        print(
+            "\n| After completing the task (published, context only) | Median estimate/actual | Median abs. log error | Typical factor off | r (log) | Within 2x |"
+        )
+        print("|---|---|---|---|---|---|")
+        for model, label in PUBLISHED.items():
+            row = after[model]
+            print(
+                f"| {label.split(' (')[0]} | {number(row['median_ratio'])}x | "
+                f"{number(row['median_abs_log_error'])} | "
+                f"{number(math.exp(row['median_abs_log_error']))}x | "
+                f"{number(row['pearson_log'])} | {row['within_2x']:.0%} |"
+            )
+
+    shown = [(label, result["published"][model]) for model, label in PUBLISHED.items()]
+    for key, label in (
+        ("g1-s0/card_description", "Tiny Aya + G1"),
+        ("g1-s0@base/card_description", "G1 predicting the untrained model's runs"),
+    ):
+        if key in systems:
+            shown.append((label, systems[key]["stated"]))
+    if len(shown) > 2:
+        names = sorted(shown[0][1]["by_category"])
+        print(
+            "\n| Median abs. log error by task category | "
+            + " | ".join(f"{name} ({shown[0][1]['by_category'][name]['n']})" for name in names)
+            + " |"
+        )
+        print("|---|" + "---|" * len(names))
+        for label, row in shown:
+            cells = " | ".join(
+                number(row["by_category"][name]["median_abs_log_error"]) for name in names
+            )
+            print(f"| {label} | {cells} |")
+
     # The same question with other speeds stated, per estimator, slowest machine first.
     measured = {"g1-s0/card_description": "G1", "untrained/card_description": "Untrained"}
     sweep = sorted(
@@ -111,9 +187,9 @@ def main():
     )
     if any(row.get("replayed_at_stated_speed") for _, _, row in sweep):
         print(
-            "\n| Estimator | Stated speed (tokens/s writing, reading) | Median target (s) | Median estimate (s) | Median estimate/actual | Median abs. log error | r (log) | Within 2x | Tokens through the formula |"
+            "\n| Estimator | Stated speed (tokens/s writing, reading) | Median target (s) | Median estimate (s) | Median estimate/actual | Median abs. log error | r (log) | Within 2x | Tokens through the formula | Stated writing speed vs this machine | Estimate vs its estimate at this machine's speed (median per task) |"
         )
-        print("|---|---|---|---|---|---|---|---|---|")
+        print("|---|---|---|---|---|---|---|---|---|---|---|")
         for name, _, row in sweep:
             stated, tokens = row["stated"], row.get("token_reading")
             note = "" if row["replayed_at_stated_speed"] else " (this machine, measured)"
@@ -123,7 +199,13 @@ def main():
                 f"{number(row['median_estimate_seconds'], 1)} | "
                 f"{number(stated['median_ratio'])}x | {number(stated['median_abs_log_error'])} | "
                 f"{number(stated['pearson_log'])} | {stated['within_2x']:.0%} | "
-                f"{number(tokens['median_abs_log_error']) if tokens else 'n/a'} |"
+                f"{number(tokens['median_abs_log_error']) if tokens else 'n/a'} | "
+                + (
+                    f"{change(move['slowdown_stated'], 'slower', 'faster')} | "
+                    f"{change(move['median_estimate_ratio'], 'longer', 'shorter')} |"
+                    if (move := row.get("versus_measured_speed"))
+                    else "same | same |"
+                )
             )
 
     # More adapters of the same recipe, each scored against the untrained model's runs.
@@ -156,16 +238,21 @@ def main():
     print("\nExecutors:")
     for name, row in result["executors"].items():
         print(
-            f"- {name}: runs per task {row['runs_per_task']}, median {row['median_seconds']:.1f} s "
+            f"- {EXECUTORS.get(name, name)}: runs per task {row['runs_per_task']}, median {row['median_seconds']:.1f} s "
             f"(range {row['min_seconds']:.1f} to {row['max_seconds']:.1f}), median response "
             f"{row['median_response_tokens']:.0f} tokens, capped runs {row['capped_runs']}, "
-            f"run-to-run abs. log error {row['retest_ceiling_abs_log_error']:.3f}, speed cards "
+            f"run-to-run abs. log error {row['retest_ceiling_abs_log_error']:.3f}, measured "
+            f"length through the speed formula vs wall time "
+            f"{row['measured_length_through_formula']['median_abs_log_error']:.3f}, speed cards "
             f"{[(round(c['S'], 1), round(c['P'])) for c in row['speed_cards']]}"
         )
+    print("\nSampled answers:")
     for key, row in systems.items():
         if "range_80_coverage" in row:
+            variant = key.split("/")[1].removesuffix("+sampled_median")
             print(
-                f"- {key}: {row['draws']} draws, 10-90% range covers {row['range_80_coverage']:.0%}"
+                f"- {SAMPLED.get(variant, key)}: {row['draws']} draws, 10-90% range covers "
+                f"{row['range_80_coverage']:.0%}"
             )
     if "pool_validation" in result:
         check = result["pool_validation"]
@@ -174,9 +261,9 @@ def main():
             f"{check['retest_ceiling_abs_log_error']:.3f}):\n"
         )
         print(
-            "| Estimator | Median estimate/actual | Median abs. log error | r (log) | Within 2x | Parsed |"
+            "| Estimator | Median estimate/actual | Median abs. log error | r (log) | Within 2x | Parsed | 10-90% range of the samples covers |"
         )
-        print("|---|---|---|---|---|---|")
+        print("|---|---|---|---|---|---|---|")
         seen = set()
         for name, rows in check["estimators"].items():
             for key, row in rows.items():
@@ -187,13 +274,11 @@ def main():
                 print(
                     f"| {label} | {number(row['median_ratio'])}x | "
                     f"{number(row['median_abs_log_error'])} | {number(row['pearson_log'])} | "
-                    f"{row['within_2x']:.0%} | {row['parsed']}/{row['n']} |"
-                    + (
-                        f" 10-90% range covers {row['range_80_coverage']:.0%}"
-                        if "range_80_coverage" in row
-                        else ""
-                    )
+                    f"{row['within_2x']:.0%} | {row['parsed']}/{row['n']} | "
+                    + (f"{row['range_80_coverage']:.0%}" if "range_80_coverage" in row else "")
+                    + " |"
                 )
+        print("\nResponse length on the held-out pool prompts, against the untrained model:")
         for name, row in check["length_drift"].items():
             print(
                 f"- {name}: response length vs untrained {math.expm1(row['median_log_ratio_to_base']):+.1%} "

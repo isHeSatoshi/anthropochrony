@@ -96,10 +96,26 @@ def context_rows(estimate, actual):
     }
 
 
-def system_row(estimate, actual, reference):
+def by_category(estimate, actual, categories):
+    """Descriptive only: the median absolute log error within each task category."""
+    out = {}
+    for category in sorted(set(categories)):
+        keep = [index for index, value in enumerate(categories) if value == category]
+        row = metatime.metrics([estimate[i] for i in keep], [actual[i] for i in keep])
+        out[category] = {
+            "n": row["n"],
+            "median_abs_log_error": row["median_abs_log_error"],
+            "median_ratio": row["median_ratio"],
+        }
+    return out
+
+
+def system_row(estimate, actual, reference, categories=None):
     row = metatime.metrics(estimate, actual)
     row["ci95"] = metatime.intervals(estimate, actual)
     row["context"] = context_rows(estimate, actual)
+    if categories:
+        row["by_category"] = by_category(estimate, actual, categories)
     row["versus"] = {
         name: metatime.paired_log_error(estimate, actual, ref["estimate"], ref["actual"])
         for name, ref in reference.items()
@@ -230,6 +246,7 @@ def main():
     tasks = load_tasks(suite)
     order = [task["id"] for task in tasks]
     by_id = {task["id"]: task for task in tasks}
+    categories = [task["category"] for task in tasks]
     parse = benchmark_parser(suite)
 
     published = list(csv.DictReader((suite / "results" / "single_turn.csv").open()))
@@ -322,6 +339,7 @@ def main():
                 **metatime.metrics(ref["estimate"], ref["actual"]),
                 "ci95": metatime.intervals(ref["estimate"], ref["actual"]),
                 "context": context_rows(ref["estimate"], ref["actual"]),
+                "by_category": by_category(ref["estimate"], ref["actual"], categories),
             }
             for model, ref in reference.items()
         },
@@ -350,7 +368,7 @@ def main():
             "measured_length_through_formula": metatime.metrics(formula, executor["actual"]),
         }
 
-    estimate_rows = []
+    estimate_rows, stated_by_key = [], {}
     for path in sorted(data.glob("est-*.jsonl")):
         name = path.stem.removeprefix("est-")
         rows = read_jsonl(path)
@@ -414,6 +432,7 @@ def main():
                     )
                 )
             key = f"{name}/{variant}"
+            stated_by_key[key] = stated
             out["systems"][key] = {
                 "scored_against": target,
                 "stated_speed": {"S": card["S"], "P": card["P"]},
@@ -422,7 +441,7 @@ def main():
                 "median_estimate_seconds": (
                     statistics.median(parsed) if (parsed := [v for v in stated if v]) else None
                 ),
-                "stated": system_row(stated, actual, reference),
+                "stated": system_row(stated, actual, reference, categories),
             }
             if any(value is not None for value in tokens):
                 out["systems"][key]["token_reading"] = system_row(tokens, actual, reference)
@@ -437,6 +456,22 @@ def main():
     (records / "estimates.jsonl").write_text(
         "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in estimate_rows)
     )
+    # How far each estimate moves when another machine's speed is stated, task by task.
+    for key, system in out["systems"].items():
+        measured = f"{key.split('@')[0]}/{key.split('/')[1]}"
+        if not system.get("replayed_at_stated_speed") or measured not in stated_by_key:
+            continue
+        ratios = [
+            other / here
+            for other, here in zip(stated_by_key[key], stated_by_key[measured], strict=True)
+            if other and here
+        ]
+        system["versus_measured_speed"] = {
+            "slowdown_stated": out["systems"][measured]["stated_speed"]["S"]
+            / system["stated_speed"]["S"],
+            "median_estimate_ratio": statistics.median(ratios) if ratios else None,
+            "tasks": len(ratios),
+        }
 
     probe = data / "probe.json"
     if probe.exists() and "base" in executors:

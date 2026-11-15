@@ -390,14 +390,19 @@ All frontier numbers are lower bounds: they use our tokenizer's counts and leave
 | `space/` | Local demo |
 | `docs/METATIME.md`, `docs/PREREGISTRATION.md`, `docs/JUDGES.md` | Full results, the declarations, a judge's guide |
 
-CPU only, no benchmark download needed:
+CPU only, no GPU, Hugging Face login or benchmark download needed (the records are in `results/`). From a fresh copy of the repository:
 
 ```bash
-uv sync --locked
-uv run pytest                              # recomputes the published rows and ours from the committed records
-uv run python scripts/run_notebook.py      # the notebook: rows, paired comparison, figure
-uv run python scripts/metatime/report.py   # every table of docs/METATIME.md
+git clone https://github.com/isHeSatoshi/anthropochrony.git
+cd anthropochrony                          # run every command below from this folder
+curl -LsSf https://astral.sh/uv/install.sh | sh   # once, if uv is not installed
+uv sync --locked                           # installs the pinned libraries into .venv
+uv run pytest                              # recomputes the published rows and ours from the records; expect: 22 passed
+uv run python scripts/run_notebook.py      # the notebook: rows, paired comparison, figure; expect: notebook executed without errors
+uv run python scripts/metatime/report.py   # prints every table of docs/METATIME.md
 ```
+
+The README's "Check it yourself" section explains what each check does.
 
 The GPU steps (one 16 GB GPU; PyTorch, `transformers`, `peft`, CuratorKIT, AlignTune and AuditKIT) are listed in [`docs/METATIME.md`](../docs/METATIME.md#reproduce). Timed runs need the GPU to themselves, and times depend on the machine, so a rerun elsewhere gives other durations; the comparison is always each model against its own runs.
 

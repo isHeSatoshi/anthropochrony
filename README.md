@@ -65,15 +65,34 @@ Everything was trained and timed on one desktop GPU, with no paid compute.
 
 ## Check it yourself
 
+These checks need no GPU, no Hugging Face login and no benchmark download. The raw records they read (every answer of ours, every timed run, and the frontier models' published per-task numbers) are already in the repository, under `results/`.
+
 ```bash
+# 1. Get the repository
+git clone https://github.com/isHeSatoshi/anthropochrony.git
+cd anthropochrony                 # run every command below from this folder
+
+# 2. Install uv once, if you don't have it (it manages Python and the libraries)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 3. Install the pinned libraries into anthropochrony/.venv (numpy, pandas, scikit-learn, matplotlib, pytest, ...)
 uv sync --locked
-uv run pytest                              # recomputes the published rows and ours from the committed records
-uv run python scripts/run_notebook.py      # the same check as a notebook, plus the paired comparison and the figure
-uv run python scripts/metatime/report.py   # prints every table of docs/METATIME.md from results/metatime.json
+
+# 4. The checks
+uv run pytest                              # expect: 22 passed
+uv run python scripts/run_notebook.py      # expect: notebook executed without errors
+uv run python scripts/metatime/report.py   # prints the tables of docs/METATIME.md
 ```
 
-None of this needs a GPU or the benchmark download. The commands that rebuild the training pool, run the CuratorKIT → AlignTune → AuditKIT pipeline and rerun the timing are in [`docs/METATIME.md`](docs/METATIME.md#reproduce).
+If you download the ZIP from GitHub instead of cloning, unzip it and `cd` into the `anthropochrony-main` folder; the rest is the same. `uv run` uses `.venv` on its own, so there is nothing to activate.
 
+What each check does:
+
+- `pytest` recomputes the headline numbers from the raw records (GPT-5.5's 1.24, Claude Opus 4.8's 1.06, our 0.44 and the other rows) and fails if any differs from what the docs report. It also checks that no benchmark task text is in the records and that the AuditKIT report agrees with them.
+- `run_notebook.py` runs [`notebooks/benchmark_head_to_head.ipynb`](notebooks/benchmark_head_to_head.ipynb), the same recomputation step by step, plus the paired comparison and the figure. Open the notebook in Jupyter to read it.
+- `report.py` prints every table of [`docs/METATIME.md`](docs/METATIME.md) from `results/metatime.json`; the tables in the docs were pasted from this output.
+
+These checks show that the published numbers follow from the committed records. Rerunning the experiment itself (training the adapter and timing its runs) needs a 16 GB GPU; those commands are in [`docs/METATIME.md`](docs/METATIME.md#reproduce).
 ## Try it on your own machine
 
 [`space/`](space/) is a small Gradio app. It measures your CPU's speed, asks the untrained model and our adapter how long your task will take, then runs the task and times it. It uses the 4-bit files in [`isHeSatoshi/anthropochrony-tiny-aya-global-g1-kit-gguf`](https://huggingface.co/isHeSatoshi/anthropochrony-tiny-aya-global-g1-kit-gguf) and a llama.cpp build; [`space/README.md`](space/README.md) has the steps. A hosted Hugging Face Space needs a paid plan for this kind of app, so it runs locally.

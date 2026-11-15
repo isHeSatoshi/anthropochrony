@@ -1,6 +1,6 @@
 # Anthropochrony
 
-### Ask an AI how long a task will take it and it answers on a human clock. We taught a small model to know its own.
+### Ask an AI how long a task will take it and it answers on a human clock. We taught Cohere's Tiny Aya Global to know its own.
 
 _Built for the Lexsi AI Safety & Alignment Hackathon, Track 1 (CuratorKIT → AlignTune → AuditKIT)._
 
@@ -20,7 +20,7 @@ There is now a public test for it. MetaTime, a paper under review at ICLR 2027, 
 
 ## The result
 
-We took `CohereLabs/tiny-aya-global`, an open model with 3.35 billion parameters, and measured how long its own answers were on 1,353 ordinary public prompts. The track's three libraries then built one small adapter (a LoRA, 121 MB) from those measurements: CuratorKIT cleaned the data, AlignTune trained the adapter and AuditKIT tested it. We wrote the rules down and pushed them before running anything: all 68 tasks, the benchmark's own question and scoring, and no benchmark task anywhere in training. Then we told the model the measured speed of our graphics card, asked, and timed its real runs.
+We took Cohere Labs' Tiny Aya Global (`CohereLabs/tiny-aya-global`), an open model with 3.35 billion parameters, and measured how long its own answers were on 1,353 ordinary public prompts. The track's three libraries then built one small adapter (a LoRA, 121 MB) from those measurements: CuratorKIT cleaned the data, AlignTune trained the adapter and AuditKIT tested it. We wrote the rules down and pushed them before running anything: all 68 tasks, the benchmark's own question and scoring, and no benchmark task anywhere in training. Then we told the model the measured speed of our graphics card, asked, and timed its real runs.
 
 | Estimating its own time | Typically off by (lower is better, 1x is perfect) | Within 2x of the real time (higher is better) |
 |---|--:|--:|
@@ -61,7 +61,7 @@ Every control, the full tables and the commands are in [`docs/METATIME.md`](docs
 3. **Train.** AlignTune trains the adapter to answer "how long will this take you?" with the work first and the time second, for example `Prompt: about 380 tokens. Response: about 520 tokens.` and then `Time: 15.4 seconds`. Each training prompt states a machine speed, drawn from a wide range (writing speeds from 2 to 2,500 tokens a second), and the time in the answer is worked out from the token counts at that speed. So the model learns how much work a task is for it, and that the time depends on the machine.
 4. **Ask and check.** On the benchmark, the prompt states the speed we measured on our own machine (an RTX 4060 Ti, with the adapter on: about 30 tokens a second writing and 3,300 reading), followed by the benchmark's own question. The benchmark's own parser reads the time out of the answer. We compare it with the median of five timed runs of the same model on the full task. AuditKIT runs its own check of the gain and of general ability.
 
-Everything was trained and timed on one desktop GPU, with no paid compute.
+The adapter in this submission was trained and timed locally on one desktop GPU (an RTX 4060 Ti). Earlier, legacy work from the project's first study ran on Hugging Face.
 
 ## Check it yourself
 
@@ -107,4 +107,4 @@ Earlier in the hackathon the project ran a first study on 1,465 Python coding ta
 - The rows for GPT-5.5 and Claude Opus 4.8 are the paper's published numbers. We did not rerun those models.
 - No hosted demo; the demo runs locally.
 
-Subject model: `CohereLabs/tiny-aya-global` (3.35B, CC-BY-NC-4.0). Adapter and data: CC-BY-NC-4.0. Code: Apache-2.0.
+Subject model: Cohere Labs' `CohereLabs/tiny-aya-global` (3.35B, CC-BY-NC-4.0). Adapter and data: CC-BY-NC-4.0. Code: Apache-2.0.

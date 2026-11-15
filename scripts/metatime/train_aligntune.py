@@ -69,9 +69,9 @@ def main():
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--cards-per-task", type=int, default=4)
-    parser.add_argument("--batch", type=int, default=2)
-    parser.add_argument("--accum", type=int, default=8)
-    parser.add_argument("--max-seq-length", type=int, default=2048)
+    parser.add_argument("--batch", type=int, default=1)
+    parser.add_argument("--accum", type=int, default=16)
+    parser.add_argument("--max-seq-length", type=int, default=1536)
     parser.add_argument("--max-steps", type=int, help="dry run")
     parser.add_argument("--worst-case", action="store_true", help="dry run on the longest rows")
     args = parser.parse_args()
@@ -163,6 +163,7 @@ def main():
     started = time.time()
     result = trainer.train()
     elapsed = time.time() - started
+    trainer.trainer.model.save_pretrained(output)
     mask = check_answer_only_labels(trainer.trainer)
     history = trainer.trainer.state.log_history
     (output / "training-log.json").write_text(json.dumps(history))

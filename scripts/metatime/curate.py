@@ -105,12 +105,16 @@ def main():
     )
     result = Curator(config).run()
     passed = sorted(sample.metadata["pool_id"] for sample in result.passed)
-    rejected = []
+    # CuratorKIT logs a hook drop as "preprocessing_fn_returned_none" without the sample, so
+    # those drops are taken from the hook's own record instead.
+    rejected = [{"id": rid, "reason": why} for rid, why in ours.items()]
     for sample in result.rejected:
         rid = _pool_id(sample)
-        rejected.append({"id": rid, "reason": ours.get(rid) or str(sample.rejection_reason)})
-    seen = {row["id"] for row in rejected} | set(passed)
-    rejected += [{"id": rid, "reason": why} for rid, why in ours.items() if rid not in seen]
+        if str(sample.rejection_reason) == "preprocessing_fn_returned_none":
+            continue
+        rejected.append({"id": rid, "reason": str(sample.rejection_reason)})
+    if len(passed) + len(rejected) != len(rows) or None in {row["id"] for row in rejected}:
+        raise SystemExit("passed and rejected ids do not add up to the input")
     reasons = {}
     for row in rejected:
         reasons[row["reason"]] = reasons.get(row["reason"], 0) + 1

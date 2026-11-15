@@ -28,9 +28,12 @@ VARIANTS = {
     "card_full_prompt": (True, PRE_ESTIMATE, "full"),
     "card_paper_wording": (True, PAPER_ESTIMATE, "description"),
     "card_fewshot": (True, PRE_ESTIMATE, "description"),
+    "plain_full_prompt": (False, PRE_ESTIMATE, "full"),
 }
-# Shown five measured training-pool examples as earlier turns; only run when asked for.
+# Shown five measured training-pool examples as earlier turns.
 FEWSHOT = {"card_fewshot"}
+# Only run when asked for.
+ON_REQUEST = FEWSHOT | {"plain_full_prompt"}
 
 
 def main():
@@ -48,7 +51,7 @@ def main():
     parser.add_argument("--labels")
     parser.add_argument("--out", required=True)
     parser.add_argument(
-        "--variants", nargs="+", default=[name for name in VARIANTS if name not in FEWSHOT]
+        "--variants", nargs="+", default=[name for name in VARIANTS if name not in ON_REQUEST]
     )
     parser.add_argument("--load-in-4bit", action="store_true")
     parser.add_argument("--no-thinking", action="store_true")

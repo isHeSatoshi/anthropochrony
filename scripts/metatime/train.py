@@ -31,7 +31,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 TARGETS = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 
 
-def build_examples(rows, cards_per_task, seed):
+def build_examples(rows, cards_per_task, seed, fixed_speed=None):
+    """Estimate examples; with `fixed_speed` no speed is stated and every answer uses that one."""
     examples = []
     for row in rows:
         rng = random.Random(stable_seed("sft", seed, row["id"]))
@@ -39,11 +40,14 @@ def build_examples(rows, cards_per_task, seed):
             speed, prefill = sample_card(rng)
             question = rng.choices([q for q, _ in QUESTIONS], [w for _, w in QUESTIONS])[0]
             view = rng.choice(["description", "full"])
+            phrasing = rng.choice(TRAIN_PHRASINGS)
+            if fixed_speed:
+                speed, prefill = fixed_speed
             examples.append(
                 {
                     "id": row["id"],
                     "view": view,
-                    "system": system_prompt(speed, prefill, rng.choice(TRAIN_PHRASINGS)),
+                    "system": None if fixed_speed else system_prompt(speed, prefill, phrasing),
                     "user": question.format(description=task_view(row, view)),
                     "answer": answer_text(row["n_in"], row["n_out"], speed, prefill),
                 }
@@ -107,6 +111,13 @@ def main():
     parser.add_argument("--no-thinking", action="store_true")
     parser.add_argument("--max-steps", type=int)
     parser.add_argument("--train-prompts", type=int, help="train on a seeded sample this large")
+    parser.add_argument(
+        "--fixed-speed",
+        nargs=2,
+        type=float,
+        metavar=("S", "P"),
+        help="train for one machine: no speed in the prompt, every answer at these speeds",
+    )
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -116,7 +127,7 @@ def main():
     rows = [row for row in load_pool(args.pool, args.labels) if row["split"] == "train"]
     if args.train_prompts:
         rows = random.Random(stable_seed("subset", args.seed)).sample(rows, args.train_prompts)
-    examples = build_examples(rows, args.cards_per_task, args.seed)
+    examples = build_examples(rows, args.cards_per_task, args.seed, args.fixed_speed)
     data = [tokenize(tokenizer, example, template_kwargs) for example in examples]
     n_estimates = len(data)
     if args.replay_tokens:
@@ -133,7 +144,7 @@ def main():
     )
     print(
         "example:\n"
-        + examples[0]["system"]
+        + (examples[0]["system"] or "(no system prompt)")
         + "\n---\n"
         + examples[0]["user"][:400]
         + "\n---\n"
@@ -313,6 +324,7 @@ def main():
                 "accum": args.accum,
                 "seed": args.seed,
                 "cards_per_task": args.cards_per_task,
+                "fixed_speed": args.fixed_speed,
                 "gpu": torch.cuda.get_device_name(0),
                 "elapsed_s": time.monotonic() - started,
                 "first_loss": log[0]["loss"],

@@ -92,6 +92,7 @@ def _public_benchmark_markdown(root: Path) -> str:
         ("untrained/card_description", "Tiny Aya, untrained, speed stated"),
         ("g1-s0/protocol", "Tiny Aya + G1, no speed stated"),
         ("g1-s0/card_description", "**Tiny Aya + G1 (primary)**"),
+        ("g1-fixed@base/protocol", "Tiny Aya + G1-fixed, no speed stated (added afterwards)"),
     ):
         rows.append((label, result["systems"].get(key, {}).get("stated")))
     lines = [
@@ -99,7 +100,9 @@ def _public_benchmark_markdown(root: Path) -> str:
         "own measured time, with the benchmark's question, parser and metrics. `G1` is a "
         "separate adapter trained on the model's own response lengths for public prompts; no "
         "benchmark task was used in training. The frontier models were asked without a stated "
-        "speed, and `G1` needs one. See `docs/METATIME.md` for every control and caveat.",
+        "speed, and `G1` needs one. `G1-fixed` is the same recipe trained for one machine's "
+        "speed; it is asked with no speed and scored against the untrained model's runs. See "
+        "`docs/METATIME.md` for every control and caveat.",
         "",
         "| System | Median estimate/actual | Median abs. log error | Pearson r (log) | Within 2× |",
         "|---|--:|--:|--:|--:|",

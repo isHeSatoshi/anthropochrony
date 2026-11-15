@@ -10,8 +10,10 @@ log error of 0.38, which is a typical factor of 1.46x, and 79% of its estimates 
 2x. The published estimates of GPT-5.5 and Claude Opus 4.8 for their own time on the same
 tasks have errors of 1.24 (3.47x, 12% within 2x) and 1.06 (2.87x, 25% within 2x). Ours is
 closer on 62 and 61 of the 68 tasks. It is not better at ranking tasks than Claude Opus 4.8
-(correlation 0.78 against 0.81), and it needs the machine's speed stated in the prompt. The
-section "What this does not show" lists every caveat we know of.
+(correlation 0.78 against 0.81), and it needs the machine's speed stated in the prompt. A
+second adapter, trained for this one machine and asked with no speed at all, exactly as the
+frontier models were, scores 0.42 (76% within 2x). The section "What this does not show"
+lists every caveat we know of.
 
 ![Head-to-head on MetaTime](../paper/figures/F9-metatime-head-to-head.png)
 
@@ -46,6 +48,7 @@ a protocol fixed in advance, not part of the original registered plan.
 | Comparison | The artifact's per-task estimates of GPT-5.5 and Claude Opus 4.8 (each against its own measured time), paired bootstrap over tasks (5,000 draws); and the paper's best trained open model (Qwen3-8B, Table 22) |
 | Success criterion | Lower median absolute log error than both frontier models, with the paired 95% interval excluding zero |
 | Declared secondary rows | The untrained model with and without the stated speed, and with five measured training examples in the prompt; three predictors that never ask the model (a constant, two text regressors); a linear probe on the untrained model's hidden state; `G1` shown the full prompt, asked with the paper's wording, asked without the speed, read through its stated token count, read as the median of 16 sampled answers, and scored against the untrained model's runs; the same question with four other machines' speeds stated; more seeds and smaller training sets |
+| Added after the first results (post-hoc; each written down and pushed before it was run) | A range calibrated on held-out training-pool prompts; `G1-fixed`, an adapter that needs no stated speed, asked exactly as the frontier models were |
 
 ## How to read the comparison
 
@@ -57,8 +60,9 @@ Three things differ between our row and the published frontier rows, and the tab
 control for each:
 
 1. **We state the deployment's speed in the prompt.** The frontier models were asked
-   without it. The row "untrained, speed stated" shows what the stated speed alone does, and
-   the row "G1, no speed stated" shows what the adapter does without it.
+   without it. The row "untrained, speed stated" shows what the stated speed alone does, the
+   row "G1, no speed stated" shows what the adapter does without it, and `G1-fixed` is an
+   adapter trained to need no stated speed, asked exactly as the frontier models were.
 2. **We trained on this model's own measurements.** The rows "same constant for every
    task", the text regressors and the hidden-state probe use the same training labels
    without asking the model, and show how much of the result is calibration of the average
@@ -99,6 +103,52 @@ categories:
 
 Category sizes are 8 to 12 tasks, so the per-category numbers are descriptive only.
 
+### Asked as the frontier models were: no speed in the prompt
+
+The frontier models got the question and nothing else. `G1` is also told its machine's
+speed, and without it scores 1.77. So we trained one more adapter to find out whether the
+stated speed can be dropped. `G1-fixed` has the same recipe, training prompts, labels and
+seed as `G1`, but its training examples have no system prompt, and every training answer is
+computed at one speed: the untrained model's measured speed on this GPU (34 tokens a second
+writing, 5,700 reading). It is then asked the benchmark's question exactly as the frontier
+models were. We wrote this adapter into the preregistration log after the main results and
+before training it, so it is post-hoc.
+
+It is scored against the untrained model's five timed runs, as the other extra adapters
+are. Its ordinary responses are as long as the untrained model's (median difference +0.6%
+on held-out prompts).
+
+| System | Median estimate/actual | Median abs. log error [95% CI] | Typical factor off | r (log) | Within 2x | MAE (s) | Parsed |
+|---|---|---|---|---|---|---|---|
+| GPT-5.5 (published) | 3.47x | 1.24 [1.10, 1.42] | 3.47x | 0.55 | 12% | 92.2 | 68/68 |
+| Claude Opus 4.8 (published) | 2.87x | 1.06 [0.90, 1.14] | 2.87x | 0.81 | 25% | 30.5 | 68/68 |
+| Tiny Aya, untrained, benchmark question as is | 5.61x | 1.74 [1.54, 1.99] | 5.70x | 0.32 | 7% | 92.0 | 68/68 |
+| G1, no speed stated | 0.17x | 1.77 [1.51, 1.94] | 5.86x | 0.34 | 7% | 14.8 | 68/68 |
+| G1-fixed, no speed stated (the untrained model's runs) | 0.74x | 0.42 [0.37, 0.47] | 1.52x | 0.77 | 76% | 6.0 | 68/68 |
+| G1-fixed, no speed stated, full prompt (the untrained model's runs) | 0.85x | 0.31 [0.19, 0.38] | 1.37x | 0.80 | 85% | 5.1 | 68/68 |
+
+| Comparison (ours minus theirs, median abs. log error) | Difference | Paired 95% CI | Tasks where ours is closer |
+|---|---|---|---|
+| G1-fixed, no speed stated (the untrained model's runs) vs GPT-5.5 | -0.82 | [-1.02, -0.67] | 62/68 |
+| G1-fixed, no speed stated (the untrained model's runs) vs Claude Opus 4.8 | -0.64 | [-0.74, -0.47] | 59/68 |
+| G1-fixed, no speed stated, full prompt (the untrained model's runs) vs GPT-5.5 | -0.93 | [-1.13, -0.76] | 63/68 |
+| G1-fixed, no speed stated, full prompt (the untrained model's runs) vs Claude Opus 4.8 | -0.74 | [-0.88, -0.58] | 63/68 |
+
+Asked cold, `G1-fixed` has an error of 0.42 (a typical factor of 1.52x, 76% within 2x) and
+a correlation of 0.77. It is closer than GPT-5.5 on 62 of the 68 tasks and closer than
+Claude Opus 4.8 on 59. So the stated speed is not what separates our rows from the frontier
+rows. A model trained on its own measurements on one machine answers the bare question
+about as well as `G1` does with the speed stated (0.37 against the same runs).
+
+The rows above use the untrained model's runs. A timing pass of `G1-fixed` itself, with the
+adapter merged into the weights as a deployment would serve it, was declared before it was
+run and was still running when this page was last updated.
+
+What it costs: `G1-fixed` knows one machine. `G1` follows a stated speed across a 270-fold
+range (see "Stating another machine's speed"), while `G1-fixed` has to be retrained when the
+hardware changes. And it is still not a like-for-like contest, because the frontier models
+were not trained for this question at all.
+
 ### Telling tasks apart
 
 Lower error does not mean better ranking. Claude Opus 4.8 orders the tasks by duration as
@@ -111,6 +161,7 @@ well as `G1` does:
 | Tiny Aya, untrained, speed stated | 0.41 [0.09, 0.67] | 0.46 | 65% | 0.47 |
 | **Tiny Aya + G1 (primary)** | 0.78 [0.64, 0.87] | 0.70 | 76% | 0.66 |
 | G1, shown the full prompt | 0.83 [0.71, 0.91] | 0.85 | 82% | 0.77 |
+| G1-fixed, no speed stated (the untrained model's runs) | 0.77 [0.59, 0.88] | 0.76 | 78% | 0.71 |
 
 `G1` ranks tasks better than GPT-5.5 and about the same as Claude Opus 4.8 (the intervals
 overlap). The frontier models' error is mostly an error of scale: both say roughly three
@@ -138,6 +189,8 @@ estimate by the median estimate/actual ratio of the other 67 tasks.
 | G1, shown the full prompt | 0.32 | 0.37 | 0.23 | 0.83 |
 | G1 predicting the untrained model's runs | 0.37 | 0.40 | 0.32 | 0.80 |
 | G1, full prompt, the untrained model's runs | 0.33 | 0.40 | 0.26 | 0.84 |
+| G1-fixed, no speed stated (the untrained model's runs) | 0.42 | 0.40 | 0.24 | 0.77 |
+| G1-fixed, no speed stated, full prompt (the untrained model's runs) | 0.31 | 0.40 | 0.27 | 0.80 |
 | TF-IDF regressor on the full prompt | 0.75 | 0.40 | 0.37 | 0.36 |
 | Sentence-encoder regressor, full prompt | 0.82 | 0.40 | 0.33 | 0.10 |
 | Linear probe, state before answering the full prompt | 0.36 | 0.40 | 0.25 | 0.86 |
@@ -176,6 +229,8 @@ Two plain readings of this table:
 | G1, shown the full prompt | 0.82x | 0.32 [0.24, 0.38] | 1.38x | 0.83 | 88% | 5.8 | 68/68 |
 | G1 predicting the untrained model's runs | 0.78x | 0.37 [0.26, 0.50] | 1.45x | 0.80 | 79% | 5.7 | 68/68 |
 | G1, full prompt, the untrained model's runs | 0.83x | 0.33 [0.24, 0.38] | 1.40x | 0.84 | 90% | 4.9 | 68/68 |
+| G1-fixed, no speed stated (the untrained model's runs) | 0.74x | 0.42 [0.37, 0.47] | 1.52x | 0.77 | 76% | 6.0 | 68/68 |
+| G1-fixed, no speed stated, full prompt (the untrained model's runs) | 0.85x | 0.31 [0.19, 0.38] | 1.37x | 0.80 | 85% | 5.1 | 68/68 |
 | TF-IDF regressor on the full prompt | 0.50x | 0.75 [0.60, 0.84] | 2.11x | 0.36 | 44% | 9.1 | 68/68 |
 | Sentence-encoder regressor, full prompt | 0.46x | 0.82 [0.70, 0.92] | 2.27x | 0.10 | 35% | 10.0 | 68/68 |
 | Linear probe, state before answering the full prompt | 0.75x | 0.36 [0.25, 0.45] | 1.43x | 0.86 | 85% | 5.7 | 68/68 |
@@ -198,12 +253,16 @@ Two plain readings of this table:
 | G1 predicting the untrained model's runs vs Claude Opus 4.8 | -0.68 | [-0.83, -0.47] | 62/68 |
 | G1, full prompt, the untrained model's runs vs GPT-5.5 | -0.91 | [-1.10, -0.76] | 62/68 |
 | G1, full prompt, the untrained model's runs vs Claude Opus 4.8 | -0.72 | [-0.87, -0.56] | 59/68 |
+| G1-fixed, no speed stated (the untrained model's runs) vs GPT-5.5 | -0.82 | [-1.02, -0.67] | 62/68 |
+| G1-fixed, no speed stated (the untrained model's runs) vs Claude Opus 4.8 | -0.64 | [-0.74, -0.47] | 59/68 |
+| G1-fixed, no speed stated, full prompt (the untrained model's runs) vs GPT-5.5 | -0.93 | [-1.13, -0.76] | 63/68 |
+| G1-fixed, no speed stated, full prompt (the untrained model's runs) vs Claude Opus 4.8 | -0.74 | [-0.88, -0.58] | 63/68 |
 
 What the controls show:
 
-- **The stated speed is necessary.** Without it `G1` is worse than both frontier models
+- **`G1` needs the stated speed.** Without it `G1` is worse than both frontier models
   (1.77). The adapter learned how much it will write; it has no way to know how fast the
-  machine is unless told.
+  machine is unless told, or unless it is trained for one machine as `G1-fixed` is.
 - **The stated speed is not sufficient.** The untrained model with the same speed in the
   prompt is no better than without it; 59 of its 68 answers are "1 minute" or "2 minutes".
   Adding five measured examples to the prompt moves its scale but not its accuracy.
@@ -292,11 +351,15 @@ gets the range from the stated time divided by `e^q` to the stated time multipli
 | G1, shown the full prompt, its own runs | 170 | 0.63 | 1.88x | 85% | 57% |
 | G1, benchmark question, the untrained model's runs | 170 | 0.92 | 2.52x | 93% | n/a |
 | G1, shown the full prompt, the untrained model's runs | 170 | 0.63 | 1.88x | 82% | n/a |
+| G1-fixed, no speed stated, the untrained model's runs | 170 | 1.06 | 2.88x | 99% | n/a |
+| G1-fixed, no speed stated, full prompt, the untrained model's runs | 170 | 0.61 | 1.84x | 79% | n/a |
 
 From the description, the range is the stated time divided and multiplied by 2.52, and 93%
 of the benchmark's measured times are inside it. That is more than the 80% aimed for, so on
 this suite the range is wider than it needs to be. From the full prompt the factor is 1.88
-and 85% are inside (82% against the untrained model's runs). For scale, the edge of this
+and 85% are inside (82% against the untrained model's runs). For `G1-fixed` the factor is
+2.88 from the description with 99% inside, and 1.84 from the full prompt with 79% inside.
+For scale, the edge of `G1`'s
 range (2.52x from the stated time) is closer than the typical miss of the frontier models'
 point estimates (3.47x and 2.87x). The guarantee behind split-conformal ranges assumes the
 benchmark tasks resemble the calibration prompts, which they do not exactly, so the 93% and
@@ -312,17 +375,25 @@ not fit in the time left. The first row is the primary adapter scored the same w
 | Adapter (against the untrained model's runs) | Stated time: log error | r (log) | Within 2x | Stated tokens through the formula: log error | r (log) | Stated time agrees with its own token counts (within 10%) | Full prompt, stated time: log error | Full prompt, tokens through the formula | Response-length drift |
 |---|---|---|---|---|---|---|---|---|---|
 | G1 seed 0 (1,353 prompts) | 0.37 | 0.80 | 79% | 0.38 | 0.80 | 68/68 | 0.33 | 0.33 | +0.5% |
+| 450 prompts, seed 0 | 0.41 | 0.64 | 78% | 0.42 | 0.64 | 68/68 | 0.34 | 0.32 | +0.0% |
 | 150 prompts, seed 0 | 2.95 | -0.06 | 3% | 0.64 | 0.45 | 0/68 | 4.25 | 0.67 | -1.6% |
 
-With 150 training prompts the adapter answers in the right format, but none of its 68
-stated times agrees with its own token counts. For example it states about 220 response
-tokens and 0.256 seconds at 35 tokens a second, where the formula gives 6.4 seconds. Its
-stated time is therefore useless (2.95), while the token count it states, put through the
-formula, scores 0.64 with a correlation of 0.45. The model learns roughly how much it will
-write from little data and learns the division later. This is the division weakness of
-section 7.3 of the write-up again, and the reason the main study's structured
-variant computes the time outside the model. Seeds 1 and 2 and the 450-prompt adapter were
-still training when this page was last updated.
+Seeds 1 and 2 were still training when this page was last updated.
+
+**450 prompts are nearly enough.** With a third of the training pool the error is 0.41
+against 0.37, and 78% of estimates are within 2x. Ranking is weaker (r = 0.64 against
+0.80). The error is still lower than GPT-5.5's by 0.84 and Claude Opus 4.8's by 0.65, with
+paired intervals that exclude zero.
+
+**150 prompts teach the length but not the division.** The adapter answers in the right
+format, but none of its 68 stated times agrees with its own token counts. For example it
+states about 220 response tokens and 0.256 seconds at 35 tokens a second, where the formula
+gives 6.4 seconds. Its stated time is therefore useless (2.95). The token count it states,
+put through the formula, scores 0.64 with a correlation of 0.45, which is still lower than
+both frontier models' error (by 0.60 and 0.42, paired intervals excluding zero). The model
+learns roughly how much it will write from little data and learns the division later. This
+is the division weakness of section 7.3 of the write-up again, and the reason the main
+study's structured variant computes the time outside the model.
 
 ### The timed runs
 
@@ -346,22 +417,28 @@ Held-out pool prompts (170; run-to-run abs. log error 0.107):
 
 | Estimator | Median estimate/actual | Median abs. log error | r (log) | Within 2x | Parsed | 10-90% range of the samples covers |
 |---|---|---|---|---|---|---|
-| g1-n150/card_description | 0.08x | 2.53 | 0.11 | 7% | 170/170 |  |
-| g1-n150/card_full_prompt | 0.03x | 3.51 | 0.20 | 5% | 170/170 |  |
-| static/pool_median_constant | 0.94x | 0.56 | n/a | 56% | 170/170 |  |
-| static/text_regressor_description | 0.80x | 0.57 | 0.32 | 61% | 170/170 |  |
-| static/embedding_regressor_description | 0.83x | 0.48 | 0.45 | 66% | 170/170 |  |
-| static/text_regressor_full | 0.90x | 0.36 | 0.52 | 73% | 170/170 |  |
-| static/embedding_regressor_full | 0.87x | 0.49 | 0.53 | 67% | 170/170 |  |
 | g1-s0/card_description | 0.98x | 0.38 | 0.42 | 69% | 170/170 |  |
 | g1-s0/card_description+sampled_median | 0.88x | 0.43 | 0.49 | 71% | 170/170 | 62% |
 | g1-s0/card_full_prompt | 0.88x | 0.32 | 0.68 | 82% | 170/170 |  |
 | g1-s0/card_full_prompt+sampled_median | 0.88x | 0.32 | 0.77 | 84% | 170/170 | 62% |
+| static/pool_median_constant | 0.94x | 0.56 | n/a | 56% | 170/170 |  |
+| static/text_regressor_description | 0.81x | 0.56 | 0.32 | 61% | 170/170 |  |
+| static/embedding_regressor_description | 0.83x | 0.48 | 0.45 | 66% | 170/170 |  |
+| static/text_regressor_full | 0.90x | 0.35 | 0.53 | 73% | 170/170 |  |
+| static/embedding_regressor_full | 0.87x | 0.48 | 0.53 | 68% | 170/170 |  |
+| g1-fixed/plain_full_prompt | 0.91x | 0.28 | 0.72 | 85% | 170/170 |  |
+| g1-fixed/protocol | 1.07x | 0.41 | 0.44 | 70% | 170/170 |  |
+| g1-n150/card_description | 0.08x | 2.53 | 0.11 | 7% | 170/170 |  |
+| g1-n150/card_full_prompt | 0.03x | 3.51 | 0.20 | 5% | 170/170 |  |
+| g1-n450/card_description | 1.19x | 0.39 | 0.46 | 68% | 170/170 |  |
+| g1-n450/card_full_prompt | 1.00x | 0.35 | 0.63 | 76% | 170/170 |  |
 | untrained/card_description | 11.33x | 2.44 | 0.11 | 1% | 170/170 |  |
 | untrained/card_fewshot | 0.43x | 1.16 | 0.22 | 36% | 170/170 |  |
 
 Response length on the held-out pool prompts, against the untrained model:
+- g1-fixed: response length vs untrained +0.6% (median), median abs. log ratio 0.161
 - g1-n150: response length vs untrained -1.6% (median), median abs. log ratio 0.143
+- g1-n450: response length vs untrained +0.0% (median), median abs. log ratio 0.134
 - g1-s0: response length vs untrained +0.5% (median), median abs. log ratio 0.145
 
 Row names are estimator/question: `card_description` is the benchmark question with the
@@ -389,8 +466,10 @@ models and machines differ, so the seconds are not comparable (our runs have a m
 
 ## What this does not show
 
-- **It is not a like-for-like contest.** The frontier models were asked cold. Ours was
-  trained on its own measurements and told its speed. The paper reports that stating the
+- **It is not a like-for-like contest.** The frontier models were asked cold and were not
+  trained for this. `G1` was trained on its own measurements and told its speed. `G1-fixed`
+  drops the stated speed and still scores 0.42, but it too was trained on this model's
+  measurements on this machine. The paper reports that stating the
   measured pace helps the frontier models on its long-horizon tasks (Table 10: GPT-5.5
   1.18x and 0.84 log error, Claude Opus 4.8 1.12x and 0.52). That ablation does not exist
   for these 68 tasks, so we cannot say how close the frontier models would get with the same
@@ -448,6 +527,9 @@ python $X/time_runs.py --model $M --adapter adapters/g1-s0 --suite $SUITE --out 
 python $X/time_runs.py --model $M --suite $SUITE --out $D/time-base.jsonl --runs 5
 python $X/estimate.py --model $M --executor base --suite $SUITE --pool $D/pool.jsonl --labels $D/pool-labels.jsonl --out $D/est-untrained.jsonl --variants protocol card_description card_fewshot
 python $X/probe.py --model $M --suite $SUITE --pool $D/pool.jsonl --labels $D/pool-labels.jsonl --out $D/probe.json
+# G1-fixed: no speed in the prompt; 34 and 5700 are the untrained model's measured speeds on this GPU
+python $X/train.py --model $M --pool $D/pool.jsonl --labels $D/pool-labels.jsonl --output adapters/g1-fixed --fixed-speed 34 5700
+python $X/estimate.py --model $M --adapter adapters/g1-fixed --executor base --suite $SUITE --out "$D/est-g1-fixed@base.jsonl" --variants protocol plain_full_prompt
 ```
 
 Timed runs must have the GPU to themselves. Times depend on the machine, so a rerun on other

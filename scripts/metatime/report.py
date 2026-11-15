@@ -27,22 +27,27 @@ ROWS = [
     ("g1-s0/card_full_prompt", "G1, shown the full prompt", "stated"),
     ("g1-s0@base/card_description", "G1 predicting the untrained model's runs", "stated"),
     ("g1-s0@base/card_full_prompt", "G1, full prompt, the untrained model's runs", "stated"),
-    ("g1-fixed@base/protocol", "G1-fixed: no speed stated, the untrained model's runs", "stated"),
-    (
-        "g1-fixed@base/protocol",
-        "G1-fixed, stated tokens through the speed formula",
-        "token_reading",
-    ),
+    ("g1-fixed@base/protocol", "G1-fixed, no speed stated (the untrained model's runs)", "stated"),
+    ("g1-fixed/protocol", "G1-fixed, no speed stated (its own runs, adapter merged)", "stated"),
     (
         "g1-fixed@base/plain_full_prompt",
-        "G1-fixed, shown the full prompt, no speed stated",
+        "G1-fixed, no speed stated, full prompt (the untrained model's runs)",
+        "stated",
+    ),
+    (
+        "g1-fixed/plain_full_prompt",
+        "G1-fixed, no speed stated, full prompt (its own runs, adapter merged)",
         "stated",
     ),
     ("static/text_regressor_full", "TF-IDF regressor on the full prompt", "stated"),
     ("static/embedding_regressor_full", "Sentence-encoder regressor, full prompt", "stated"),
     ("probe/task", "Linear probe, state before answering the full prompt", "stated"),
 ]
-EXECUTORS = {"base": "untrained model", "g1-s0": "fine-tuned model (G1)"}
+EXECUTORS = {
+    "base": "untrained model",
+    "g1-s0": "fine-tuned model (G1)",
+    "g1-fixed": "G1-fixed, adapter merged into the weights",
+}
 SAMPLED = {
     "card_description": "G1, benchmark question (primary)",
     "card_full_prompt": "G1, shown the full prompt",
@@ -139,7 +144,8 @@ def main():
             ("untrained/card_description", "Tiny Aya, untrained, speed stated"),
             ("g1-s0/card_description", "**Tiny Aya + G1 (primary)**"),
             ("g1-s0/card_full_prompt", "G1, shown the full prompt"),
-            ("g1-fixed@base/protocol", "G1-fixed: no speed stated, the untrained model's runs"),
+            ("g1-fixed@base/protocol", "G1-fixed, no speed stated (the untrained model's runs)"),
+            ("g1-fixed/protocol", "G1-fixed, no speed stated (its own runs, adapter merged)"),
         )
         if key in systems
     ]
@@ -276,7 +282,12 @@ def main():
             ("g1-fixed@base/protocol", "G1-fixed, no speed stated, the untrained model's runs"),
             (
                 "g1-fixed@base/plain_full_prompt",
-                "G1-fixed, shown the full prompt, the untrained model's runs",
+                "G1-fixed, no speed stated, full prompt, the untrained model's runs",
+            ),
+            ("g1-fixed/protocol", "G1-fixed, no speed stated, its own runs (adapter merged)"),
+            (
+                "g1-fixed/plain_full_prompt",
+                "G1-fixed, no speed stated, full prompt, its own runs (adapter merged)",
             ),
         )
         if "conformal_80" in systems.get(key, {})
@@ -314,7 +325,9 @@ def main():
         )
         print("|---|---|---|---|---|---|---|")
         seen = set()
-        for name, rows in check["estimators"].items():
+        # The rows that never ask the model are listed once, on the primary adapter's targets.
+        ordered = sorted(check["estimators"].items(), key=lambda item: item[0] != "g1-s0")
+        for name, rows in ordered:
             for key, row in rows.items():
                 label = key if key.startswith("static/") else f"{name}/{key}"
                 if label in seen:

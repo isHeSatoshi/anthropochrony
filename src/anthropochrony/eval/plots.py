@@ -722,7 +722,9 @@ H2H_ROWS = [
     ("static/pool_median_constant", "One constant (no model)", COLORS["B0"]),
     ("static/text_regressor_description", "Text regressor (no model)", COLORS["B2"]),
     ("probe/question", "Probe on hidden state", COLORS["M2-S0"]),
-    (H2H_PRIMARY, "Tiny Aya + G1 (ours)", COLORS["M1-Struct"]),
+    ("g1-s0/protocol", "G1, no speed stated", COLORS["M3-S0"]),
+    ("g1-fixed@base/protocol", "G1-fixed, no speed stated (ours)", COLORS["M1b"]),
+    (H2H_PRIMARY, "Tiny Aya + G1, speed stated (ours)", COLORS["M1-Struct"]),
 ]
 
 

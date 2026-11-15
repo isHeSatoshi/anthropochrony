@@ -1,420 +1,278 @@
 # Anthropochrony: a 3B model that knows how long its own answers take
 
-**Claim.** Built end to end by CuratorKIT → AlignTune → AuditKIT from measurements of itself, an adapter for Cohere Labs' Tiny Aya Global (3.35B) estimates the model's own running time on a public benchmark with a typical miss of 1.55x, where the published self-estimates of GPT-5.5 and Claude Opus 4.8 miss theirs by 3.47x and 2.87x.
+An adapter for Cohere Labs' Tiny Aya Global (3.35B), built end to end by CuratorKIT → AlignTune → AuditKIT from measurements of the model itself, estimates the model's own running time on a public benchmark with a typical miss of 1.55x. The published self-estimates of GPT-5.5 and Claude Opus 4.8 miss theirs by 3.47x and 2.87x.
 
-**Team:** [@isHeSatoshi](https://huggingface.co/isHeSatoshi) (solo) · **Code:** https://github.com/isHeSatoshi/anthropochrony · **Models:** [HF collection](https://huggingface.co/collections/isHeSatoshi/anthropochrony-self-time-models-6af986a95a140f4184fae18f) · **Data and logs:** [HF collection](https://huggingface.co/collections/isHeSatoshi/anthropochrony-self-time-data-6af986a99994d1dfbbad03aa)
+**Author:** [@isHeSatoshi](https://huggingface.co/isHeSatoshi) (solo) · **Code:** https://github.com/isHeSatoshi/anthropochrony · **Models:** [HF collection](https://huggingface.co/collections/isHeSatoshi/anthropochrony-self-time-models-6af986a95a140f4184fae18f) · **Data and logs:** [HF collection](https://huggingface.co/collections/isHeSatoshi/anthropochrony-self-time-data-6af986a99994d1dfbbad03aa)
 
 > **For judges: one minute.**
-> - **Problem.** Ask a model how long a task will take it and it answers on a human clock. On the 68 single-turn tasks of the public MetaTime benchmark, GPT-5.5 and Claude Opus 4.8 say about three times too long for nearly everything (12% and 25% of their estimates within 2x).
-> - **Pipeline.** CuratorKIT gates the measured training pool (1,353 → 1,342 prompts), AlignTune trains a LoRA on what passed (`G1-kit`), AuditKIT evaluates it on the benchmark and on ARC with the adapter off and on (§2, §7.3).
-> - **Before → after (same model, same question).** Tiny Aya Global told its machine's speed: median absolute log error **1.71** (5.5x off, **4%** within 2x). With `G1-kit`: **0.44** (1.55x off, **72%** within 2x, 95% CI 0.38 to 0.51), against its own timed runs. Closer than GPT-5.5 on 60 of 68 tasks and than Claude Opus 4.8 on 55; both paired 95% intervals exclude zero, which is the success criterion pushed to GitHub before the first estimate. AuditKIT's paired bootstrap agrees (mean log error 1.78 → 0.50, p = 0.001).
-> - **Honest caveats.** Each model is judged on its own clock. Ours is told its speed; asked cold it scores 1.53, worse than both frontier models. Claude Opus 4.8 ranks tasks better than ours (r 0.81 against 0.71). One training run. The adapter costs about 2 points of ARC accuracy when switched on. One GPU, English only.
-> - **Check it in 2 minutes, CPU only:** `uv sync --locked && uv run pytest && uv run python scripts/run_notebook.py`.
+> Asked how long a task will take them, GPT-5.5 and Claude Opus 4.8 answer on a human clock and say about three times too long on the 68 single-turn tasks of the public MetaTime benchmark (12% and 25% of their estimates within 2x). We ran Tiny Aya Global on public prompts, gated the measurements with CuratorKIT (1,353 → 1,342 prompts), trained a LoRA adapter, `G1-kit`, with AlignTune, and evaluated it with AuditKIT. With its machine's speed stated, the same model goes from a median absolute log error of **1.71** (5.5x off, 4% within 2x) to **0.44** (1.55x off, 72% within 2x, 95% CI 0.38 to 0.51) against its own timed runs. It is closer than GPT-5.5 on 60 of 68 tasks and closer than Claude Opus 4.8 on 55, and both paired 95% intervals exclude zero, which was the success criterion pushed to GitHub before the first estimate.
+>
+> The caveats matter. Each model is judged on its own clock, and ours is told its speed; asked cold it scores 1.53, worse than both frontier models. Claude Opus 4.8 ranks tasks better (r 0.81 against 0.71). There was one training run, and the adapter costs about 2 points of ARC accuracy when switched on. Checking the numbers takes two minutes on a CPU: `uv sync --locked && uv run pytest && uv run python scripts/run_notebook.py`.
 
 ## Tracks and problem statements
 
 - Track 1: Fine-tuning and Data Curation (CuratorKIT → AlignTune → AuditKIT).
-- Problem statement 2, *Replacing a closed-model API*: a small open model replaces frontier models on a task they are usually asked to do (estimating how long a job will take), with better accuracy and a cost comparison (§8).
-- Other: self-knowledge and calibration. A model that can say how long its own work will take, measured against its own clock.
+- Problem statement 2, *Replacing a closed-model API*: a small open model replaces frontier models on a question they are often asked (how long a job will take), with better accuracy and lower cost (§8).
+- Other: self-knowledge and calibration, measured against the model's own clock.
 
-No harmful or NSFW content appears in this write-up.
+The write-up contains no harmful or NSFW content.
 
 ## Abstract
 
-Ask a language model how long a task will take it and it answers on a human clock: "a few minutes" for work it finishes in seconds, because the text it learned from describes how long people take. Those estimates feed real decisions, such as job queues, timeouts, routing between machines and what users are told. On the 68 single-turn tasks of the public MetaTime benchmark, the published self-estimates of GPT-5.5 and Claude Opus 4.8 are typically 3.47x and 2.87x off their own measured times (12% and 25% within 2x).
+Language models estimate their own running time on a human clock. They say "a few minutes" for work they finish in seconds, because their training text describes how long people take. These estimates feed job queues, timeouts, routing between machines and what users are told. On the 68 single-turn tasks of the public MetaTime benchmark, the published self-estimates of GPT-5.5 and Claude Opus 4.8 are typically 3.47x and 2.87x off their measured times.
 
-We taught Cohere Labs' Tiny Aya Global (3.35B) its own clock with the track's full pipeline, with no teacher model and no paid labels. We ran the untrained model three times on each of 1,523 public instruction prompts (Dolly-15k, CodeAlpaca-20k, no_robots, GSM8K and 100 coding tasks of ours), after removing 21 prompts that resembled a benchmark task, and recorded how long its answers were. CuratorKIT gated the 1,353 training prompts (schema, exact and near-duplicate removal, secrets, and our rule against labels cut off by the generation cap; 1,342 passed). AlignTune trained a LoRA adapter, `G1-kit`, to answer "how long will this take you?" with the work first and the time second: the tokens it expects to read and write, then the seconds at the machine speed stated in its prompt. AuditKIT evaluated it.
+We taught Cohere Labs' Tiny Aya Global (3.35B) its own clock with the track's full pipeline and no teacher model. The untrained model answered each of 1,523 public instruction prompts three times, after we removed 21 prompts that resembled a benchmark task, and we recorded the length of every answer. CuratorKIT gated the 1,353 training prompts (1,342 passed). AlignTune trained a LoRA adapter, `G1-kit`, to answer the time question in two steps: the tokens it expects to read and write, then the seconds at the machine speed stated in its prompt. AuditKIT evaluated the result.
 
-The task list, the benchmark's own question and parser, the metrics and the success criterion were pushed to GitHub before the first estimate, and each `G1-kit` row before it was run. Before → after on the same model, each against its own timed runs: median absolute log error 1.71 → 0.44 (typical miss 5.5x → 1.55x; within 2x 4% → 72%). Ours is closer than GPT-5.5 on 60 of 68 tasks and than Claude Opus 4.8 on 55, and both paired 95% intervals exclude zero, so the declared criterion is met. Told another machine's speed, the estimates scale with it across a 270-fold range. AuditKIT's paired bootstrap confirms the gain over the untrained model (mean log error 1.78 → 0.50, p = 0.001) and finds a cost: ARC accuracy falls by about 2 points (Easy 73.0% → 71.1%, Challenge 42.2% → 40.2%), so the adapter is best switched on only for the time question. 1,000 estimates cost 3 to 5 cents of GPU time; the same question at frontier list prices costs at least 57 to 60 cents.
+The tasks, the benchmark's question and parser, the metrics and the success criterion were pushed to GitHub before the first estimate. Against its own timed runs, the same model's median absolute log error falls from 1.71 to 0.44 (typical miss 5.5x → 1.55x; within 2x 4% → 72%). It is closer than GPT-5.5 on 60 of 68 tasks and closer than Claude Opus 4.8 on 55, with both paired 95% intervals excluding zero, so the declared criterion is met. When told another machine's speed, its estimates scale with it across a 270-fold range. AuditKIT's paired bootstrap confirms the gain (mean log error 1.78 → 0.50, p = 0.001) and also finds a cost: ARC accuracy drops by about 2 points (Easy 73.0% → 71.1%, Challenge 42.2% → 40.2%), so the adapter should be switched on only for the time question. A thousand estimates cost 3 to 5 cents of GPU time, against at least 57 to 60 cents at frontier list prices.
 
-Limits: each model is judged on its own clock, and ours is told its speed (asked cold it scores 1.53, worse than both frontier models); Claude Opus 4.8 ranks tasks better than ours (r 0.81 against 0.71); one training run. One model, one consumer GPU, English, single-turn tasks. All compute was local, at no cost.
+Each model is judged on its own clock, and ours is told its speed; asked cold, it scores 1.53, worse than both frontier models. Claude Opus 4.8 ranks tasks better (r 0.81 against 0.71). The study covers one training run, one model, one consumer GPU and English single-turn tasks. All compute was local and cost nothing.
 
 ## 1. Problem and approach
 
 ### 1.1 Why this problem
 
-Estimates of how long a piece of work will take drive decisions in systems that run models: how to queue jobs, when a run has hung and should be stopped, whether a task goes to a phone or a server, what to tell a customer. People increasingly ask the model itself. The model answers with a human's time, because that is what its training text describes. MetaTime (anonymous ICLR 2027 submission, OpenReview `CAQeizWcB2`) measured this for frontier models: on its single-turn suite GPT-5.5 and Claude Opus 4.8 say about three times too long for nearly every task. Monperrus and Stenqvist call this anthropocentric time bias. We did not discover it.
+Systems that run models need to know how long work will take: to order a queue, to decide when a run has hung, to send a task to a phone or a server, or to tell a customer when to expect an answer. More and more often they ask the model, and the model replies with a human's time. MetaTime (anonymous ICLR 2027 submission, OpenReview `CAQeizWcB2`) measured this for frontier models, and Monperrus and Stenqvist call it anthropocentric time bias. We did not discover the problem. What we add is the observation that a model's running time costs nothing to measure, so the model can label its own training data, and the track's pipeline can clean that data, train on it and audit the result.
 
-A model's own running time is measurable for free: run it and count. So this is a case where the training data does not have to be bought or annotated. The model can label its own data, and the track's pipeline can clean it, train on it and audit the result.
+We asked four questions. Can a 3B open model, trained by CuratorKIT → AlignTune only on measurements of itself on public prompts, estimate its own time on unseen benchmark tasks better than frontier models estimate theirs? This is the primary question, with a criterion fixed in advance. Does the estimate follow the hardware when a different speed is stated? How much of the gain comes from the adapter rather than the stated speed, a calibrated average, or what the untrained model already knows? And what does the adapter cost in general ability?
 
-### 1.2 Research questions
+### 1.2 Declared in advance
 
-1. Can a 3B open model, trained by the CuratorKIT → AlignTune pipeline only on measurements of its own answer lengths on public prompts, estimate its own wall-clock time on unseen benchmark tasks better than frontier models estimate theirs? (Primary, with a criterion fixed in advance.)
-2. Does the estimate follow the hardware when a different machine speed is stated?
-3. How much of the gain is the adapter, and how much is calibration of the average, the stated speed, or information the untrained model already carries?
-4. What does the adapter cost in general ability, as AuditKIT measures it?
+[`docs/PREREGISTRATION.md`](../docs/PREREGISTRATION.md) holds every declaration word for word, with the commit that pushed it. The first entry (commit [`077c0bf`](https://github.com/isHeSatoshi/anthropochrony/commit/077c0bf6d688f36611048226fede108702c000f0), 2026-11-14 05:23 UTC) fixed the 68 tasks, the benchmark's question and parser, the target (median of 5 timed runs), the metrics and the success criterion: lower median absolute log error than both frontier models, with the paired 95% interval excluding zero. That criterion was first applied to an earlier adapter trained by our own PyTorch loop rather than by the track's libraries; that adapter is not part of this submission, and the log keeps its records. `G1-kit` was declared with every setting before training ([`ae0e22a`](https://github.com/isHeSatoshi/anthropochrony/commit/ae0e22a2159b5dd62bd7cae0136fda190eadcd40)), its cost method before AuditKIT ran ([`1fdef8e`](https://github.com/isHeSatoshi/anthropochrony/commit/1fdef8e42add503ee2fc460bab445ee81fcd890f)), and its headline and secondary rows before they were run ([`2327466`](https://github.com/isHeSatoshi/anthropochrony/commit/2327466f0e5850b3577e1a979d6189addc89de92)). Because the benchmark had already been used once, all `G1-kit` rows are post-hoc in the strict sense.
 
-### 1.3 Declared in advance
+### 1.3 Approach
 
-The protocol is in [`docs/PREREGISTRATION.md`](../docs/PREREGISTRATION.md), word for word, with the commit that pushed each entry. The first entry (commit [`077c0bf`](https://github.com/isHeSatoshi/anthropochrony/commit/077c0bf6d688f36611048226fede108702c000f0), 2026-11-14 05:23 UTC) fixed the 68 tasks, the benchmark's own question and parser, the target (median of 5 timed runs), the metrics, the comparison and the success criterion: **lower median absolute log error than both frontier models, with the paired 95% interval excluding zero**. That criterion was first applied to an earlier adapter trained by our own PyTorch loop rather than by the track's libraries; that adapter and its variants are not part of this submission, and the log keeps their records. The pipeline adapter `G1-kit` was declared with every setting before it was trained (commit [`ae0e22a`](https://github.com/isHeSatoshi/anthropochrony/commit/ae0e22a2159b5dd62bd7cae0136fda190eadcd40)), its cost record before AuditKIT ran ([`1fdef8e`](https://github.com/isHeSatoshi/anthropochrony/commit/1fdef8e42add503ee2fc460bab445ee81fcd890f)), and its headline row (its own stated speed, its own timed runs, the same criterion) together with every secondary row of this write-up before they were run ([`2327466`](https://github.com/isHeSatoshi/anthropochrony/commit/2327466f0e5850b3577e1a979d6189addc89de92)). Because `G1-kit` came after the first results on the benchmark, all of its rows are post-hoc in the strict sense: the rules were fixed before each run, but not before the benchmark had been seen once.
+We collect public prompts, drop anything resembling a benchmark task, run the untrained model three times on each and record the prompt and response token counts. CuratorKIT gates this pool. AlignTune then teaches the model to answer the time question as `Prompt: about 380 tokens. Response: about 520 tokens.` followed by `Time: 15.4 seconds`. Each training example states a machine speed $(S, P)$, the writing and reading rates in tokens per second, drawn from a wide range, and the time in the target answer is $t = n_{\text{in}}/P + n_{\text{out}}/S$ computed from the measured counts. Replay examples, in which the target is the model's own ordinary response, keep the predicted lengths from drifting. On the benchmark we state the speed measured on this GPU, ask the benchmark's question about each task's short description, read the time with the benchmark's parser and compare it with the median of five timed runs of the same model.
 
-### 1.4 Approach
+On this machine the speed formula reproduces measured wall time almost exactly (median absolute log error 0.007 for `G1-kit`'s runs), so the real difficulty is predicting how much the model will write.
 
-1. **Measure.** Collect public prompts, drop anything that looks like a benchmark task, run the untrained model 3 times on each, record prompt and response token counts.
-2. **Curate.** CuratorKIT gates the measured pool: schema, duplicates, secrets, and a rule of ours that drops a prompt whose measured run hit the generation cap.
-3. **Train.** AlignTune teaches the model to answer the time question in two steps, work then time: `Prompt: about 380 tokens. Response: about 520 tokens.` then `Time: 15.4 seconds`. Each training example states a machine speed $(S, P)$, writing and reading tokens per second, drawn from a wide range, and the time in the answer is computed from the measured token counts: $t = n_{\text{in}}/P + n_{\text{out}}/S$. Replay examples (the prompt with the model's own ordinary response) keep its ordinary answers, and so the lengths being predicted, unchanged.
-4. **Ask and audit.** On the benchmark, state the speed measured on this GPU, ask the benchmark's own question about the task's short description, read the time with the benchmark's own parser, and compare with the median of five timed runs of the same model. AuditKIT checks the gain with its paired bootstrap and measures ARC accuracy with the adapter off and on.
+### 1.4 Related work
 
-On this machine the speed formula reproduces measured wall time to within 1% (median absolute log error 0.007 for `G1-kit`'s runs), so the whole difficulty is predicting how much the model will write.
+MetaTime (OpenReview `CAQeizWcB2`; artifact `anonymous.4open.science/r/Time-Estimation-B286`) measures frontier models' estimates of their own time on single-turn, agentic and long-horizon suites. Its Table 22 trains Qwen3-8B on the same 68 single-turn tasks and reaches a best raw-duration correlation of 0.44. Garikaparthi et al. (arXiv 2604.00010) wrote the single-turn suite. Monperrus and Stenqvist name anthropocentric time bias in coding agents. AgentTime and related benchmarks study agent trajectories, which we do not run. The calibrated range in §7.5 uses split-conformal prediction (Vovk et al.; Romano, Patterson and Candès 2019).
 
-### 1.5 Related work
-
-- **MetaTime** (anonymous ICLR 2027 submission, OpenReview `CAQeizWcB2`; public artifact `anonymous.4open.science/r/Time-Estimation-B286`) measures frontier models' estimates of their own time on single-turn, agentic and long-horizon suites. Its Table 22 trains Qwen3-8B on the same 68 single-turn tasks; the best row reaches a raw-duration correlation of 0.44.
-- **Garikaparthi et al.** (arXiv 2604.00010) wrote the 68-task single-turn suite.
-- **Monperrus and Stenqvist** name anthropocentric time bias in coding agents.
-- **AgentTime** and related runtime-estimation benchmarks study agent trajectories; we only run single-turn tasks.
-- Split-conformal prediction (Vovk et al.; Romano, Patterson and Candès 2019) for the calibrated range in §7.6.
-
-## 2. Hackathon repos used and how they connect
+## 2. Hackathon repos and how they connect
 
 ```mermaid
 flowchart LR
-  A[1,523 public prompts<br/>leak check: 21 removed] --> B[Tiny Aya runs each prompt 3x<br/>measured response lengths]
-  B --> C[CuratorKIT 0.1.23<br/>schema gate, exact + MinHash dedup,<br/>secrets gate, cap rule as hook<br/>1,353 → 1,342]
-  C --> D[AlignTune 0.1.32<br/>SFT, TRL backend, PEFT LoRA r16<br/>answer-only loss]
+  A[1,523 public prompts<br/>21 look-alikes removed] --> B[Tiny Aya runs each 3x<br/>measured lengths]
+  B --> C[CuratorKIT 0.1.23<br/>1,353 → 1,342]
+  C --> D[AlignTune 0.1.32<br/>SFT, LoRA r16]
   D --> E[G1-kit adapter]
-  E --> F[AuditKIT 1.1.6<br/>evaluate with 3 custom scorers,<br/>paired bootstrap, lm-eval ARC]
-  E --> G[estimate.py / time_runs.py / score.py<br/>benchmark parser, 68 tasks,<br/>own timed runs, held-out pool check]
+  E --> F[AuditKIT 1.1.6<br/>paired bootstrap, ARC]
+  E --> G[estimate / time_runs / score<br/>68 benchmark tasks]
 ```
 
-The three libraries are chained in one run (`scripts/metatime/curate.py` → `train_aligntune.py` → `audit.py`): CuratorKIT writes the list of passed prompt ids, AlignTune trains only on those prompts and saves the adapter, and AuditKIT loads that adapter for both its benchmark evaluation and its lm-eval capability run. Our own scripts ask the benchmark question with that same adapter, time its runs and score it with the benchmark's metrics.
+One run chains the three libraries (`scripts/metatime/curate.py` → `train_aligntune.py` → `audit.py`). CuratorKIT writes the ids of the prompts that passed, AlignTune trains only on those and saves the adapter, and AuditKIT loads that adapter for both its benchmark evaluation and its lm-eval run. Our own scripts ask the benchmark question with the same adapter, time its runs and score it with the benchmark's metrics.
 
-### CuratorKIT 0.1.23
+**CuratorKIT 0.1.23** gates the measured pool before training. Each training prompt becomes an Alpaca-format sample with the model's first measured response as output and the measured lengths as metadata. We used the `Curator`/`CuratorConfig` pipeline with its JSONL reader, `SchemaGate`, `ExactDeduplicator`, `MinHashDeduplicator` (threshold 0.7, seed 20261115), `SecretsGate`, the `messages` exporter, and its manifest, provenance record and HF README writer. Our own rule runs as a `preprocessing_fn` hook and drops a prompt when any measured run stopped at the 2,048-token cap, since that label is only a lower bound, or when the response is empty. Cleaning is off (`clean=False`) because the labels were measured on the exact prompt text.
 
-How we used it: a quality gate on the measured training pool, before training (`scripts/metatime/curate.py`).
+**AlignTune 0.1.32** trains `G1-kit` through `create_sft_trainer` with the TRL backend, PEFT LoRA, `assistant_only_loss`, gradient checkpointing, bf16, a cosine schedule with warm-up, seeds and `group_by_length`. We pass the conversations to its trainer directly, because its data manager folds the system turn, which carries the stated speed, into the user turn. After training, a check on the collator's real tensors confirms that the loss covers the answer tokens and nothing else.
 
-- Each training-split prompt becomes one Alpaca-format sample: the prompt as `instruction`, the model's own first measured response as `output`, the three measured lengths as metadata.
-- Features: `Curator`/`CuratorConfig` pipeline with its JSONL reader, `SchemaGate` (token limits), `ExactDeduplicator`, `MinHashDeduplicator` (threshold 0.7, seed 20261115), `SecretsGate`, a `preprocessing_fn` hook, the `messages` exporter, and its manifest, provenance record and HF README writer.
-- Our rule runs as the hook: drop a prompt when any measured run stopped at the 2,048-token generation cap (its label is a lower bound, not a measurement) or its response is empty.
-- `clean=False`, because the labels were measured on the exact prompt text and cleaning would change it.
-- Counts before and after are in §4.4.
-
-### AlignTune 0.1.32
-
-How we used it: the SFT trainer for `G1-kit` (`scripts/metatime/train_aligntune.py`).
-
-- Features: `create_sft_trainer` with the TRL backend, PEFT LoRA (`use_peft`, `lora_r`, `lora_alpha`, `lora_dropout`, `lora_target_modules`), `assistant_only_loss`, gradient checkpointing, bf16, cosine schedule with warm-up, seeds, `group_by_length`.
-- The dataset is the CuratorKIT-passed prompts only. We hand the conversations to its trainer directly, because its data manager folds the system turn into the user turn, and the system turn carries the stated speed.
-- After training, the script checks on the collator's real tensors that the loss covers the answer tokens and nothing else.
-
-### AuditKIT 1.1.6
-
-How we used it: evaluation of the untrained model and `G1-kit` on the 68 benchmark tasks, and the capability check (`scripts/metatime/audit.py`).
-
-- Features: `evaluate` with a callable model and three custom scorers built with `@scorer` and `Direction` (absolute natural-log error of the time read by the benchmark's own parser against the untrained model's median timed run; within 2x; parsed), `RunConfig` fingerprints, `compare(...).significance()` (paired bootstrap per metric), and `run_lmeval` for ARC-Easy and ARC-Challenge, zero-shot, with the adapter loaded through `peft=`.
-- Every greedy answer AuditKIT collects is checked against the answer `estimate.py` wrote for the same task, so the two scoring paths agree.
-- Each run gets a fresh cache directory, because AuditKIT replays cached results by run fingerprint, and the fingerprint does not see the adapter weights.
-
-### Not used
-
-AgentTune, SafeTune and CircuitKIT belong to other tracks. Our linear probe on hidden states (§7.5) is a plain scikit-learn ridge regression.
+**AuditKIT 1.1.6** evaluates the untrained model and `G1-kit` on the 68 tasks through `evaluate` with a callable model and three custom scorers built with `@scorer` and `Direction` (absolute log error of the parsed time against the untrained model's median timed run, within 2x, and parsed). We also used `RunConfig` fingerprints, `compare(...).significance()` for the paired bootstrap, and `run_lmeval` for zero-shot ARC-Easy and ARC-Challenge with the adapter loaded through `peft=`. Every answer AuditKIT collects matches the answer `estimate.py` wrote for the same task. AgentTune, SafeTune and CircuitKIT belong to other tracks and were not used.
 
 ## 3. Models and licenses
 
-| Model | Role | Version | License |
-|---|---|---|---|
-| `CohereLabs/tiny-aya-global` (3.35B, dense) | Base model of the adapter; executor of every timed run | revision `af89d219b53ed9b13b8a4645f9c8028973510324`, bf16, PyTorch `transformers`, no quantization on GPU | CC-BY-NC-4.0 + Cohere Labs Acceptable Use Policy |
-| `G1-kit` | Our LoRA adapter (r 16, 121 MB), built by CuratorKIT → AlignTune | this work | CC-BY-NC-4.0 (inherits the base model's terms) |
-| Q4_K_M GGUFs of the base model and of `G1-kit` merged | CPU demo (llama.cpp `b12110`) | this work | CC-BY-NC-4.0 |
-| GPT-5.5, Claude Opus 4.8 | Closed-model baselines: their published per-task estimates and times from the MetaTime artifact; we did not call them | as published in the artifact (snapshot 8 Oct 2026) | proprietary; numbers only |
-| `BAAI/bge-small-en-v1.5` | Frozen sentence encoder for one baseline regressor | as pinned in `uv.lock` | MIT |
+| Model | Role | Version and license |
+|---|---|---|
+| `CohereLabs/tiny-aya-global` (3.35B, dense) | Base model and executor of every timed run | revision `af89d219b53ed9b13b8a4645f9c8028973510324`, bf16, PyTorch `transformers`, unquantized on GPU; CC-BY-NC-4.0 + Cohere Labs Acceptable Use Policy |
+| `G1-kit` | Our LoRA adapter (r 16, 121 MB) | this work; CC-BY-NC-4.0 |
+| Q4_K_M GGUFs of the base model and merged `G1-kit` | CPU demo (llama.cpp `b12110`) | this work; CC-BY-NC-4.0 |
+| GPT-5.5, Claude Opus 4.8 | Closed-model baselines: published per-task estimates and times from the MetaTime artifact (snapshot 8 Oct 2026); not called by us | proprietary; numbers only |
+| `BAAI/bge-small-en-v1.5` | Frozen encoder for one baseline regressor | pinned in `uv.lock`; MIT |
 
 There is no teacher model. Every training label is a measurement of the base model itself.
 
 ## 4. Data, benchmarks and licenses
 
-### 4.1 Training pool
-
-| Source | License | Train | Held out (`val`) | Passed CuratorKIT |
+| Source | License | Train | Held out | Passed CuratorKIT |
 |---|---|--:|--:|--:|
 | `databricks/databricks-dolly-15k` | CC-BY-SA-3.0 | 494 | 56 | 490 |
 | `HuggingFaceH4/no_robots` | CC-BY-NC-4.0 | 393 | 53 | 391 |
 | `sahil2801/CodeAlpaca-20k` | CC-BY-4.0 | 289 | 38 | 288 |
 | `openai/gsm8k` | MIT | 87 | 13 | 86 |
-| 100 `train` coding tasks of this project's earlier study (`isHeSatoshi/anthropochrony-tasks`) | CC-BY-NC-4.0 | 90 | 10 | 87 |
+| 100 coding tasks from this project's earlier study (`isHeSatoshi/anthropochrony-tasks`) | CC-BY-NC-4.0 | 90 | 10 | 87 |
 | **Total** | | **1,353** | **170** | **1,342** |
 
-Prompts were sampled at pinned revisions (`scripts/metatime/build_pool.py`): 1,551 sampled, 1,544 after length limits and duplicate removal, 21 removed by the leak check, 1,523 kept. Labels: each prompt run 3 times by the untrained model (bf16, model-card sampling, 2,048-token cap), 4,569 runs in total. The training label is the median response length.
+We sampled 1,551 prompts at pinned revisions (`scripts/metatime/build_pool.py`), kept 1,544 after length limits and deduplication, and removed 21 in the leak check, leaving 1,523. The untrained model ran each prompt three times (bf16, model-card sampling, 2,048-token cap), 4,569 runs in all, and the training label is the median response length. Pool and benchmark are English only, although Tiny Aya Global covers about 70 languages.
 
-Languages: English only, in the pool and in the benchmark. Tiny Aya Global covers about 70 languages; we did not test the others (§9).
+The test set is the 68 single-turn tasks of the MetaTime artifact (12 code generation, 8 creative, 8 debugging, 8 Q&A, 12 reasoning, 10 summarization, 10 writing). We do not redistribute them: the scripts download the artifact at run time, and the committed records contain task ids, numbers and our model's answers but no task text. Before training, we removed every pool prompt with a TF-IDF cosine similarity of 0.25 or more to any benchmark prompt or description (21 prompts, such as short stories, a haiku, a Fibonacci function and palindrome checks). No benchmark task, response or duration was used for training, model selection or calibration. ARC-Easy and ARC-Challenge (English, zero-shot) serve as a retention check, not as the focus task.
 
-### 4.2 Benchmark and leak check
+CuratorKIT removed 11 prompts:
 
-The test set is the 68 single-turn tasks of the MetaTime artifact (12 code generation, 8 creative, 8 debugging, 8 Q&A, 12 reasoning, 10 summarization, 10 writing). We do not redistribute the tasks; the scripts download the artifact at run time, and the committed records hold task ids, numbers and our model's answers, never task text.
+| Stage | In → out | Removed and why |
+|---|--:|---|
+| Reader + our cap hook | 1,353 → 1,343 | 10 prompts with a run stopped at the 2,048-token cap (4 Dolly, 2 no_robots, 1 CodeAlpaca, 1 GSM8K, 2 of ours) |
+| `SchemaGate`, `ExactDeduplicator`, `MinHashDeduplicator` (0.7) | 1,343 → 1,343 | none |
+| `SecretsGate` | 1,343 → 1,342 | 1 "Base64 High Entropy String" in one of our coding tasks |
 
-Leak check before training: every pool prompt with TF-IDF cosine similarity of 0.25 or more to any of the 68 benchmark prompts or descriptions was removed (21 prompts: short stories, a haiku, a Fibonacci function, palindrome checks and similar). CuratorKIT's exact and MinHash deduplication then ran within the training split. No benchmark task, response or duration was used for training, model selection or calibration.
+The pool had already been deduplicated and leak-checked, so the deduplicators confirmed it rather than changed it. The cap rule matters more than its count suggests, because those 10 prompts have the longest answers, and a lower-bound label would teach the model to under-estimate. The full report is `curatorkit/report.json` in the [dataset](https://huggingface.co/datasets/isHeSatoshi/anthropochrony-metatime-data).
 
-### 4.3 General capability benchmarks (retention check)
+## 5. Metrics
 
-ARC-Easy and ARC-Challenge (English, zero-shot, accuracy) through AuditKIT's lm-eval engine, with `G1-kit` off and on. These check that the adapter did not break general ability; they are not the focus task. The held-out pool check (§7.7) also measures whether ordinary response lengths changed.
-
-### 4.4 CuratorKIT filtering
-
-| Stage | In | Out | Removed | Why |
-|---|--:|--:|--:|---|
-| Reader + our hook | 1,353 | 1,343 | 10 | A measured run stopped at the 2,048-token cap, so the label is a lower bound (4 Dolly, 2 no_robots, 1 CodeAlpaca, 1 GSM8K, 2 of our tasks) |
-| `SchemaGate` | 1,343 | 1,343 | 0 | |
-| `ExactDeduplicator` | 1,343 | 1,343 | 0 | |
-| `MinHashDeduplicator` (0.7) | 1,343 | 1,343 | 0 | |
-| `SecretsGate` | 1,343 | 1,342 | 1 | "Base64 High Entropy String" in one of our coding tasks |
-| `MessagesExporter` | 1,342 | 1,342 | | |
-
-The pool was already deduplicated and leak-checked when it was built, so CuratorKIT's deduplicators confirm rather than change it. The cap rule matters more than the counts suggest: those 10 prompts are the longest answers, where a lower-bound label would teach the model to under-estimate. Full report: `curatorkit/report.json` in the [dataset](https://huggingface.co/datasets/isHeSatoshi/anthropochrony-metatime-data).
-
-## 5. Metrics, and why these
-
-All accuracy metrics compare an estimate $\hat t$ with the measured time $t$ (median of the timed runs) per task.
+Each metric compares an estimate $\hat t$ with the measured time $t$ (median of the timed runs) for each task. Scoring uses the benchmark's own parser, and no LLM judge is involved.
 
 | Metric | Better | Why |
 |---|---|---|
-| Median absolute log error, $\mathrm{median}\,\lvert\ln(\hat t/t)\rvert$ (primary; the benchmark's) | lower | Times span about 1 s to 50 s on our machine and seconds to minutes for hosted models; a ratio metric is fair across deployments and robust to a few huge misses. $e^{0.69} = 2$, so 0.69 is a factor of 2 |
-| Typical factor off, $e^{\text{error}}$ | lower (1.0x is perfect) | The same number in plain words |
-| Median estimate/actual ratio (the benchmark's) | closer to 1 | Separates systematic over- or under-estimation from noise |
-| Pearson r on log durations (the benchmark's) | higher | Whether the estimator tells long tasks from short ones, independent of scale |
-| Within 2x | higher | An operational threshold: good enough to set a timeout or a queue order |
-| Mean absolute error in seconds | lower | Reported for completeness; depends on how fast a deployment is, so not comparable across models |
-| Parsed | higher | An unreadable answer counts as a miss |
-| Paired bootstrap difference (5,000 draws over tasks) | negative = ours lower | The declared test |
-| Response-length drift on held-out prompts | near 0 | What should not get worse: the adapter must not change how much the model writes |
-| ARC-Easy, ARC-Challenge accuracy | not lower | What should not get worse: general ability |
-
-Scoring uses the benchmark's own parser. No LLM judge is involved.
+| Median absolute log error, $\mathrm{median}\,\lvert\ln(\hat t/t)\rvert$ (primary, from the benchmark) | lower | Times span about 1 s to 50 s here and minutes for hosted models; a ratio is fair across deployments. 0.69 is a factor of 2 |
+| Typical factor off, $e^{\text{error}}$ | lower | The same number in plain words |
+| Median estimate/actual ratio | closer to 1 | Separates systematic bias from noise |
+| Pearson r on log durations | higher | Whether long tasks are told apart from short ones |
+| Within 2x | higher | Good enough to set a timeout or a queue order |
+| Mean absolute error (s) | lower | Depends on deployment speed, so not comparable across models |
+| Parsed | higher | An unreadable answer is a miss |
+| Paired bootstrap difference (5,000 draws over tasks) | negative | The declared test |
+| Response-length drift on held-out prompts | near 0 | Should not get worse: how much the model writes |
+| ARC-Easy, ARC-Challenge accuracy | not lower | Should not get worse: general ability |
 
 ## 6. Method
 
-### 6.1 Training examples
+**Training examples.** Each training prompt yields four estimate examples and one replay example, so 1,342 prompts give 5,368 estimate and 1,342 replay examples. An estimate example combines a stated speed from one of four deployment profiles (CPU, edge GPU, datacenter GPU, accelerator; writing speeds from 2 to 2,500 tokens a second, never inside the held-out band of 150 to 260), one of six speed-line phrasings (a seventh, used for every reported estimate, is never trained on), either the short description or the full prompt, a weighted choice of question wording, and the answer computed from the measured lengths. Stated speeds are rounded to two significant digits, as at test time.
 
-Built by `scripts/metatime/train.py`'s example builder and used by `train_aligntune.py`:
+**Training.** AlignTune SFT with the TRL 1.7.1 backend: LoRA r 16, alpha 32, dropout 0.05 on all seven attention and MLP projections (30.2M trainable parameters); learning rate 2e-4, cosine, 5% warm-up, weight decay 0.01; 2 epochs; batch 1 with 16 accumulation steps; 1,536-token limit; bf16; answer-only loss; no packing; seed 0. The run took 840 optimizer steps and 2.19 hours (7,867 s) on an RTX 4060 Ti, with peak memory about 10 GB, and the training loss fell from 1.49 to 0.25. The rank, alpha, learning rate and epochs come from this project's earlier coding-task study. The post-training label check failed once after the adapter was saved, because the collator had cut one replay sequence longer than 1,536 tokens and the check compared it with the uncut labels. We fixed the check to compare only the kept part and confirmed on a one-step rerun (16 sequences) that the loss covers the answer tokens only; the adapter was not retrained.
 
-- 4 estimate examples per training prompt. Each has a stated speed drawn from one of four deployment profiles (CPU, edge GPU, datacenter GPU, accelerator: writing speeds from 2 to 2,500 tokens a second, reading speed a profile-dependent multiple of it), never inside the held-out band of 150 to 260 tokens a second; one of six speed-line phrasings (the seventh, used for every reported estimate, is never trained on); a task view (the short description or the full prompt); a weighted choice of question wording; and the answer computed from the measured lengths at that speed. Stated speeds are rounded to two significant digits, as at test time.
-- 1 replay example per prompt: the prompt with the model's own complete measured response as target.
-- 1,342 prompts give 5,368 estimate and 1,342 replay examples.
+**Inference and timing.** Requests run one at a time in PyTorch bf16, greedy for estimates and with model-card sampling for timed runs. The stated speed was measured on this GPU: 30 and 3,300 tokens a second (writing, reading) for `G1-kit` with the adapter unmerged, and 34 and 5,700 for the untrained model. Each system ran every task five times with the GPU to itself, and `G1-kit`'s estimates were produced before its timed runs. A single run differs from the median of the others by about 7% (median absolute log error 0.065 for `G1-kit`), which sets the floor for any estimator. AuditKIT's runs use greedy answers with 64 new tokens and score both arms against the untrained model's timed runs; lm-eval runs zero-shot with batch 16.
 
-### 6.2 Training with AlignTune
-
-AlignTune SFT, TRL 1.7.1 backend: LoRA r 16, alpha 32, dropout 0.05 on all seven attention and MLP projections (30.2M trainable parameters); learning rate 2e-4, cosine, 5% warm-up, weight decay 0.01; 2 epochs; batch 1 with 16 accumulation steps; sequence limit 1,536 tokens; bf16; gradient checkpointing; answer-only loss; no packing; seed 0. Training took 840 optimizer steps and 2.19 hours (7,867 s) on the RTX 4060 Ti, peak memory about 10 GB; the training loss was 1.49 at the first log and 0.25 at the last. The rank, alpha, learning rate and epochs come from this project's earlier coding-task study.
-
-The post-training label check stopped the first run after the adapter was saved: one replay sequence was longer than 1,536 tokens, the collator had cut it, and the check compared it with the uncut labels. We fixed the check to compare only the kept part and confirmed on a one-step rerun of the same pipeline that the loss covers the answer tokens and nothing else (16 sequences inspected). The training summary was rebuilt from the run's log; the adapter was not retrained.
-
-### 6.3 Inference and timing
-
-One request at a time, PyTorch bf16, model-card sampling for timed runs (greedy for estimates), 2,048-token cap. The deployment's speed is measured once per executor and stated rounded to two digits: 30 and 3,300 tokens a second (writing, reading) for `G1-kit` with the adapter on and unmerged, 34 and 5,700 for the untrained model. Five timed runs per task for each, with the GPU to itself; `G1-kit`'s estimates were produced before its own timed runs. A repeat run differs from the median of the others by about 7% (median absolute log error 0.065 for `G1-kit`, 0.070 for the untrained model), the floor for any estimator here.
-
-AuditKIT's runs use greedy answers with 64 new tokens and the speed measured with the adapter off at the start of each run (34 and 5,700 tokens a second for the untrained arm, 35 and 5,900 for `G1-kit`), scored against the untrained model's 5 timed runs; lm-eval zero-shot, batch 16, bf16.
-
-### 6.4 Ablations and controls
-
-Each row was declared before it was run: the untrained model with and without the stated speed and with five measured examples in its prompt; three predictors that never call the model (a constant, a TF-IDF regressor, a sentence-encoder regressor); a linear probe on the untrained hidden state; `G1-kit` shown the full prompt, with the paper's question wording, without the stated speed, read through its stated token count, as the median of 16 samples, and against the untrained model's runs; four other machines' speeds. Full table: [`docs/METATIME.md`](../docs/METATIME.md#every-row).
+**Ablations.** Every control in §7.5 was declared before it ran; [`docs/METATIME.md`](../docs/METATIME.md#every-row) has every row.
 
 ## 7. Results
 
-### 7.1 Same model before and after, against the frontier models
+### 7.1 Before and after, against the frontier models
 
-| System | Median estimate/actual | Median abs. log error [95% CI] | Typical factor off | r (log) | Within 2x | MAE (s) | Parsed |
-|---|--:|--:|--:|--:|--:|--:|--:|
-| GPT-5.5 (published) | 3.47x | 1.24 [1.10, 1.42] | 3.47x | 0.55 | 12% | 92.2 | 68/68 |
-| Claude Opus 4.8 (published) | 2.87x | 1.06 [0.90, 1.14] | 2.87x | 0.81 | 25% | 30.5 | 68/68 |
-| Tiny Aya, untrained, benchmark question as is | 5.61x | 1.74 [1.54, 1.99] | 5.70x | 0.32 | 7% | 92.0 | 68/68 |
-| **Before:** Tiny Aya, untrained, speed stated | 5.39x | 1.71 [1.59, 1.90] | 5.53x | 0.41 | 4% | 70.9 | 68/68 |
-| **After: Tiny Aya + `G1-kit` (primary)** | 0.73x | **0.44** [0.38, 0.51] | **1.55x** | 0.71 | **72%** | 7.3 | 68/68 |
-| `G1-kit`, shown the full prompt | 0.91x | 0.39 [0.27, 0.48] | 1.48x | 0.79 | 85% | 6.6 | 68/68 |
-| `G1-kit`, the paper's question wording | 0.80x | 0.40 [0.34, 0.46] | 1.50x | 0.72 | 76% | 6.8 | 68/68 |
-| `G1-kit`, no speed stated (asked as the frontier models were) | 0.23x | 1.53 [1.33, 1.70] | 4.60x | 0.15 | 12% | 14.1 | 68/68 |
-| `G1-kit` predicting the untrained model's runs | 0.69x | 0.45 [0.37, 0.59] | 1.57x | 0.75 | 76% | 6.2 | 68/68 |
+| System | Estimate/actual | Median abs. log error [95% CI] | Factor off | r (log) | Within 2x |
+|---|--:|--:|--:|--:|--:|
+| GPT-5.5 (published) | 3.47x | 1.24 [1.10, 1.42] | 3.47x | 0.55 | 12% |
+| Claude Opus 4.8 (published) | 2.87x | 1.06 [0.90, 1.14] | 2.87x | 0.81 | 25% |
+| Tiny Aya, untrained, benchmark question as is | 5.61x | 1.74 [1.54, 1.99] | 5.70x | 0.32 | 7% |
+| **Before:** Tiny Aya, untrained, speed stated | 5.39x | 1.71 [1.59, 1.90] | 5.53x | 0.41 | 4% |
+| **After:** Tiny Aya + `G1-kit` (primary) | 0.73x | **0.44** [0.38, 0.51] | **1.55x** | 0.71 | **72%** |
+| `G1-kit`, full prompt | 0.91x | 0.39 [0.27, 0.48] | 1.48x | 0.79 | 85% |
+| `G1-kit`, no speed stated | 0.23x | 1.53 [1.33, 1.70] | 4.60x | 0.15 | 12% |
 
-Every `G1-kit` row is scored against `G1-kit`'s own five timed runs per task, except the last, which uses the untrained model's runs.
+All systems parsed 68 of 68 answers. Each `G1-kit` row is scored against `G1-kit`'s own five timed runs. The primary row's mean absolute error is 7.3 s, against 92.2 s for GPT-5.5 and 30.5 s for Claude Opus 4.8.
 
-| Paired comparison (ours minus theirs, median abs. log error) | Difference | 95% CI | Tasks where ours is closer |
-|---|--:|--:|--:|
-| `G1-kit` vs GPT-5.5 | −0.80 | [−1.00, −0.63] | 60/68 |
-| `G1-kit` vs Claude Opus 4.8 | −0.62 | [−0.72, −0.45] | 55/68 |
-| `G1-kit`, full prompt vs GPT-5.5 | −0.85 | [−1.08, −0.68] | 61/68 |
-| `G1-kit`, full prompt vs Claude Opus 4.8 | −0.67 | [−0.85, −0.47] | 60/68 |
-| `G1-kit`, no speed stated vs GPT-5.5 | +0.28 | [+0.01, +0.51] | 30/68 |
-| `G1-kit`, no speed stated vs Claude Opus 4.8 | +0.47 | [+0.25, +0.71] | 17/68 |
-| `G1-kit`, the untrained model's runs vs GPT-5.5 | −0.79 | [−1.01, −0.59] | 60/68 |
-| `G1-kit`, the untrained model's runs vs Claude Opus 4.8 | −0.60 | [−0.74, −0.40] | 57/68 |
+| Paired difference, ours minus theirs | GPT-5.5 | Claude Opus 4.8 |
+|---|--:|--:|
+| `G1-kit` | −0.80 [−1.00, −0.63], closer on 60/68 | −0.62 [−0.72, −0.45], closer on 55/68 |
+| `G1-kit`, full prompt | −0.85 [−1.08, −0.68], 61/68 | −0.67 [−0.85, −0.47], 60/68 |
+| `G1-kit`, no speed stated | +0.28 [+0.01, +0.51], 30/68 | +0.47 [+0.25, +0.71], 17/68 |
 
 ![Head-to-head on the MetaTime single-turn suite](figures/F9-metatime-head-to-head.png)
 
-The declared criterion is met: both paired intervals exclude zero. `G1-kit` is also closer than both frontier models in each of the seven task categories (8 to 12 tasks each, descriptive only). Against the untrained model's runs the same answers score 0.45, because the adapter's ordinary answers are as long as the untrained model's (+1.1% on held-out prompts).
+Both paired intervals for the primary row exclude zero, so the declared criterion is met. `G1-kit` is also closer than both frontier models in each of the seven task categories, with median errors of 0.54 (code), 0.60 (creative), 0.39 (debugging), 0.44 (Q&A), 0.56 (reasoning), 0.41 (summarization) and 0.28 (writing); with 8 to 12 tasks per category this is descriptive only. Scored against the untrained model's runs instead, the same answers reach 0.45 [0.37, 0.59], because the adapter leaves ordinary answer lengths almost unchanged (+1.1% on held-out prompts). On raw durations `G1-kit` reaches a correlation of 0.56, where MetaTime's trained Qwen3-8B reaches 0.44; the models and machines differ, so only the correlation is comparable.
 
-| Median abs. log error | code (12) | creative (8) | debugging (8) | Q&A (8) | reasoning (12) | summarization (10) | writing (10) |
-|---|--:|--:|--:|--:|--:|--:|--:|
-| GPT-5.5 | 2.27 | 1.20 | 1.42 | 0.80 | 1.06 | 1.04 | 1.54 |
-| Claude Opus 4.8 | 1.17 | 0.91 | 1.21 | 0.53 | 0.99 | 1.17 | 1.09 |
-| Tiny Aya + `G1-kit` | 0.54 | 0.60 | 0.39 | 0.44 | 0.56 | 0.41 | 0.28 |
+### 7.2 Sample answers
 
-The paper's own trained estimator on these tasks (Qwen3-8B, Table 22) reaches a best raw-duration correlation of 0.44; `G1-kit` reaches 0.56. Models and machines differ, so only the correlation is comparable.
+At a stated speed of 30 and 3,300 tokens a second (task text not reproduced):
 
-### 7.2 Sample inputs and outputs
-
-Task ids are the benchmark's; task text is not reproduced. Stated speed 30 and 3,300 tokens a second.
-
-| Task | `G1-kit` answer | `G1-kit` measured (median of 5) | Untrained answer | GPT-5.5 estimate / actual | Claude Opus 4.8 estimate / actual |
+| Task | `G1-kit` answer | `G1-kit` measured | Untrained answer | GPT-5.5 est. / actual | Opus 4.8 est. / actual |
 |---|---|--:|---|--:|--:|
 | `code_fizzbuzz` | `Prompt: about 380 tokens. Response: about 210 tokens.` `Time: 7.16 seconds` | 10.8 s | `"1 minute"` | 8 s / 7.2 s | 15 s / 4.5 s |
 | `code_palindrome` | `... Response: about 210 tokens.` `Time: 7.13 seconds` | 16.0 s | `2 minutes` | 120 s / 7.5 s | 30 s / 9.9 s |
 | `code_lru_cache` | `... Response: about 330 tokens.` `Time: 11.1 seconds` | 37.3 s | `2 minutes` | 180 s / 15.6 s | 120 s / 24.9 s |
 | `code_btree` | `... Response: about 1100 tokens.` `Time: 36.4 seconds` | 54.2 s | `5 minutes` | 1,500 s / 33.2 s | 120 s / 81.4 s |
 
-These are the same four coding tasks shown in earlier drafts, not a fresh pick. They are among `G1-kit`'s larger misses: it guesses 0.30x to 0.67x of the measured time (over all 68 tasks the median is 0.73x), though it puts the longest task far above the others. The untrained model answers in round human units.
+These four coding tasks are the ones shown in earlier drafts, not a fresh pick, and they are among `G1-kit`'s larger misses (0.30x to 0.67x of the measured time, against a median of 0.73x over all 68 tasks). The untrained model answers in round human units.
 
-### 7.3 The pipeline, stage by stage
+### 7.3 What AuditKIT found
 
-Each stage's output is the next stage's input: CuratorKIT's list of passed prompt ids, AlignTune's saved adapter, AuditKIT's two evaluations of that adapter.
+Against the untrained model told its speed, AuditKIT measures a mean absolute log error of 1.78 → 0.50 and a within-2x share of 4.4% → 76.5%, both with paired bootstrap p = 0.001, and all 136 answers match the ones `estimate.py` wrote. AuditKIT averages the per-task error where the benchmark takes the median (0.45 on the same answers), and both find the gain. Its capability run finds a real cost: ARC-Easy falls from 73.0% to 71.1% (p = 0.004) and ARC-Challenge from 42.2% to 40.2% (p = 0.04) over all 3,548 questions, a pooled drop of 62.8% → 60.9% (p = 0.001).
 
-| Stage | Library | Result |
-|---|---|---|
-| Curate | CuratorKIT 0.1.23 | 1,353 → 1,342 training prompts (10 with a capped measured run, 1 secrets hit; §4.4) |
-| Train | AlignTune 0.1.32 | 840 steps, 2.19 hours, training loss 1.49 → 0.25; loss on answer tokens only, checked on the collator's tensors |
-| Evaluate on the benchmark | AuditKIT 1.1.6, 3 custom scorers | Mean absolute log error 1.78 → 0.50 and within 2x 4.4% → 76.5% against the untrained model told its speed, paired bootstrap p = 0.001 for both; 68/68 answers parsed in both arms, and all 136 answers identical to the ones `estimate.py` wrote |
-| Evaluate capability | AuditKIT 1.1.6, lm-eval | ARC-Easy 73.0% → 71.1% (−1.9 points, p = 0.004); ARC-Challenge 42.2% → 40.2% (−2.0 points, p = 0.04); all 3,548 questions, zero-shot |
-| Score with the benchmark's metrics | `score.py` | Against its own timed runs: median absolute log error 0.44 [0.38, 0.51], 1.55x, r 0.71, 72% within 2x; paired −0.80 [−1.00, −0.63] against GPT-5.5 and −0.62 [−0.72, −0.45] against Claude Opus 4.8. Against the untrained model's runs: 0.45 [0.37, 0.59] |
+AuditKIT caches runs by a fingerprint that does not see adapter weights, so each run here uses a fresh cache; its default pooled ARC test also mispairs Easy and Challenge questions, so we pair by task and id (the default result is kept in `results/metatime-audit.json`).
 
-What it shows:
+### 7.4 The estimate follows the stated hardware
 
-- **AuditKIT and `score.py` agree.** AuditKIT averages the per-task error (0.50) where the benchmark takes the median (0.45 on the same answers and runs); both find the gain over the untrained model.
-- **The capability check found a real cost.** ARC accuracy falls by about 2 points with the adapter on, a small drop that is statistically significant on both tasks (§7.7). This is the trade-off a narrow adapter makes on this recipe.
-- **Curation's effect is not isolated.** On this pool, which was already deduplicated and leak-checked, CuratorKIT changed 11 of 1,353 prompts. We trained one adapter with it and none without it, so we cannot say how much it helped.
+We asked `G1-kit` again with four other machines' speeds, scoring it against its measured runs replayed through the speed formula rather than runs on those machines. Its error stays between 0.40 and 0.47 across a 270-fold range of writing speeds (0.47, 0.47, 0.44, 0.44 and 0.40 at 1.5/10, 8/60, 30/3,300, 190/19,000 and 400/40,000 tokens a second). The estimates move with the machine: 22.3x longer at the slowest speed and 13.2x shorter at the fastest. The untrained model gives about the same answer at every speed, so any good row of its own is a coincidence of scale. At slow speeds the stated time ranks tasks worse than the stated token count put through the formula, which suggests the model knows how much it will write better than it can divide by a speed; computing the time outside the model removes that weakness.
 
-Two details of AuditKIT matter for anyone rerunning this. It caches results by a run fingerprint that does not see adapter weights, so each run here gets a fresh cache directory; otherwise the adapter run would replay the untrained one. And `compare(...).significance()` pairs lm-eval questions by id, which restarts at 0 in each task, so its pooled ARC test paired ARC-Easy questions with ARC-Challenge ones (n 2,376 instead of 3,548; it reported −2.1 points, p = 0.002). We pair by task and id with AuditKIT's own bootstrap (`audit.py`); the default result is kept in `results/metatime-audit.json`.
+### 7.5 What the adapter adds
 
-### 7.4 Finding: the estimate follows the stated hardware
+The stated speed alone does nothing for the untrained model: it scores 1.71, and 59 of its 68 answers are "1 minute" or "2 minutes". Five measured examples in its prompt bring it to 1.29. `G1-kit`, in turn, needs the speed. Asked exactly as the frontier models were, it scores 1.53 and loses to both, yet the token count it states still scores 0.52 through the formula on the 56 answers that give one. It knows how much it will write but cannot know how fast the machine is unless told. Wording and sampling matter little: the paper's question wording scores 0.40, the median of 16 samples 0.44, and the stated tokens through the formula 0.45.
 
-Asked with four other machines' speeds (targets are `G1-kit`'s measured runs replayed through the speed formula, not runs on those machines):
+Predictors that never call the model miss by about 2.5x (constant 0.95, TF-IDF 0.95, sentence encoder 0.90), because benchmark responses are about 2.4 times longer than pool responses. The untrained model already carries most of the information: a linear probe on its hidden state scores 0.66 from the question and 0.36 when read just before it answers the full prompt, slightly better than `G1-kit` with the full prompt (0.39). The adapter makes the model say what its internal state already predicts. The frontier error, for its part, is mostly one of scale. Dividing each Claude Opus 4.8 estimate by a constant fitted on the other 67 tasks' outcomes would score 0.27, and a single number for every task, chosen with the outcomes, would score 0.38. Both need measured outcomes on the benchmark, which our training replaces with measurements on public prompts.
 
-| Stated speed (writing, reading tok/s) | `G1-kit` error | `G1-kit` within 2x | Stated tokens through the formula | `G1-kit` estimate vs its estimate at this machine's speed | Untrained error |
-|---|--:|--:|--:|---|--:|
-| 1.5, 10 | 0.47 | 68% | 0.39 | 22.3x longer (targets 23x longer) | 1.39 |
-| 8, 60 | 0.47 | 72% | 0.38 | 4.15x longer | 0.38 |
-| 30, 3,300 (this machine) | 0.44 | 72% | 0.45 | same | 1.71 (at its own 34, 5,700) |
-| 190, 19,000 | 0.44 | 78% | 0.43 | 6.23x shorter | 3.42 |
-| 400, 40,000 | 0.40 | 74% | 0.43 | 13.2x shorter | 4.16 |
+A 10th-to-90th percentile range from 16 sampled answers holds only 53% of measured times. A split-conformal range calibrated on the 170 held-out prompts, with its rule pushed before it was computed, is the stated time divided and multiplied by 2.79; it holds 91% of measured times (2.11 and 85% from the full prompt). This is a safe bound rather than a sharp one, and since the benchmark tasks do not exactly resemble the calibration prompts, the coverage is an observation on 68 tasks, not a guarantee.
 
-Across a 270-fold range of stated speeds the error stays between 0.40 and 0.47, and the estimates move with the stated machine: 22x longer when told it writes 20 times slower, 13x shorter when told it writes 13 times faster. At 8 tokens a second the stated time ranks tasks poorly (r 0.38 against 0.71 at this machine's speed), while the token count it states, put through the formula, keeps its accuracy (0.38). The model knows how much it will write better than it can divide by a speed, so computing the time outside the model removes that weakness.
+### 7.6 What should not get worse
 
-The untrained model gives about the same answer at every stated speed, so a good row of its own is a coincidence of scale.
+On the 170 held-out pool prompts, `G1-kit`'s ordinary responses are as long as the untrained model's (median drift +1.1%), and its estimates score 0.41 from the description and 0.36 from the full prompt (constant 0.56, best text regressor 0.48). General ability does suffer slightly. With the adapter on, ARC-Easy falls from 73.0% to 71.1% and ARC-Challenge from 42.2% to 40.2%, both statistically significant; training only on time questions and self-replays is not enough to keep multiple-choice accuracy intact. Because `G1-kit` is a LoRA, a deployment can switch it on only for the time question, as AuditKIT's runs did, and answer everything else with the untrained weights.
 
-### 7.5 Finding: what the adapter adds, and what it does not
+### 7.7 Negative results and the deployed model
 
-- **The stated speed alone does nothing.** The untrained model with the speed stated scores 1.71; 59 of its 68 answers are "1 minute" or "2 minutes". Five measured examples in its prompt move it to 1.29.
-- **`G1-kit` needs the stated speed.** Asked exactly as the frontier models were, with no speed, it scores 1.53 (4.6x off, median ratio 0.23x), worse than both: paired +0.28 [+0.01, +0.51] against GPT-5.5 and +0.47 [+0.25, +0.71] against Claude Opus 4.8. It still knows how much it will write: on the 56 answers that state a token count, that count put through the formula at this machine's speed scores 0.52. It cannot know how fast the machine is unless told.
-- **Wording and sampling matter little.** The paper's question wording scores 0.40, the median of 16 sampled answers 0.44, and the stated tokens through the formula 0.45, against 0.44 for the primary answer.
-- **Predictors that never call the model miss by about 2.5x** from the description (constant 0.95, TF-IDF 0.95, sentence encoder 0.90), because benchmark responses are about 2.4 times longer than pool responses and they cannot tell.
-- **The untrained model already carries the information.** A linear probe on its hidden state scores 0.66 from the question; read just before it answers the full prompt, 0.36, slightly better than `G1-kit` shown the full prompt (0.39 against its own runs, 0.32 against the untrained model's). The adapter makes the model say what its internal state already predicts.
-- **The frontier error is mostly one of scale.** Dividing each Claude Opus 4.8 estimate by one constant fitted on the other 67 tasks' outcomes would bring it to 0.27, below `G1-kit` (0.44). One number for every task, chosen with the outcomes, would score 0.38. Both need measured outcomes on the benchmark, which our training replaces with measurements on public prompts.
+Four things did not work: `G1-kit` without the stated speed (1.53), the untrained model with the speed (1.71) or five examples (1.29), sampled ranges (53% coverage for a nominal 80%), and a hosted Hugging Face Space, which needs a paid plan on this account (HTTP 402), so the demo runs locally.
 
-### 7.6 Finding: a calibrated range
-
-The 10th to 90th percentile of 16 sampled answers is too narrow: it holds 53% of measured times, not 80%. A split-conformal range calibrated on the 170 held-out pool prompts (its rule pushed before it was first computed) is the stated time divided and multiplied by 2.79, and holds 91% of `G1-kit`'s measured times; from the full prompt the factor is 2.11 and 85% are inside. The edge of the description range (2.79x) is about as wide as Claude Opus 4.8's typical miss (2.87x), so it is a safe bound rather than a sharp one. The guarantee behind split-conformal ranges assumes the benchmark tasks resemble the calibration prompts, which they do not exactly, so these shares are observations on 68 tasks.
-
-### 7.7 What should not get worse
-
-- **Response length.** On the 170 held-out pool prompts `G1-kit`'s ordinary responses are as long as the untrained model's (median drift +1.1%).
-- **Held-out pool check before the benchmark.** From the description `G1-kit` scores 0.41 on the held-out prompts and 0.36 from the full prompt (constant 0.56, best text regressor 0.48).
-- **General ability: a small, significant loss.** With `G1-kit` switched on, ARC-Easy accuracy falls from 73.0% to 71.1% and ARC-Challenge from 42.2% to 40.2% (zero-shot, all 3,548 questions; paired bootstrap p = 0.004 and 0.04; normalized accuracy falls by 2.0 and 3.2 points). The adapter is trained only on time questions and on replays of the model's own answers, and that is not enough to keep multiple-choice accuracy intact. Because it is a LoRA, a deployment can switch it on only for the time question, as AuditKIT's runs did, and answer everything else with the untrained weights, which removes the loss.
-
-### 7.8 What did not work
-
-- `G1-kit` without the stated speed (1.53, worse than both frontier models).
-- The untrained model with the stated speed (1.71) or five in-prompt examples (1.29).
-- Sampled ranges (53% coverage for a nominal 80%).
-- A public Hugging Face Space: Docker and Gradio Spaces need a paid plan on this account (HTTP 402), so the demo runs locally (§11).
-
-### 7.9 On the deployed, quantized model
-
-A Q4_K_M GGUF of `G1-kit` merged into the base model runs in the local demo on CPU (llama.cpp `b12110`, 4 threads: 17 tokens a second writing and 110 reading, as measured by the demo). One spot check on a palindrome prompt of our own: `G1-kit` stated 21.6 s, the measured run took 22.1 s, and the untrained model said 120 s. That is one example, not a benchmark result; the benchmark numbers are for bf16 on the GPU.
+A Q4_K_M GGUF of `G1-kit` merged into the base model runs the local demo on CPU (llama.cpp `b12110`, 4 threads, 17 tokens a second writing and 110 reading). In one spot check on a palindrome prompt of our own, `G1-kit` stated 21.6 s, the run took 22.1 s, and the untrained model said 120 s. That is one example, not a benchmark result.
 
 ## 8. Cost and ROI
 
-**Compute used.** Everything ran on one local NVIDIA RTX 4060 Ti 16 GB. Labelling the pool, training `G1-kit` (2.19 GPU-hours), its estimates, its timed runs and the AuditKIT runs ran, together with the jobs of the earlier adapter (§1.3), in the window from 2026-11-14 05:16 to 2026-11-15 15:37 UTC. At a public on-demand rate for this GPU ($0.11 to $0.19 an hour) that whole window would cost at most $6.5 (34.4 hours). Cash cost: $0.
+Everything ran on one local NVIDIA RTX 4060 Ti 16 GB. Labelling, training (2.19 GPU-hours), estimates, timed runs and AuditKIT runs, together with the earlier adapter's jobs, fall in the window from 2026-11-14 05:16 to 2026-11-15 15:37 UTC. At a public on-demand rate of $0.11 to $0.19 an hour, that window would cost at most $6.5 (34.4 hours). The cash cost was $0.
 
-**Cost per 1,000 estimates.** The method was declared before AuditKIT ran (§1.3). AuditKIT recorded the tokens and wall time of `G1-kit`'s 68 greedy answers: 35,440 prompt tokens (521 per answer: our system prompt, the chat template and the benchmark question), 1,511 answer tokens (22 per answer) and 62.3 seconds on the RTX 4060 Ti, one request at a time with the adapter unmerged.
+AuditKIT recorded `G1-kit`'s 68 greedy answers: 35,440 prompt tokens (521 per answer), 1,511 answer tokens (22 per answer) and 62.3 seconds, one request at a time.
 
-| Estimator | Per 1,000 estimates | How it is counted |
+| Estimator | Per 1,000 estimates | Basis |
 |---|--:|---|
-| Tiny Aya + `G1-kit`, this GPU | **$0.03 to $0.05** | 0.25 GPU-hours (0.92 s per answer) × $0.11 to $0.19 an hour ([getdeploying.com](https://getdeploying.com/gpus/nvidia-rtx-4060-ti), Nov 2026) |
-| GPT-5.5, same tokens as ours | $3.27 | 521 prompt and 22 answer tokens × $5 and $30 per million |
-| Claude Opus 4.8, same tokens as ours | $3.16 | the same tokens × $5 and $25 per million |
-| GPT-5.5, the bare question only | $0.60 | 75 prompt and 8 answer tokens (the benchmark question, the untrained model's answer length) |
-| Claude Opus 4.8, the bare question only | $0.57 | the same |
+| Tiny Aya + `G1-kit`, this GPU | **$0.03 to $0.05** | 0.25 GPU-hours × $0.11 to $0.19 an hour ([getdeploying.com](https://getdeploying.com/gpus/nvidia-rtx-4060-ti), Nov 2026) |
+| GPT-5.5 / Claude Opus 4.8, same tokens | $3.27 / $3.16 | 521 prompt and 22 answer tokens at list prices |
+| GPT-5.5 / Claude Opus 4.8, bare question | $0.60 / $0.57 | 75 prompt and 8 answer tokens |
 
-All frontier numbers are lower bounds: they use our tokenizer's counts and leave out any hidden reasoning tokens, which we cannot see. Even the strictest one, the bare question as the frontier models were asked, costs 12 to 21 times what our estimate costs, and our estimate is the more accurate one (§7.1). The one-off cost is small: training `G1-kit` took 2.19 GPU-hours ($0.24 to $0.42 at the same rate), which the saving pays back within the first 1,000 estimates. Prices: [OpenAI](https://developers.openai.com/api/docs/models/gpt-5.5) and [Anthropic](https://www.anthropic.com/pricing) list prices, Nov 2026.
+The frontier figures are lower bounds, since they use our tokenizer's counts and exclude hidden reasoning tokens. Even the bare question costs 12 to 21 times our estimate, and our estimate is the more accurate one. Training cost $0.24 to $0.42 at the same rate and pays for itself within the first 1,000 estimates. Prices: [OpenAI](https://developers.openai.com/api/docs/models/gpt-5.5) and [Anthropic](https://www.anthropic.com/pricing), Nov 2026.
 
 ## 9. Limitations
 
-- **Not a like-for-like contest.** The frontier models were asked cold and never trained for this question; ours is trained on its own measurements and told its speed. Asked without the stated speed, as the frontier models were, `G1-kit` scores 1.53 and is worse than both (§7.5).
-- **Easier clock.** A hosted model's time includes provider load and hidden reasoning; ours runs alone on a local GPU.
-- **Ranking.** Claude Opus 4.8 ranks tasks better than `G1-kit` (r 0.81 against 0.71; the intervals overlap), and one outcome-fitted correction would bring Opus ahead of us (0.27).
-- **Raw error against one well-chosen number.** For this suite on this machine one number chosen with the outcomes would score 0.38, a little better than `G1-kit` as asked (0.44); the gain is in ranking and in not needing outcomes.
-- **The adapter adds little over a probe** when both see the full prompt.
-- **One training run.** `G1-kit` was trained once, with seed 0, so the spread of the recipe is not measured here, and curation's effect is not isolated (§7.3).
-- **The adapter costs some general ability**: about 2 points on ARC-Easy and ARC-Challenge when switched on (§7.7).
-- **Post-hoc.** `G1-kit` was declared, and each of its rows fixed, before it was run, but after the benchmark had been used once with an earlier adapter (§1.3).
-- **One model, one GPU, 68 single-turn tasks, English only.** The benchmark's agentic and long-horizon suites were not run. The other-speed rows use computed targets.
-- **The frontier rows are the artifact's published numbers**; we did not rerun those models.
-- **No hosted demo** (§7.8).
+The contest is not like for like. The frontier models were asked cold and never trained for this question, while ours was trained on its own measurements and told its speed; asked the same way they were, `G1-kit` is worse than both. A hosted model's time also includes provider load and hidden reasoning, whereas ours ran alone on a local GPU. Claude Opus 4.8 ranks tasks better than `G1-kit` (r 0.81 against 0.71, with overlapping intervals), and one outcome-fitted correction would put it ahead of us. On raw error, a single number chosen with the outcomes would score 0.38, slightly better than our 0.44, so our gain lies in ranking and in not needing outcomes. A hidden-state probe matches the adapter when both see the full prompt.
+
+`G1-kit` was trained once, with seed 0, so the recipe's spread is unmeasured, and with no run without CuratorKIT, curation's effect is not isolated. The adapter costs about 2 ARC points when switched on. Its rows were fixed before they ran but after an earlier adapter had used the benchmark. The study covers one model, one GPU, 68 English single-turn tasks and computed targets for other speeds; the frontier rows are the artifact's published numbers, and there is no hosted demo.
 
 ## 10. With more credits
 
-| Planned work | Why | Expected before → after |
-|---|---|---|
-| Ask GPT-5.5 and Claude Opus 4.8 the same question with their measured speed stated, on the same 68 tasks | The missing control for the biggest caveat; MetaTime's Table 10 shows a stated pace helps them on long-horizon tasks | Their error falls from 1.06-1.24 towards 0.5-0.8; we expect ours to stay ahead on error but not on ranking |
-| Five seeds of the pipeline, and the same pipeline with CuratorKIT switched off, at matched settings | Puts an error bar on our row and isolates the CuratorKIT effect | Seed spread about ±0.05; curation effect small on this pool, larger on noisier, capped data |
-| Add general instruction data to the replay set, and check ARC again with AuditKIT | Removes the 2-point ARC cost for deployments that keep the adapter on | ARC within 0.5 points of the untrained model, time error unchanged |
-| Run the agentic and long-horizon MetaTime suites with Tiny Aya as the agent | Multi-step work is where estimates matter most | Larger errors for everyone; our first study's coding agent suggests the token-and-attempt formula keeps us within about 2x |
-| Train and test in the other Tiny Aya languages (multilingual pool from Aya datasets) | The model is multilingual; response length per language differs | Similar error per language if labels are measured per language; worse if trained only in English |
-| Real runs on other hardware (CPU, a datacenter GPU) instead of computed targets | Confirms the stated-speed rows | Errors near those of the computed rows (§7.4) |
+| Planned work | Expected before → after |
+|---|---|
+| Ask GPT-5.5 and Claude Opus 4.8 the same question with their measured speed stated, the missing control for our largest caveat | Their error falls from 1.06-1.24 towards 0.5-0.8; ours stays ahead on error but not on ranking |
+| Five seeds of the pipeline, plus the pipeline without CuratorKIT | Seed spread about ±0.05; small curation effect on this pool, larger on noisier, capped data |
+| Add general instruction data to the replay set and rerun AuditKIT's ARC check | ARC within 0.5 points of the untrained model, time error unchanged |
+| Run MetaTime's agentic and long-horizon suites with Tiny Aya as the agent | Larger errors for everyone; our first study suggests the token-and-attempt formula keeps us within about 2x |
+| Train and test in other Tiny Aya languages with a multilingual pool from Aya datasets | Similar error per language if labels are measured per language |
+| Real runs on CPU and datacenter hardware instead of computed targets | Errors near the computed rows (§7.4) |
 
 ## 11. Artifacts
 
-- **Models** ([collection](https://huggingface.co/collections/isHeSatoshi/anthropochrony-self-time-models-6af986a95a140f4184fae18f)): [`anthropochrony-tiny-aya-global-lora-g1-kit`](https://huggingface.co/isHeSatoshi/anthropochrony-tiny-aya-global-lora-g1-kit) (the CuratorKIT → AlignTune adapter), [`-g1-kit-gguf`](https://huggingface.co/isHeSatoshi/anthropochrony-tiny-aya-global-g1-kit-gguf) (Q4_K_M of the base model and of `G1-kit` merged), and the base model.
-- **Data, logs, benchmark records** ([collection](https://huggingface.co/collections/isHeSatoshi/anthropochrony-self-time-data-6af986a99994d1dfbbad03aa)): [`anthropochrony-metatime-data`](https://huggingface.co/datasets/isHeSatoshi/anthropochrony-metatime-data): training pool with per-row licenses, measured labels and responses, the leak check, the CuratorKIT report with passed and rejected ids, the AlignTune training log, the AuditKIT report, and the per-task benchmark records (no task text).
-- **Code**: https://github.com/isHeSatoshi/anthropochrony.
-- **Demo**: `space/` in the repository, a Gradio app that measures your CPU's speed, asks the untrained model and `G1-kit` how long your task will take, then runs it and times it; it also shows the benchmark results. It runs locally (§12); a hosted Space was not possible on a free account.
+- Models ([collection](https://huggingface.co/collections/isHeSatoshi/anthropochrony-self-time-models-6af986a95a140f4184fae18f)): the adapter [`anthropochrony-tiny-aya-global-lora-g1-kit`](https://huggingface.co/isHeSatoshi/anthropochrony-tiny-aya-global-lora-g1-kit), the GGUFs [`anthropochrony-tiny-aya-global-g1-kit-gguf`](https://huggingface.co/isHeSatoshi/anthropochrony-tiny-aya-global-g1-kit-gguf), and the base model.
+- Data and logs ([collection](https://huggingface.co/collections/isHeSatoshi/anthropochrony-self-time-data-6af986a99994d1dfbbad03aa)): [`anthropochrony-metatime-data`](https://huggingface.co/datasets/isHeSatoshi/anthropochrony-metatime-data) holds the training pool with per-row licenses, measured labels and responses, the leak check, the CuratorKIT report with passed and rejected ids, the AlignTune log, the AuditKIT report and per-task benchmark records without task text.
+- Code: https://github.com/isHeSatoshi/anthropochrony.
+- Demo: `space/`, a local Gradio app that measures your CPU's speed, asks the untrained model and `G1-kit` how long your task will take, then runs and times it.
 
-## 12. Reproduction and repository layout
+## 12. Reproduction
 
-| Path | What it is |
+| Path | Contents |
 |---|---|
-| `scripts/metatime/build_pool.py` | Samples the public prompts at pinned revisions and removes look-alikes of benchmark tasks |
-| `scripts/metatime/gen_labels.py` | Runs the model on the pool and records response lengths |
-| `scripts/metatime/curate.py` | CuratorKIT stage |
-| `scripts/metatime/train_aligntune.py` (examples from `train.py`) | AlignTune stage |
-| `scripts/metatime/audit.py` | AuditKIT stage |
-| `scripts/metatime/estimate.py`, `time_runs.py`, `probe.py` | Asking the time question, timed runs, the hidden-state probe |
-| `scripts/metatime/score.py`, `report.py`, `figure.py`, `metrics.py` | Scoring with the benchmark's parser, tables, figure F9 |
-| `results/metatime.json`, `results/metatime/`, `results/metatime-audit.json` | Every number, the per-task records, the AuditKIT report |
-| `notebooks/benchmark_head_to_head.ipynb`, `tests/` | Recompute the rows from the records (CPU) |
+| `scripts/metatime/build_pool.py`, `gen_labels.py` | Pool sampling and leak check; measured labels |
+| `scripts/metatime/curate.py`, `train_aligntune.py`, `audit.py` | The CuratorKIT, AlignTune and AuditKIT stages |
+| `scripts/metatime/estimate.py`, `time_runs.py`, `probe.py` | Estimates, timed runs, hidden-state probe |
+| `scripts/metatime/score.py`, `report.py`, `figure.py`, `metrics.py` | Scoring with the benchmark's parser, tables, figure |
+| `results/metatime.json`, `results/metatime/`, `results/metatime-audit.json` | Every number and per-task record |
+| `notebooks/benchmark_head_to_head.ipynb`, `tests/` | Recompute the rows from the records on CPU |
 | `space/` | Local demo |
-| `docs/METATIME.md`, `docs/PREREGISTRATION.md`, `docs/JUDGES.md` | Full results, the declarations, a judge's guide |
+| `docs/METATIME.md`, `docs/PREREGISTRATION.md`, `docs/JUDGES.md` | Full results, declarations, judge's guide |
 
-CPU only, no GPU, Hugging Face login or benchmark download needed (the records are in `results/`). From a fresh copy of the repository:
+The checks need only a CPU:
 
 ```bash
 git clone https://github.com/isHeSatoshi/anthropochrony.git
-cd anthropochrony                          # run every command below from this folder
-curl -LsSf https://astral.sh/uv/install.sh | sh   # once, if uv is not installed
-uv sync --locked                           # installs the pinned libraries into .venv
-uv run pytest                              # recomputes the published rows and ours from the records; expect: 22 passed
-uv run python scripts/run_notebook.py      # the notebook: rows, paired comparison, figure; expect: notebook executed without errors
+cd anthropochrony
+curl -LsSf https://astral.sh/uv/install.sh | sh   # if uv is not installed
+uv sync --locked
+uv run pytest                              # expect: 22 passed
+uv run python scripts/run_notebook.py      # expect: notebook executed without errors
 uv run python scripts/metatime/report.py   # prints every table of docs/METATIME.md
 ```
 
-The README's "Check it yourself" section explains what each check does.
+The GPU steps (one 16 GB GPU) are in [`docs/METATIME.md`](../docs/METATIME.md#reproduce). Times depend on the machine, so a rerun elsewhere gives other durations; each model is always compared with its own runs.
+## 13. Work done outside the hackathon
 
-The GPU steps (one 16 GB GPU; PyTorch, `transformers`, `peft`, CuratorKIT, AlignTune and AuditKIT) are listed in [`docs/METATIME.md`](../docs/METATIME.md#reproduce). Timed runs need the GPU to themselves, and times depend on the machine, so a rerun elsewhere gives other durations; the comparison is always each model against its own runs.
+All work was done during the hackathon (9 to 15 November 2026). Earlier in the same hackathon the project ran a first study on 1,465 Python coding tasks, which is not part of these results and remains at commit [`aa450e4`](https://github.com/isHeSatoshi/anthropochrony/tree/aa450e4c6a2fd6094b800d75fe26ad4216888796). This work reuses its training recipe, its ways of stating a machine's speed and 100 of its training tasks. No adapter or data from outside the hackathon is used.
 
-## 13. Declaration of work done outside the hackathon
+## 14. Author, acknowledgements and LLM use
 
-All work was done during the hackathon (9 to 15 November 2026). Before this benchmark work, during the same hackathon, the project ran a first study on 1,465 Python coding tasks; it is not part of this submission's results and stays readable in the repository history at commit [`aa450e4`](https://github.com/isHeSatoshi/anthropochrony/tree/aa450e4c6a2fd6094b800d75fe26ad4216888796). This work reuses from it the training recipe (rank, alpha, learning rate, epochs), the ways of stating a machine's speed, and 100 of its training tasks as pool prompts. No pretrained adapter or data from outside the hackathon is used.
+[@isHeSatoshi](https://huggingface.co/isHeSatoshi) did the design, code, experiments and write-up alone. Thanks to Cohere Labs (Tiny Aya Global), Lexsi Labs (CuratorKIT, AlignTune, AuditKIT), the MetaTime authors for publishing per-task frontier estimates and times, and the authors of Dolly-15k, CodeAlpaca-20k, no_robots and GSM8K. No grants or paid compute were used.
 
-## 14. Teammates, acknowledgements and LLM use
-
-- **Author:** [@isHeSatoshi](https://huggingface.co/isHeSatoshi), solo: design, code, experiments, write-up.
-- **Acknowledgements:** Cohere Labs (Tiny Aya Global), Lexsi Labs (CuratorKIT, AlignTune, AuditKIT), the MetaTime authors for publishing per-task frontier estimates and times, and the authors of Dolly-15k, CodeAlpaca-20k, no_robots and GSM8K. No grants or paid compute.
-- **LLM usage statement:** An AI coding assistant (Factory's Droid) helped write code, run experiments on the local machine and draft documentation, under the author's direction. Every number in this write-up comes from the committed result files and logs; the protocol entries were committed and pushed before the runs they describe. No LLM was used to label data or to judge outputs.
+LLM usage: an AI coding assistant (Factory's Droid) helped write code, run experiments on the local machine and draft documentation under the author's direction. Every number comes from the committed result files and logs, and the protocol entries were pushed before the runs they describe. No LLM labelled data or judged outputs.
 
 ## References
 

@@ -1,8 +1,6 @@
-# Anthropochrony
+# Anthropochrony: Measuring and Correcting Human-Time Bias in LLM Self-Estimates
 
-**Anthropochrony**: *"Anthropochrony: Measuring and Correcting Human-Time Bias in LLM Self-Estimates"*
-
-*Anthropochrony*, from the Greek *anthropos* (human) and *chronos* (time): a model keeping time on a human clock.
+From the Greek *anthropos* (human) and *chronos* (time): a model keeping time on a human clock.
 
 ### Ask an AI how long a task will take it and it answers on a human clock. We taught Cohere's Tiny Aya Global to know its own.
 

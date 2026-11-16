@@ -203,7 +203,7 @@ A Q4_K_M GGUF of `G1-kit` merged into the base model runs the local demo on CPU 
 
 ## 8. Cost and ROI
 
-Everything ran on one local NVIDIA RTX 4060 Ti 16 GB. Labelling, training (2.19 GPU-hours), estimates, timed runs and AuditKIT runs, together with the earlier adapter's jobs, fall in the window from 2026-11-14 05:16 to 2026-11-15 15:37 UTC. At a public on-demand rate of $0.11 to $0.19 an hour, that window would cost at most $6.5 (34.4 hours). The cash cost was $0.
+Everything in this submission ran on one local NVIDIA RTX 4060 Ti 16 GB. Labelling, training (2.19 GPU-hours), estimates, timed runs and AuditKIT runs, together with the earlier adapter's jobs, fall in the window from 2026-11-14 05:16 to 2026-11-15 15:37 UTC. At a public on-demand rate of $0.11 to $0.19 an hour, that window would cost at most $6.5 (34.4 hours). The cash cost of these runs was $0. The project's earlier coding study (§13) ran on Hugging Face compute and cost about $40.
 
 AuditKIT recorded `G1-kit`'s 68 greedy answers: 35,440 prompt tokens (521 per answer), 1,511 answer tokens (22 per answer) and 62.3 seconds, one request at a time.
 
@@ -271,7 +271,7 @@ All work was done during the hackathon (9 to 15 November 2026). Earlier in the s
 
 ## 14. Author, acknowledgements and LLM use
 
-[@isHeSatoshi](https://huggingface.co/isHeSatoshi) did the design, code, experiments and write-up alone. Thanks to Cohere Labs (Tiny Aya Global), Lexsi Labs (CuratorKIT, AlignTune, AuditKIT), the MetaTime authors for publishing per-task frontier estimates and times, and the authors of Dolly-15k, CodeAlpaca-20k, no_robots and GSM8K. No grants or paid compute were used.
+[@isHeSatoshi](https://huggingface.co/isHeSatoshi) did the design, code, experiments and write-up alone. Thanks to Cohere Labs (Tiny Aya Global), Lexsi Labs (CuratorKIT, AlignTune, AuditKIT), the MetaTime authors for publishing per-task frontier estimates and times, and the authors of Dolly-15k, CodeAlpaca-20k, no_robots and GSM8K. No grants were received. The runs in this submission used a local GPU; the earlier coding study used about $40 of Hugging Face compute.
 
 LLM usage: an AI coding assistant (Factory's Droid) helped write code, run experiments on the local machine and draft documentation under the author's direction. Every number comes from the committed result files and logs, and the protocol entries were pushed before the runs they describe. No LLM labelled data or judged outputs.
 

@@ -43,8 +43,6 @@ THREADS=4 /tmp/demo-env/bin/python space/app.py        # then open http://127.0.
 The app downloads `base-q4_k_m.gguf` and `g1-kit-q4_k_m.gguf` from
 [`isHeSatoshi/anthropochrony-tiny-aya-global-g1-kit-gguf`](https://huggingface.co/isHeSatoshi/anthropochrony-tiny-aya-global-g1-kit-gguf)
 on first start; set `GGUF_BASE` and `GGUF_G1` to local paths to skip that. `THREADS` sets
-the CPU threads and `MAX_RUN_TOKENS` caps the timed run (768 by default). The `Dockerfile`
-was written for a Docker Space, which needs a paid Hugging Face plan; it has not been built
-or tested, while the steps above have.
+the CPU threads and `MAX_RUN_TOKENS` caps the timed run (768 by default).
 
 `space/build_data.py` rebuilds `space/data/` (the benchmark tab) from `results/metatime.json`.

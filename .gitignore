@@ -17,3 +17,5 @@ artifacts/
 # The first study is kept locally only; it is in the git history up to aa450e4.
 legacy/
 .cache-gpu/
+paper/submission_fields.md
+*.png.manifest.json

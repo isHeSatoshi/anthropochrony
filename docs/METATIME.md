@@ -489,7 +489,6 @@ benchmark artifact once:
 
 ```bash
 uv sync --locked
-. ./env.sh
 uv run python scripts/metatime/score.py --suite /path/to/metatime-artifact   # needs data/metatime/ for a full rescore
 uv run python scripts/metatime/report.py                                     # prints the tables on this page
 uv run python scripts/metatime/figure.py                                     # redraws the figure

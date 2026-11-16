@@ -61,7 +61,7 @@ Every control, the full tables and the commands are in [`docs/METATIME.md`](docs
 3. **Train.** AlignTune trains the adapter to answer "how long will this take you?" with the work first and the time second, for example `Prompt: about 380 tokens. Response: about 520 tokens.` and then `Time: 15.4 seconds`. Each training prompt states a machine speed, drawn from a wide range (writing speeds from 2 to 2,500 tokens a second), and the time in the answer is worked out from the token counts at that speed. So the model learns how much work a task is for it, and that the time depends on the machine.
 4. **Ask and check.** On the benchmark, the prompt states the speed we measured on our own machine (an RTX 4060 Ti, with the adapter on: about 30 tokens a second writing and 3,300 reading), followed by the benchmark's own question. The benchmark's own parser reads the time out of the answer. We compare it with the median of five timed runs of the same model on the full task. AuditKIT runs its own check of the gain and of general ability.
 
-The adapter in this submission was trained and timed locally on one desktop GPU (an RTX 4060 Ti). The project's earlier coding study ran on Hugging Face, for about $40 of compute.
+Compute: a local RTX 4060 Ti and about $40 of Hugging Face compute.
 
 ## Check it yourself
 

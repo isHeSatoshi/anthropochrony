@@ -19,7 +19,7 @@ The write-up contains no harmful or NSFW content.
 
 ## Abstract
 
-Ask a language model how long a task will take it and it answers the way a person would. It learned what "a few minutes" means from text written by people, so it quotes a human's time for work it finishes in seconds. Those answers end up in job queues, timeouts, routing decisions and the messages users read. The MetaTime benchmark measured the gap: on its 68 single-turn tasks, GPT-5.5 and Claude Opus 4.8 are typically 3.47x and 2.87x off their own measured times, and only 12% and 25% of their estimates land within a factor of two.
+Ask a language model how long a task will take it and it answers the way a person would. It learned what "a few minutes" means from text written by people, so it quotes a human's time for work it finishes in seconds. Those answers end up in job queues, timeouts, routing decisions and the messages users read. [MetaTime](https://openreview.net/forum?id=CAQeizWcB2), a benchmark paper under review at ICLR 2027, measured the gap: on its 68 single-turn tasks, GPT-5.5 and Claude Opus 4.8 are typically 3.47x and 2.87x off their own measured times, and only 12% and 25% of their estimates land within a factor of two.
 
 A model's running time costs nothing to label. You run the model and count. We used this to teach Cohere Labs' Tiny Aya Global (3.35B) its own clock with the Track 1 pipeline and no teacher model. The untrained model answered 1,523 public instruction prompts three times each, after we removed 21 that resembled a benchmark task, and we recorded how many tokens it read and wrote. CuratorKIT gated the 1,353 training prompts and dropped those whose answers hit the generation cap, because their labels are only lower bounds; 1,342 passed. AlignTune trained a LoRA adapter, `G1-kit`, to answer the time question in two steps: first the tokens it expects to read and write, then the seconds those take at the machine speed stated in its prompt. AuditKIT evaluated the result against the untrained model.
 
@@ -30,7 +30,7 @@ The comparison has limits. Ours is told its speed while the frontier models were
 
 ### 1.1 Why this problem
 
-Systems that run models need to know how long work will take: to order a queue, to decide when a run has hung, to send a task to a phone or a server, or to tell a customer when to expect an answer. More and more often they ask the model, and the model replies with a human's time. MetaTime (anonymous ICLR 2027 submission, OpenReview `CAQeizWcB2`) measured this for frontier models, and Monperrus and Stenqvist call it anthropocentric time bias. We did not discover the problem. What we add is the observation that a model's running time costs nothing to measure, so the model can label its own training data, and the track's pipeline can clean that data, train on it and audit the result.
+Systems that run models need to know how long work will take: to order a queue, to decide when a run has hung, to send a task to a phone or a server, or to tell a customer when to expect an answer. More and more often they ask the model, and the model replies with a human's time. [MetaTime](https://openreview.net/forum?id=CAQeizWcB2) (anonymous ICLR 2027 submission) measured this for frontier models, and Monperrus and Stenqvist call it anthropocentric time bias. We did not discover the problem. What we add is the observation that a model's running time costs nothing to measure, so the model can label its own training data, and the track's pipeline can clean that data, train on it and audit the result.
 
 We asked four questions. Can a 3B open model, trained by CuratorKIT → AlignTune only on measurements of itself on public prompts, estimate its own time on unseen benchmark tasks better than frontier models estimate theirs? This is the primary question, with a criterion fixed in advance. Does the estimate follow the hardware when a different speed is stated? How much of the gain comes from the adapter rather than the stated speed, a calibrated average, or what the untrained model already knows? And what does the adapter cost in general ability?
 
@@ -275,7 +275,7 @@ LLM usage: an AI coding assistant (Factory's Droid) helped write code, run exper
 
 ## References
 
-- MetaTime: anonymous ICLR 2027 submission, OpenReview `CAQeizWcB2`; artifact `https://anonymous.4open.science/r/Time-Estimation-B286` (snapshot 8 Oct 2026).
+- MetaTime: anonymous ICLR 2027 submission, [OpenReview `CAQeizWcB2`](https://openreview.net/forum?id=CAQeizWcB2); artifact `https://anonymous.4open.science/r/Time-Estimation-B286` (snapshot 8 Oct 2026).
 - Garikaparthi et al., arXiv 2604.00010 (the single-turn task suite).
 - Monperrus and Stenqvist, anthropocentric time bias in coding agents.
 - Romano, Patterson and Candès (2019), Conformalized Quantile Regression.
